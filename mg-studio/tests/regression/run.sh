@@ -2,7 +2,7 @@
 # 旧片回归：复制源项目（含旧 timeline.json，不含 frames/out）→ 抽帧重渲 → 与原帧像素比对
 # 用旧 timeline.json（只读复制）而非重建：隔离已失传的旧 build_timeline 算法漂移，
 # 使像素回归专测 render.js + scene.html 的迁移保真（真正的迁移问题）。
-# build_timeline 保真另由 e2e.v1/v2 + sicd 字节一致重建覆盖。
+# build_timeline 保真由其与冻结插件源字节一致（cmp）+ e2e.v1 冒烟覆盖；sicd 重建字节一致见 task-9-report.md 取证。
 set -euo pipefail
 TOOLKIT="$(cd "$(dirname "$0")/../.." && pwd)"
 SRC_ROOT="/Users/wangguoyang/Documents/Qoder/2026-11-05/1dbc0620"

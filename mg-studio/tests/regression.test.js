@@ -23,9 +23,11 @@ test('回归验收包络：接受实测 AA 漂移、拒绝真实失真', () => {
   assert.ok(withinEnvelope({ identical: false, max: 1, changed: 817, total }), 'qwenwork f1765 宽幅 ±1 dithering（817px）应接受');
   assert.ok(withinEnvelope({ identical: false, max: 2, changed: 59, total }), 'qwenwork f1044（max2/59px）应接受');
   // 真实失真样本（必须拒绝）
-  assert.ok(!withinEnvelope({ identical: false, max: 18, changed: 5000, total }), '错相位 max18 应拒绝');
+  // 第一例特意取小面积（100px<4147）大幅值（18>16）：仅靠幅值界拒绝，
+  // 从而锁死 MAX_DELTA——若有人把 MAX_DELTA 调到 >=18，此例被接受 → 守卫 RED。
+  assert.ok(!withinEnvelope({ identical: false, max: 18, changed: 100, total }), '小面积错色 max18 应拒绝（锁幅值界）');
   assert.ok(!withinEnvelope({ identical: false, max: 238, changed: 50000, total }), '大幅失真 max238 应拒绝');
-  assert.ok(!withinEnvelope({ identical: false, max: 5, changed: 50000, total }), '低幅大面积失真（5 万像素）应拒绝');
+  assert.ok(!withinEnvelope({ identical: false, max: 5, changed: 50000, total }), '低幅大面积失真（5 万像素）应拒绝（锁面积界）');
 });
 
 test('千问办公 + S-ICD 抽帧与旧版像素等价（旧 timeline，AA 包络内）', { timeout: 420000 }, () => {
