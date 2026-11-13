@@ -69,3 +69,18 @@ test('loadProject：story 缺 beats 时抛带 irErrors 的 Error', () => {
   assert.throws(() => ir.loadProject(dir, []),
     e => e instanceof Error && Array.isArray(e.irErrors) && e.irErrors.some(m => /beats/.test(m)));
 });
+test('validateStory：beats 为非数组（5/{}/true）时报错而非抛 TypeError', () => {
+  for (const bad of [5, {}, true]) {
+    const s = story(); s.beats = bad;
+    const r = ir.validateStory(s);
+    assert.ok(!r.ok);
+    assert.ok(r.errors.some(m => /beats/.test(m)));
+  }
+});
+test('loadProject：story.beats 为 {} 时抛带 irErrors 的 Error 而非 TypeError', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mg-objbeats-'));
+  fs.writeFileSync(path.join(dir, 'story.json'), JSON.stringify({ schema: 2, meta: { title: '测试片', audience: 'general', template: 'free', durationTarget: 20 }, beats: {} }));
+  fs.copyFileSync(path.join(FIX, 'mini-v2', 'tokens.json'), path.join(dir, 'tokens.json'));
+  assert.throws(() => ir.loadProject(dir, []),
+    e => e instanceof Error && !(e instanceof TypeError) && Array.isArray(e.irErrors) && e.irErrors.some(m => /beats/.test(m)));
+});

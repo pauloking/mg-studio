@@ -16,8 +16,8 @@ function validateStory(story) {
   if (!AUDIENCES.includes(m.audience)) errors.push('meta.audience 非法: ' + m.audience);
   if (!TEMPLATES.includes(m.template)) errors.push('meta.template 非法: ' + m.template);
   if (!(typeof m.durationTarget === 'number' && m.durationTarget > 0)) errors.push('meta.durationTarget 必须为正数');
-  const beats = (story && story.beats) || [];
-  if (!Array.isArray(beats) || beats.length === 0) errors.push('beats 不能为空');
+  const beats = Array.isArray(story && story.beats) ? story.beats : [];
+  if (!Array.isArray(story && story.beats) || beats.length === 0) errors.push('beats 不能为空');
   const seen = new Set();
   for (const b of beats) {
     if (!b.id || !ID_RE.test(b.id)) errors.push('beat.id 非法: ' + b.id);
