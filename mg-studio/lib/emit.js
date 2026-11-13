@@ -58,7 +58,7 @@ window.__frame = function (j) { try {
 } catch (e) { window.__err = String(e && e.stack || e); } };
 const __only = new URLSearchParams(location.search).get('scene');
 fetch('timeline.json').then(r => r.json()).then(tl => { TL = tl;
-  tl.scenes.forEach(sc => sc.dur = (sc.end - sc.start) / tl.fps);
+  tl.scenes.forEach(sc => { sc.audioDur = sc.dur; sc.dur = (sc.end - sc.start) / tl.fps; });
   buildScenes();
   if (__only) { const sc = TL.scenes.find(s => s.id === __only);
     if (!sc) { window.__err = 'unknown scene: ' + __only; return; }

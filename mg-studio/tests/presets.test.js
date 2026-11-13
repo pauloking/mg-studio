@@ -34,6 +34,13 @@ test('cueLt：narration 比例映射旁白窗口，lt 直读', () => {
   assert.equal(c.cueLt('narration:0.5', sc), 2.7);
   assert.equal(c.cueLt('lt:1.2', sc), 1.2);
 });
+test('cueLt：narration 比例优先用 audioDur（旁白时长），无则回退 dur', () => {
+  const c = sandbox();
+  // 生产：dur 已被 emit 覆盖为场景长度，audioDur 保留旁白时长
+  assert.equal(c.cueLt('narration:0.5', { start: 300, audioStart: 10.7, dur: 99, audioDur: 4 }), 2.7);
+  // 独立 vm 契约：无 audioDur 回退 dur
+  assert.equal(c.cueLt('narration:0.5', { start: 300, audioStart: 10.7, dur: 4 }), 2.7);
+});
 test('upEl：emphasis 结束后回到恒等，stat 数字滚动', () => {
   const c = sandbox();
   const e = { style: {}, __num: { textContent: '' } };

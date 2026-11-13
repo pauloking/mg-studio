@@ -40,7 +40,7 @@ test('compileProject v2 产出 script.json v2 与契约 scene.html', () => {
   assert.equal(script.scenes[0].beat.role, 'hook');
   assert.equal(script.tts.backend, 'local');
   const html = fs.readFileSync(path.join(work, 'scene.html'), 'utf8');
-  for (const needle of ['window.__ready', 'window.__N', 'window.__frame', 'window.__err', 'SPECS', 'const PRE', 'up_hook', 'up_takeaway', ':root', "URLSearchParams(location.search).get('scene')"])
+  for (const needle of ['window.__ready', 'window.__N', 'window.__frame', 'window.__err', 'SPECS', 'const PRE', 'up_hook', 'up_takeaway', ':root', "URLSearchParams(location.search).get('scene')", 'sc.audioDur = sc.dur; sc.dur = (sc.end - sc.start) / tl.fps'])
     assert.ok(html.includes(needle), 'scene.html 缺少 ' + needle);
 });
 
@@ -53,6 +53,7 @@ test('subsOverride 与旁白不一致时阻断', () => {
   const r = compileProject(work);
   assert.ok(r.errors.some(e => /字幕/.test(e)));
   assert.ok(!fs.existsSync(path.join(work, 'script.json')), '有 B 级错误不得写文件');
+  assert.ok(!fs.existsSync(path.join(work, 'scene.html')), '有 B 级错误不得写 scene.html');
 });
 
 test('v1 直通：不写任何文件', () => {

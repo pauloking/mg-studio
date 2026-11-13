@@ -36,7 +36,8 @@ function put(e, c) {
 function cueLt(c, sc) {
   if (c.startsWith('lt:')) return parseFloat(c.slice(3));
   const r = parseFloat(c.slice(10));
-  return Math.round(((sc.audioStart - sc.start / TL.fps) + r * sc.dur) * 1e9) / 1e9;
+  const ad = sc.audioDur != null ? sc.audioDur : sc.dur;
+  return Math.round(((sc.audioStart - sc.start / TL.fps) + r * ad) * 1e9) / 1e9;
 }
 function upEl(e, sp, lt, dur, sc) {
   const en = sp.enter ? PRE[sp.enter.preset](eo(seg(lt, sp.enter.at, sp.enter.at + sp.enter.dur))) : {};
