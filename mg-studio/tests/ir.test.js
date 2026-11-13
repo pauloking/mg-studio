@@ -45,3 +45,27 @@ test('loadProject v1：仅 script.json 时直通', () => {
   assert.equal(p.mode, 'v1');
   assert.equal(p.script.scenes[0].id, 'intro');
 });
+test('loadProject：scene.id 与 beat 不匹配时报错且不合并', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mg-pair-'));
+  fs.copyFileSync(path.join(FIX, 'mini-v2', 'story.json'), path.join(dir, 'story.json'));
+  fs.copyFileSync(path.join(FIX, 'mini-v2', 'tokens.json'), path.join(dir, 'tokens.json'));
+  fs.mkdirSync(path.join(dir, 'scenes'));
+  fs.copyFileSync(path.join(FIX, 'mini-v2', 'scenes', 'takeaway.json'), path.join(dir, 'scenes', 'hook.json'));
+  fs.copyFileSync(path.join(FIX, 'mini-v2', 'scenes', 'takeaway.json'), path.join(dir, 'scenes', 'takeaway.json'));
+  assert.throws(() => ir.loadProject(dir, ['title-card', 'points']),
+    e => Array.isArray(e.irErrors) && e.irErrors.some(m => /不匹配/.test(m)));
+});
+test('validateScene(null) 返回 {ok:false} 而非抛 TypeError', () => {
+  const r = ir.validateScene(null, ['hook'], ['title-card']);
+  assert.ok(!r.ok);
+});
+test('validateTokens({colors:null}) 返回 {ok:false} 而非抛 TypeError', () => {
+  const r = ir.validateTokens({ colors: null });
+  assert.ok(!r.ok);
+});
+test('loadProject：story 缺 beats 时抛带 irErrors 的 Error', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mg-nobeats-'));
+  fs.writeFileSync(path.join(dir, 'story.json'), JSON.stringify({ schema: 2, meta: { title: '测试片', audience: 'general', template: 'free', durationTarget: 20 } }));
+  assert.throws(() => ir.loadProject(dir, []),
+    e => e instanceof Error && Array.isArray(e.irErrors) && e.irErrors.some(m => /beats/.test(m)));
+});

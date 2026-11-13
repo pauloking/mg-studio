@@ -35,7 +35,8 @@ function validateStory(story) {
 
 function validateScene(sc, beatIds, layoutNames) {
   const errors = [];
-  if (!sc || !ID_RE.test(sc.id || '')) errors.push('scene.id 非法: ' + (sc && sc.id));
+  if (!sc || typeof sc !== 'object') return { ok: false, errors: ['scene 须为对象'] };
+  if (!ID_RE.test(sc.id || '')) errors.push('scene.id 非法: ' + sc.id);
   if (!beatIds.includes(sc.beat)) errors.push(`scene ${sc.id} 引用不存在的 beat: ${sc.beat}`);
   if (sc.id !== sc.beat) errors.push(`M1 要求 scene.id === beat（${sc.id} vs ${sc.beat}）`);
   if (!layoutNames.includes(sc.layout)) errors.push(`scene ${sc.id} layout 未知: ${sc.layout}`);
@@ -60,7 +61,7 @@ function validateScene(sc, beatIds, layoutNames) {
 
 function validateTokens(tk) {
   const errors = [];
-  if (!tk || typeof tk.colors !== 'object') return { ok: false, errors: ['tokens.colors 缺失'] };
+  if (!tk || typeof tk.colors !== 'object' || tk.colors == null) return { ok: false, errors: ['tokens.colors 缺失'] };
   for (const k of ['bg', 'ink', 'accent']) if (!HEX_RE.test(tk.colors[k] || '')) errors.push('colors.' + k + ' 须为 #rrggbb');
   for (const [k, v] of Object.entries(tk.colors)) if (!HEX_RE.test(v)) errors.push('colors.' + k + ' 非法: ' + v);
   if (!tk.subtitle || typeof tk.subtitle.bottom !== 'number') errors.push('subtitle.bottom 须为数字');
@@ -78,14 +79,16 @@ function loadProject(dir, layoutNames) {
   const tkPath = path.join(dir, 'tokens.json');
   const tokens = fs.existsSync(tkPath) ? JSON.parse(fs.readFileSync(tkPath, 'utf8'))
     : JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'templates', 'tokens.default.json'), 'utf8'));
-  const beatIds = story.beats.map(b => b.id);
+  const beats = Array.isArray(story && story.beats) ? story.beats : [];
+  const beatIds = beats.map(b => b.id);
   const scenes = [];
   const errors = [...validateStory(story).errors, ...validateTokens(tokens).errors];
-  for (const b of story.beats) {
+  for (const b of beats) {
     const sp = path.join(dir, 'scenes', b.id + '.json');
     if (!fs.existsSync(sp)) { errors.push('缺少场景文件: scenes/' + b.id + '.json'); continue; }
     const sc = JSON.parse(fs.readFileSync(sp, 'utf8'));
     errors.push(...validateScene(sc, beatIds, layoutNames).errors);
+    if (!sc || sc.id !== b.id) { errors.push('场景文件 scenes/' + b.id + '.json 的 id 与 beat 不匹配: ' + (sc && sc.id)); continue; }
     scenes.push(Object.assign({}, sc, { narration: b.narration, beat: { role: b.role, emotion: b.emotion, intent: b.intent, facts: b.facts } }));
   }
   if (errors.length) { const e = new Error('IR 校验失败:\n' + errors.join('\n')); e.irErrors = errors; throw e; }
