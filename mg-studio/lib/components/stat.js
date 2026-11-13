@@ -5,7 +5,7 @@ module.exports = {
   css: () => `
 .st-wrap { position:absolute; display:flex; flex-direction:column; align-items:center; }
 .st-row { display:flex; align-items:baseline; gap:16px; }
-.st-num { font-size:160px; font-weight:700; color:var(--accent); font-variant-numeric:tabular-nums; }
+.st-num { font-size:160px; font-weight:700; color:var(--accent2); font-variant-numeric:tabular-nums; }
 .st-unit { font-size:48px; color:var(--muted); }
 .st-label { font-size:40px; color:var(--muted); margin-top:18px; letter-spacing:2px; }`,
   build: (sc) => {
@@ -23,6 +23,6 @@ module.exports = {
   },
   boxes: (sc) => sc.elements.map(el => ({
     id: el.id, x: el.props.x != null ? el.props.x : 760, y: el.props.y != null ? el.props.y : 400,
-    w: 400, h: 280, text: (el.props.label || '') + String(el.props.value) + (el.props.unit || ''), colorKey: 'accent'
+    w: 400, h: 280, text: (el.props.label || ''), colorKey: 'accent2'
   }))
 };

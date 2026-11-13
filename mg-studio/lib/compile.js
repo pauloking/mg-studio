@@ -5,6 +5,7 @@ const { splitSubs, checkSubs } = require('./subs');
 const { PRESET_DEFAULT_DUR, PRE_RUNTIME, ENTER_PRESETS, EMPHASIS_PRESETS, EXIT_PRESETS } = require('./presets');
 const { emitSceneHtml } = require('./emit');
 const { COMPONENTS, LAYOUT_NAMES } = require('./components');
+const { lintMotion } = require('./motion-lint');
 
 function normalizeScene(sc) {
   const elements = (sc.elements || []).map(el => {
@@ -57,7 +58,10 @@ function compileProject(dir) {
   let scenes, lint = [];
   try { scenes = project.scenes.map(normalizeScene); }
   catch (e) { errors.push(e.message); scenes = project.scenes; }
-  // Task 8 接入 motion-lint；此前 lint 恒为 []
+  if (!errors.length) {
+    lint = lintMotion({ scenes, tokens: project.tokens, components: COMPONENTS });
+    for (const l of lint) if (l.level === 'B') errors.push(`${l.code} ${l.scene}/${l.el || ''}: ${l.msg}`);
+  }
   if (errors.length) return { mode: 'v2', lint, errors };
   for (const sc of scenes) for (const el of sc.elements)
     if (el.type === 'waveform') el.props.colorHex = project.tokens.colors[el.props.color || 'accent'];
