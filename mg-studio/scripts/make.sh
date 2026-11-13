@@ -10,6 +10,10 @@ TOOLKIT="${1:?用法: make.sh <toolkit目录> [local|bailian] [输出名]}"
 BACKEND="${2:-local}"
 OUTNAME="${3:-output}"
 FPS=30
+if [ -f story.json ]; then
+  echo "==> 0/5 编译分镜"
+  node "$TOOLKIT/scripts/compile.js"
+fi
 
 echo "==> 1/5 配音 ($BACKEND)"
 node "$TOOLKIT/scripts/tts.js" --backend "$BACKEND"
