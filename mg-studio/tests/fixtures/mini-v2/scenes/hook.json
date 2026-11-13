@@ -1,0 +1,9 @@
+{
+  "id": "hook", "beat": "hook", "minSec": 4, "layout": "title-card",
+  "elements": [
+    { "id": "title", "type": "text", "props": { "role": "title", "content": "你好世界" }, "enter": { "preset": "scale", "at": 0.4, "dur": 0.9 } },
+    { "id": "bar", "type": "bar", "props": {}, "enter": { "preset": "grow", "at": 1.1, "dur": 0.7 } },
+    { "id": "subtitle", "type": "text", "props": { "role": "subtitle", "content": "确定性渲染" }, "enter": { "preset": "rise", "at": 1.5, "dur": 0.7 } }
+  ],
+  "cues": [], "subsOverride": null, "custom": null
+}

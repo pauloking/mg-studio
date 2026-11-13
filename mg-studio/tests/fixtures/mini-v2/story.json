@@ -1,0 +1,8 @@
+{
+  "schema": 2,
+  "meta": { "title": "测试片", "audience": "general", "template": "free", "durationTarget": 20 },
+  "beats": [
+    { "id": "hook", "role": "hook", "emotion": 4, "intent": "标题开场", "narration": "你好，世界。", "facts": [] },
+    { "id": "takeaway", "role": "takeaway", "emotion": 3, "intent": "两个要点收尾", "narration": "要点一，要点二。", "facts": [] }
+  ]
+}

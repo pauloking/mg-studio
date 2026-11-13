@@ -1,0 +1,8 @@
+{
+  "id": "takeaway", "beat": "takeaway", "minSec": 5, "layout": "points",
+  "elements": [
+    { "id": "c0", "type": "card", "props": { "title": "要点一", "desc": "说明一" }, "enter": { "preset": "rise", "at": 0.5, "dur": 0.6 } },
+    { "id": "c1", "type": "card", "props": { "title": "要点二", "desc": "说明二" }, "enter": { "preset": "rise", "at": 0.85, "dur": 0.6 } }
+  ],
+  "cues": [], "subsOverride": null, "custom": null
+}

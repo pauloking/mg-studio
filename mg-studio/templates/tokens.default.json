@@ -1,0 +1,5 @@
+{
+  "colors": { "bg": "#070b16", "ink": "#f5f7ff", "muted": "#c6cdf5", "accent": "#6a5cff", "accent2": "#00c2ff", "success": "#22c55e", "warning": "#f59e0b", "danger": "#ef4444" },
+  "font": { "family": "\"PingFang SC\",\"Hiragino Sans GB\",\"Microsoft YaHei\",sans-serif" },
+  "subtitle": { "bottom": 64, "fontSize": 40, "maxW": 1560 }
+}
