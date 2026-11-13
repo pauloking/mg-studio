@@ -62,7 +62,7 @@ function validateScene(sc, beatIds, layoutNames) {
 function validateTokens(tk) {
   const errors = [];
   if (!tk || typeof tk.colors !== 'object' || tk.colors == null) return { ok: false, errors: ['tokens.colors 缺失'] };
-  for (const k of ['bg', 'ink', 'accent']) if (!HEX_RE.test(tk.colors[k] || '')) errors.push('colors.' + k + ' 须为 #rrggbb');
+  for (const k of ['bg', 'ink', 'accent', 'accent2', 'muted']) if (!HEX_RE.test(tk.colors[k] || '')) errors.push('colors.' + k + ' 须为 #rrggbb');
   for (const [k, v] of Object.entries(tk.colors)) if (!HEX_RE.test(v)) errors.push('colors.' + k + ' 非法: ' + v);
   if (!tk.subtitle || typeof tk.subtitle.bottom !== 'number') errors.push('subtitle.bottom 须为数字');
   return { ok: errors.length === 0, errors };

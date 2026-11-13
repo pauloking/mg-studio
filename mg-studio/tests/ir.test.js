@@ -84,3 +84,14 @@ test('loadProject：story.beats 为 {} 时抛带 irErrors 的 Error 而非 TypeE
   assert.throws(() => ir.loadProject(dir, []),
     e => e instanceof Error && !(e instanceof TypeError) && Array.isArray(e.irErrors) && e.irErrors.some(m => /beats/.test(m)));
 });
+test('validateTokens：组件引用的色键 accent2/muted 缺失时报错（而非下游 lint 崩溃）', () => {
+  const base = JSON.parse(fs.readFileSync(path.join(FIX, 'mini-v2', 'tokens.json'), 'utf8'));
+  const noAccent2 = JSON.parse(JSON.stringify(base)); delete noAccent2.colors.accent2;
+  const r1 = ir.validateTokens(noAccent2);
+  assert.ok(!r1.ok);
+  assert.ok(r1.errors.some(m => /accent2/.test(m)));
+  const noMuted = JSON.parse(JSON.stringify(base)); delete noMuted.colors.muted;
+  const r2 = ir.validateTokens(noMuted);
+  assert.ok(!r2.ok);
+  assert.ok(r2.errors.some(m => /muted/.test(m)));
+});
