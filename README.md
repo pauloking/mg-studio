@@ -6,7 +6,7 @@
 
 渲染核继承自已验证的 motion-explainer-video 管线（字节级冻结），本项目新增 **IR v2 编译层**，把声明式分镜编译为可渲染的 `script.json` + 自包含 `scene.html`。
 
-**当前形态**：本地 CLI / Agent 工具包（Node CommonJS，非网页/GUI）。**里程碑**：M1 编译核已交付（标签 `v0.1.0-m1`，全量测试 61/61 通过）。
+**当前形态**：本地 CLI / Agent 工具包（Node CommonJS，非网页/GUI）。**里程碑**：M1 编译核已交付（标签 `v0.1.0-m1`，61/61）；main 续增回归可移植性测试，当前全量 62/62 通过。
 
 ---
 
@@ -112,8 +112,8 @@ node mg-studio/scripts/compile.js [项目目录]   # 只编译 + 看 lint（B �
 
 ## 状态与路线图
 
-- **M1 编译核（已交付，`v0.1.0-m1`）**：IR v2 编译层 + 4 组件 + 编译期 lint + 旧片像素等价回归 + 声明式端到端验收。全量测试 61/61。
-- **M2（backlog）**：可配 subtitle bottom + 派生 zone、DOM 测量盒（替代 boxes 近似）、waveform 揭示耦合 enter.at/dur、points 自动换行、DENSITY 整数步进、lint try/catch、browser.js 加固、色键 `Object.hasOwn`、`font.family` 入 `<style>` 的 sanitization、null-element/坐标守卫、回归素材路径可配置（CI/换机可移植）。
+- **M1 编译核（已交付，`v0.1.0-m1`）**：IR v2 编译层 + 4 组件 + 编译期 lint + 旧片像素等价回归（素材根 `MG_REGRESSION_SRC` 可配置、缺失自动跳过）+ 声明式端到端验收。当前全量测试 62/62。
+- **M2（backlog）**：可配 subtitle bottom + 派生 zone、DOM 测量盒（替代 boxes 近似）、waveform 揭示耦合 enter.at/dur、points 自动换行、DENSITY 整数步进、lint try/catch、browser.js 加固、色键 `Object.hasOwn`、`font.family` 入 `<style>` 的 sanitization、null-element/坐标守卫。
 - **M3+**：增量渲染、更多组件与故事模板。
 
 ## 测试
@@ -125,7 +125,7 @@ npm test          # = node --test --test-concurrency=1 tests/*.test.js（串行�
 
 覆盖：IR/字幕/预设/编译/lint/转义单元测试、浏览器帧驱动组件测试（全局 Playwright + Chrome）、声明式端到端出片（mini-v2 / mini-av）、旧片像素等价回归（python3 + PIL）。
 
-> **可移植性提示**：`tests/regression/run.sh` 硬编码了本机旧素材路径 `SRC_ROOT`，像素回归依赖该素材，换机器/CI 不可直接跑（其余测试用随包 fixture，可移植）。路径可配置化属 M2 改进。
+> **可移植性提示**：像素回归依赖本机只读旧素材，素材根由环境变量 `MG_REGRESSION_SRC` 配置（缺省沿用本机路径，本机回归照常跑）。换机器/CI 无该素材时，`tests/regression/run.sh` 自动输出 `{"skip":true}` 干净跳过、像素测试随之 skip（校准守卫纯函数单测始终运行，验收包络不被弱化）；其余测试用随包 fixture，可移植。在任意机器设 `MG_REGRESSION_SRC` 指向素材根（含 `qwenwork-video/`、`sicd-video/`）即可恢复像素回归。
 
 ## 设计文档
 

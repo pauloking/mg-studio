@@ -5,8 +5,25 @@
 # build_timeline 保真由其与冻结插件源字节一致（cmp）+ e2e.v1 冒烟覆盖；sicd 重建字节一致见 task-9-report.md 取证。
 set -euo pipefail
 TOOLKIT="$(cd "$(dirname "$0")/../.." && pwd)"
-SRC_ROOT="/Users/wangguoyang/Documents/Qoder/2026-11-05/1dbc0620"
+# 素材根可配置：MG_REGRESSION_SRC 覆盖；缺省沿用本机只读旧片路径（本机回归照常跑）。
+SRC_ROOT="${MG_REGRESSION_SRC:-/Users/wangguoyang/Documents/Qoder/2026-11-05/1dbc0620}"
 WORK="$TOOLKIT/tests/regression/work"
+
+# 旧素材缺失（换机/CI 无本机只读旧片）→ 干净跳过：stdout 末行输出 skip 标记、退出 0，
+# 不渲染、不崩溃。像素回归依赖该素材；其余测试用随包 fixture，可移植。
+# 在任意机器设 MG_REGRESSION_SRC 指向素材根（含 qwenwork-video/sicd-video）即可恢复像素回归。
+MISSING=""
+for PROJ in qwenwork-video sicd-video; do
+  for P in script.json scene.html timeline.json vo frames; do
+    [ -e "$SRC_ROOT/$PROJ/$P" ] || MISSING="$SRC_ROOT/$PROJ/$P"
+  done
+done
+if [ -n "$MISSING" ]; then
+  echo "regression skip: 旧素材缺失（设 MG_REGRESSION_SRC 指向素材根）：$MISSING" >&2
+  echo '{"skip":true,"reason":"legacy footage missing"}'
+  exit 0
+fi
+
 REPORT="[]"
 for PROJ in qwenwork-video sicd-video; do
   DIR="$WORK/$PROJ"

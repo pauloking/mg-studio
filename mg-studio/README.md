@@ -20,6 +20,12 @@ v1 项目（script.json + scene.html）直通，行为与旧工具包一致。
 
 含浏览器帧驱动测试（全局 Playwright + Chrome）、旧片像素回归（python3 + PIL）。
 
+像素回归依赖本机只读旧素材，素材根由 `MG_REGRESSION_SRC` 配置（缺省沿用本机路径）：
+
+    MG_REGRESSION_SRC=/path/to/legacy npm test    # 指向含 qwenwork-video/、sicd-video/ 的素材根
+
+无该素材时（换机/CI）回归自动干净跳过（`run.sh` 输出 `{"skip":true}`、像素测试 skip），校准守卫纯函数单测始终运行；其余测试用随包 fixture，可移植。
+
 ## 纪律
 
 动画只由帧号驱动；字幕画进帧里；布景 y<900；transform 归零由运行时保证。
