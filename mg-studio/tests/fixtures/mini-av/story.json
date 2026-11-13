@@ -1,0 +1,8 @@
+{
+  "schema": 2,
+  "meta": { "title": "AV 测试", "audience": "general", "template": "free", "durationTarget": 15 },
+  "beats": [
+    { "id": "wave", "role": "mechanism", "emotion": 3, "intent": "心电波形", "narration": "正常心电波形。", "facts": [] },
+    { "id": "stat", "role": "evidence", "emotion": 3, "intent": "数字证据", "narration": "三十五点二毫秒。", "facts": [] }
+  ]
+}

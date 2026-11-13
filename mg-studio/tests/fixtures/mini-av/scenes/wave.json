@@ -1,0 +1,7 @@
+{
+  "id": "wave", "beat": "wave", "minSec": 4, "layout": "waveform",
+  "elements": [
+    { "id": "w0", "type": "waveform", "props": { "x": 180, "y": 360, "w": 1560, "h": 360, "color": "accent", "vf": 0, "scroll": 0.6 }, "enter": { "preset": "fade", "at": 0.2, "dur": 0.5 } }
+  ],
+  "cues": [], "subsOverride": null, "custom": null
+}

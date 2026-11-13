@@ -59,6 +59,8 @@ function compileProject(dir) {
   catch (e) { errors.push(e.message); scenes = project.scenes; }
   // Task 8 接入 motion-lint；此前 lint 恒为 []
   if (errors.length) return { mode: 'v2', lint, errors };
+  for (const sc of scenes) for (const el of sc.elements)
+    if (el.type === 'waveform') el.props.colorHex = project.tokens.colors[el.props.color || 'accent'];
   const script = buildScriptJson(Object.assign({}, project, { scenes }));
   const html = emitSceneHtml({ tokens: project.tokens, scenes, components: COMPONENTS, preRuntime: PRE_RUNTIME });
   const scriptPath = path.join(dir, 'script.json');

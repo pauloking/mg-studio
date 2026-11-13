@@ -1,0 +1,7 @@
+{
+  "id": "stat", "beat": "stat", "minSec": 5, "layout": "stat",
+  "elements": [
+    { "id": "s0", "type": "stat", "props": { "value": 35.2, "unit": "ms", "label": "最早 LV breakout", "decimals": 1 }, "enter": { "preset": "rise", "at": 0.5, "dur": 1.5 } }
+  ],
+  "cues": [], "subsOverride": null, "custom": null
+}
