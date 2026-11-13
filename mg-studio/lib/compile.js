@@ -14,15 +14,28 @@ function normalizeScene(sc) {
       if (!ENTER_PRESETS.includes(n.enter.preset)) throw new Error(`非法 enter 预设: ${n.enter.preset}`);
       n.enter.at = n.enter.at != null ? n.enter.at : 0;
       n.enter.dur = n.enter.dur != null ? n.enter.dur : PRESET_DEFAULT_DUR[n.enter.preset];
+      if (!Number.isFinite(n.enter.at)) throw new Error(`scene ${sc.id} element ${n.id} enter.at 须为有限数: ${n.enter.at}`);
+      if (!Number.isFinite(n.enter.dur) || n.enter.dur <= 0) throw new Error(`scene ${sc.id} element ${n.id} enter.dur 须为正有限数: ${n.enter.dur}`);
     } else n.enter = null;
     n.emphasis = (n.emphasis || []).map(c => {
       if (!EMPHASIS_PRESETS.includes(c.preset)) throw new Error(`非法 emphasis 预设: ${c.preset}`);
-      return { preset: c.preset, cue: c.cue, dur: c.dur != null ? c.dur : PRESET_DEFAULT_DUR[c.preset] };
+      const dur = c.dur != null ? c.dur : PRESET_DEFAULT_DUR[c.preset];
+      if (!Number.isFinite(dur) || dur <= 0) throw new Error(`scene ${sc.id} element ${n.id} emphasis.dur 须为正有限数: ${dur}`);
+      return { preset: c.preset, cue: c.cue, dur };
     });
     if (n.exit) {
       if (!EXIT_PRESETS.includes(n.exit.preset)) throw new Error(`非法 exit 预设: ${n.exit.preset}`);
       n.exit.dur = n.exit.dur != null ? n.exit.dur : PRESET_DEFAULT_DUR[n.exit.preset];
+      if (!Number.isFinite(n.exit.dur) || n.exit.dur <= 0) throw new Error(`scene ${sc.id} element ${n.id} exit.dur 须为正有限数: ${n.exit.dur}`);
     } else n.exit = null;
+    if (n.type === 'stat') {
+      if (!Number.isFinite(n.props.value)) throw new Error(`scene ${sc.id} stat ${n.id} value 须为有限数: ${n.props.value}`);
+      if (n.props.decimals != null && (!Number.isInteger(n.props.decimals) || n.props.decimals < 0 || n.props.decimals > 20)) throw new Error(`scene ${sc.id} stat ${n.id} decimals 须为 0..20 整数: ${n.props.decimals}`);
+    }
+    if (n.type === 'waveform') {
+      for (const k of ['x', 'y', 'w', 'h']) if (!Number.isFinite(n.props[k])) throw new Error(`scene ${sc.id} waveform ${n.id} props.${k} 须为有限数: ${n.props[k]}`);
+      if (n.props.w <= 0 || n.props.h <= 0) throw new Error(`scene ${sc.id} waveform ${n.id} w/h 须为正数`);
+    }
     return n;
   });
   return Object.assign({}, sc, { elements });
@@ -48,11 +61,18 @@ function compileProject(dir) {
   const project = ir.loadProject(dir, LAYOUT_NAMES);
   if (project.mode === 'v1') return { mode: 'v1' };
   const errors = [];
+  const vid = project.story.meta.video;
+  if (vid && ((vid.fps != null && vid.fps !== 30) || (vid.width != null && vid.width !== 1920) || (vid.height != null && vid.height !== 1080)))
+    errors.push('M1 渲染核冻结 30fps/1920×1080，meta.video 不可覆盖（fps/width/height）');
   for (const sc of project.scenes) {
     if (sc.custom) errors.push(`scene ${sc.id} 使用了 custom 逃生舱（M2 实现，M1 暂不支持）`);
     if (sc.subsOverride) {
       const c = checkSubs(sc.subsOverride, sc.narration);
       if (!c.ok) errors.push(`scene ${sc.id} 字幕与旁白不一致: ${c.detail}`);
+    }
+    for (const el of sc.elements || []) if (el.type === 'waveform') {
+      const ck = (el.props && el.props.color) || 'accent';
+      if (!(ck in project.tokens.colors)) errors.push(`scene ${sc.id} waveform ${el.id} color 键不存在于 tokens.colors: ${ck}`);
     }
   }
   let scenes, lint = [];

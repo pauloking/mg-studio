@@ -1,5 +1,6 @@
 'use strict';
 const J = JSON.stringify;
+const { escHtml } = require('../escape');
 module.exports = {
   name: 'title-card',
   css: () => `
@@ -13,9 +14,9 @@ module.exports = {
     sc.elements.forEach((el, i) => {
       const v = `e${i}`;
       if (el.type === 'text' && el.props.role === 'title')
-        lines.push(`  const ${v} = H('h1','tc-title',${J(el.props.content)}); wrap.append(${v}); els.push({key:${J(el.id)},e:${v}});`);
+        lines.push(`  const ${v} = H('h1','tc-title',${J(escHtml(el.props.content))}); wrap.append(${v}); els.push({key:${J(el.id)},e:${v}});`);
       else if (el.type === 'text')
-        lines.push(`  const ${v} = H('div','tc-tag',${J(el.props.content)}); wrap.append(${v}); els.push({key:${J(el.id)},e:${v}});`);
+        lines.push(`  const ${v} = H('div','tc-tag',${J(escHtml(el.props.content))}); wrap.append(${v}); els.push({key:${J(el.id)},e:${v}});`);
       else if (el.type === 'bar')
         lines.push(`  const ${v} = H('div','tc-bar'); wrap.append(${v}); els.push({key:${J(el.id)},e:${v}});`);
       else throw new Error('title-card 不支持元素类型: ' + el.type);

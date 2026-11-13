@@ -8,7 +8,7 @@ v2 项目（story.json + scenes/*.json + tokens.json 可选）：
 
     bash <toolkit>/scripts/make.sh <toolkit目录> [local|bailian] [输出名]
 
-make.sh 自动先编译（compile.js）再走 配音→时间轴→音频→渲染→编码混音。
+make.sh 自动先编译（compile.js）再走 配音→时间轴→音频→渲染→编码混音。（在项目目录内运行，cwd 即项目目录。）
 v1 项目（script.json + scene.html）直通，行为与旧工具包一致。
 
 单独编译：`node scripts/compile.js [项目目录]`（B 级 lint 阻断写文件）。

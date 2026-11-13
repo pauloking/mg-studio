@@ -40,7 +40,7 @@ test('compileProject v2 产出 script.json v2 与契约 scene.html', () => {
   assert.equal(script.scenes[0].beat.role, 'hook');
   assert.equal(script.tts.backend, 'local');
   const html = fs.readFileSync(path.join(work, 'scene.html'), 'utf8');
-  for (const needle of ['window.__ready', 'window.__N', 'window.__frame', 'window.__err', 'SPECS', 'const PRE', 'up_hook', 'up_takeaway', ':root', "URLSearchParams(location.search).get('scene')", 'sc.audioDur = sc.dur; sc.dur = (sc.end - sc.start) / tl.fps'])
+  for (const needle of ['window.__ready', 'window.__N', 'window.__frame', 'window.__err', 'SPECS', 'const PRE', 'up_hook', 'up_takeaway', ':root', "URLSearchParams(location.search).get('scene')", 'sc.audioDur = sc.dur; sc.dur = (sc.end - sc.start) / tl.fps', 'bg.lineTo(1920,y)', 'rel="icon"'])
     assert.ok(html.includes(needle), 'scene.html 缺少 ' + needle);
 });
 
@@ -80,4 +80,51 @@ test('CLI：v2 输出 compile OK，v1 输出 passthrough', () => {
   const work1 = copyFixture('compile-cli-v1', 'mini-v1');
   const out1 = execFileSync('node', [path.join(ROOT, 'scripts', 'compile.js')], { cwd: work1, encoding: 'utf8' });
   assert.ok(out1.includes('v1 passthrough'));
+});
+
+test('normalizeScene：拒绝非法数值（enter.dur<=0 / enter.at 非数 / stat value 非数 / waveform 缺几何）', () => {
+  const base = JSON.parse(fs.readFileSync(path.join(FIX, 'mini-v2', 'scenes', 'hook.json'), 'utf8'));
+  const mk = mut => { const s = JSON.parse(JSON.stringify(base)); mut(s); return s; };
+  assert.throws(() => normalizeScene(mk(s => { s.elements[0].enter.dur = 0; })), /enter\.dur/);
+  assert.throws(() => normalizeScene(mk(s => { s.elements[0].enter.at = 'abc'; })), /enter\.at/);
+  const stat = JSON.parse(fs.readFileSync(path.join(FIX, 'mini-av', 'scenes', 'stat.json'), 'utf8'));
+  stat.elements[0].props.value = 'abc';
+  assert.throws(() => normalizeScene(stat), /value/);
+  const wave = JSON.parse(fs.readFileSync(path.join(FIX, 'mini-av', 'scenes', 'wave.json'), 'utf8'));
+  delete wave.elements[0].props.w;
+  assert.throws(() => normalizeScene(wave), /props\.w/);
+});
+
+test('meta.video 非默认（fps/width/height）阻断', () => {
+  const work = copyFixture('compile-video', 'mini-v2');
+  const sp = path.join(work, 'story.json');
+  const st = JSON.parse(fs.readFileSync(sp, 'utf8')); st.meta.video = { fps: 60 };
+  fs.writeFileSync(sp, JSON.stringify(st));
+  const r = compileProject(work);
+  assert.ok(r.errors.some(e => /meta\.video|冻结/.test(e)));
+  assert.ok(!fs.existsSync(path.join(work, 'script.json')));
+});
+
+test('waveform color 键不存在于 tokens → B 错阻断', () => {
+  const work = copyFixture('compile-badcolor', 'mini-av');
+  const sp = path.join(work, 'scenes', 'wave.json');
+  const sc = JSON.parse(fs.readFileSync(sp, 'utf8')); sc.elements[0].props.color = 'purple';
+  fs.writeFileSync(sp, JSON.stringify(sc));
+  const r = compileProject(work);
+  assert.ok(r.errors.some(e => /color 键不存在/.test(e)));
+  assert.ok(!fs.existsSync(path.join(work, 'script.json')));
+});
+
+test('组件 innerHTML 与 SPECS 转义作者文本（防 script breakout）', () => {
+  const work = copyFixture('compile-escape', 'mini-v2');
+  const sp = path.join(work, 'scenes', 'hook.json');
+  const sc = JSON.parse(fs.readFileSync(sp, 'utf8'));
+  sc.elements[0].props.content = '</script>x'; // 10 字，dwell 充足不触 TEXT_DWELL
+  fs.writeFileSync(sp, JSON.stringify(sc));
+  const r = compileProject(work);
+  assert.deepEqual(r.errors, []);
+  const html = fs.readFileSync(path.join(work, 'scene.html'), 'utf8');
+  assert.ok(!html.includes('</script>x'), '作者文本 </script> 不得裸出现（SPECS 与 innerHTML 均须转义）');
+  assert.ok(html.includes('\\u003c/script>'), 'SPECS 应以 \\u003c 转义 <');
+  assert.ok(html.includes('&lt;/script&gt;x'), 'title-card innerHTML 应以 HTML 实体转义');
 });

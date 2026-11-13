@@ -95,3 +95,56 @@ test('validateTokens：组件引用的色键 accent2/muted 缺失时报错（而
   assert.ok(!r2.ok);
   assert.ok(r2.errors.some(m => /muted/.test(m)));
 });
+test('validateScene：cue 含多个小数点（narration:1.2.3 / lt:1.2.3）报错', () => {
+  const sc = JSON.parse(fs.readFileSync(path.join(FIX, 'mini-v2', 'scenes', 'hook.json'), 'utf8'));
+  sc.elements[0].emphasis = [{ preset: 'highlight', cue: 'narration:1.2.3', dur: 0.4 }];
+  const r = ir.validateScene(sc, ['hook', 'takeaway'], ['title-card', 'points']);
+  assert.ok(!r.ok); assert.ok(r.errors.some(m => /cue/.test(m)));
+  sc.elements[0].emphasis = [{ preset: 'highlight', cue: 'lt:1.2.3', dur: 0.4 }];
+  assert.ok(!ir.validateScene(sc, ['hook', 'takeaway'], ['title-card', 'points']).ok);
+});
+test('validateTokens：缺 font/fontSize/maxW 或 bottom≠64 报错', () => {
+  const base = JSON.parse(fs.readFileSync(path.join(FIX, 'mini-v2', 'tokens.json'), 'utf8'));
+  const clone = () => JSON.parse(JSON.stringify(base));
+  const noFont = clone(); delete noFont.font;
+  assert.ok(!ir.validateTokens(noFont).ok); assert.ok(ir.validateTokens(noFont).errors.some(m => /font/.test(m)));
+  const noFS = clone(); delete noFS.subtitle.fontSize;
+  assert.ok(!ir.validateTokens(noFS).ok); assert.ok(ir.validateTokens(noFS).errors.some(m => /fontSize/.test(m)));
+  const noMW = clone(); delete noMW.subtitle.maxW;
+  assert.ok(!ir.validateTokens(noMW).ok); assert.ok(ir.validateTokens(noMW).errors.some(m => /maxW/.test(m)));
+  const badB = clone(); badB.subtitle.bottom = 200;
+  assert.ok(!ir.validateTokens(badB).ok); assert.ok(ir.validateTokens(badB).errors.some(m => /bottom/.test(m)));
+});
+test('loadProject：部分 tokens.json 深合并默认模板（补全 font/subtitle）', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mg-mergetk-'));
+  fs.copyFileSync(path.join(FIX, 'mini-v2', 'story.json'), path.join(dir, 'story.json'));
+  fs.mkdirSync(path.join(dir, 'scenes'));
+  fs.copyFileSync(path.join(FIX, 'mini-v2', 'scenes', 'hook.json'), path.join(dir, 'scenes', 'hook.json'));
+  fs.copyFileSync(path.join(FIX, 'mini-v2', 'scenes', 'takeaway.json'), path.join(dir, 'scenes', 'takeaway.json'));
+  const full = JSON.parse(fs.readFileSync(path.join(FIX, 'mini-v2', 'tokens.json'), 'utf8'));
+  fs.writeFileSync(path.join(dir, 'tokens.json'), JSON.stringify({ colors: full.colors })); // 无 font/subtitle
+  const p = ir.loadProject(dir, ['title-card', 'points', 'waveform', 'stat']);
+  assert.ok(p.tokens.font && typeof p.tokens.font.family === 'string' && p.tokens.font.family.length > 0);
+  assert.equal(p.tokens.subtitle.bottom, 64);
+  assert.equal(p.tokens.subtitle.fontSize, 40);
+  assert.equal(p.tokens.subtitle.maxW, 1560);
+});
+test('validateStory：beats 含 null 元素时报错而非抛 TypeError', () => {
+  const s = story(); s.beats = [null];
+  const r = ir.validateStory(s);
+  assert.ok(!r.ok); assert.ok(r.errors.some(m => /beat/.test(m)));
+});
+test('loadProject：beats 含 null 时抛带 irErrors 的 Error 而非 TypeError', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mg-nullbeat-'));
+  fs.writeFileSync(path.join(dir, 'story.json'), JSON.stringify({ schema: 2, meta: { title: 't', audience: 'general', template: 'free', durationTarget: 20 }, beats: [null] }));
+  fs.copyFileSync(path.join(FIX, 'mini-v2', 'tokens.json'), path.join(dir, 'tokens.json'));
+  assert.throws(() => ir.loadProject(dir, []),
+    e => e instanceof Error && !(e instanceof TypeError) && Array.isArray(e.irErrors));
+});
+test('validateTokens：required 色键 malformed 只产一条诊断（去重）', () => {
+  const tk = JSON.parse(fs.readFileSync(path.join(FIX, 'mini-v2', 'tokens.json'), 'utf8'));
+  tk.colors.accent = 'red';
+  const r = ir.validateTokens(tk);
+  assert.ok(!r.ok);
+  assert.equal(r.errors.filter(m => /accent/.test(m)).length, 1);
+});

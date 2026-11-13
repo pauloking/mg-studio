@@ -1,5 +1,6 @@
 'use strict';
 const J = JSON.stringify;
+const { escHtml } = require('../escape');
 module.exports = {
   name: 'points',
   css: () => `
@@ -14,7 +15,7 @@ module.exports = {
       const x = el.props.x != null ? el.props.x : 130 + i * 570;
       const y = el.props.y != null ? el.props.y : 420;
       const v = `e${i}`;
-      const html = '<h3>' + el.props.title + '</h3><p>' + el.props.desc + '</p>';
+      const html = '<h3>' + escHtml(el.props.title) + '</h3><p>' + escHtml(el.props.desc) + '</p>';
       lines.push(`  const ${v} = H('div','pt-card',${J(html)}); ${v}.style.left='${x}px'; ${v}.style.top='${y}px'; r.append(${v}); els.push({key:${J(el.id)},e:${v}});`);
     });
     lines.push(`  S['${sc.id}'] = { r, els }; scenesEl.append(r); }`);

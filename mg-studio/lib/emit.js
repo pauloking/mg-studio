@@ -20,7 +20,7 @@ function drawBG(t) {
   bg.fillStyle = g; bg.fillRect(0,0,1920,1080);
   bg.strokeStyle = 'rgba(110,130,220,0.05)'; bg.lineWidth = 1; bg.beginPath();
   for (let x=0;x<=1920;x+=80){bg.moveTo(x,0);bg.lineTo(x,1080);}
-  for (let y=0;y<=1080;y+=80){bg.moveTo(0,y);bg.lineTo(1080,y);}
+  for (let y=0;y<=1080;y+=80){bg.moveTo(0,y);bg.lineTo(1920,y);}
   bg.stroke();
   const orbs = [
     { x:480+Math.sin(t*.13)*150, y:320+Math.cos(t*.1)*80, r:520, c:'rgba(96,80,220,0.14)' },
@@ -91,6 +91,7 @@ function emitSceneHtml({ tokens, scenes, components, preRuntime }) {
 <head>
 <meta charset="UTF-8">
 <title>mg-studio compiled</title>
+<link rel="icon" href="data:,">
 <style>
 :root{${vars}}
 * { margin:0; padding:0; box-sizing:border-box; }
@@ -118,7 +119,7 @@ ${HELPERS}
 ${DRAW_BG}
 ${preRuntime}
 ${runtime}
-const SPECS = ${JSON.stringify(specs)};
+const SPECS = ${JSON.stringify(specs).replace(/</g, '\\u003c')};
 ${BOOTSTRAP.replace('function fadeScene', '/* buildScenes 由组件生成 */\nfunction buildScenes() {\n' + builds + '\n}\n' + updates + '\nconst UPS = [' + ups + '];\nfunction fadeScene')}
 ${SUBTITLE}
 </script>

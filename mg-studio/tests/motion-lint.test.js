@@ -60,3 +60,13 @@ test('mini-av stat 组件 lint 洁净（accent2 对比度 + label-only dwell）'
   const out = lintMotion({ scenes: [statSc], tokens: def, components: COMPONENTS });
   assert.deepEqual(out.filter(l => l.level === 'B'), []);
 });
+test('盒超出画布 → B SCREEN_BOUNDS', () => {
+  const sc = Object.assign(loadSc('takeaway.json'), { narration: '要点一，要点二。' });
+  sc.elements[0].props.x = 1500; // 盒 x1500 w520 → x+w=2020 > 1920
+  const out = lintMotion({ scenes: [sc], tokens, components: COMPONENTS });
+  assert.ok(out.some(l => l.level === 'B' && l.code === 'SCREEN_BOUNDS' && l.el === 'c0'));
+});
+test('hexToRgb 守卫：contrastRatio(undefined,...) 不抛（缺色键防御）', () => {
+  assert.doesNotThrow(() => contrastRatio(undefined, '#070b16'));
+  assert.equal(typeof contrastRatio(undefined, '#070b16'), 'number');
+});

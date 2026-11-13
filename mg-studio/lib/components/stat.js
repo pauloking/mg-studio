@@ -1,5 +1,6 @@
 'use strict';
 const J = JSON.stringify;
+const { escHtml } = require('../escape');
 module.exports = {
   name: 'stat',
   css: () => `
@@ -14,8 +15,8 @@ module.exports = {
       if (el.type !== 'stat') throw new Error('stat 不支持元素类型: ' + el.type);
       const p = el.props, v = `e${i}`, x = p.x != null ? p.x : 760, y = p.y != null ? p.y : 400;
       lines.push(`  const ${v} = H('div','st-wrap'); ${v}.style.left='${x}px'; ${v}.style.top='${y}px';
-  const row${i} = H('div','st-row'); const num${i} = H('span','st-num','0'); const unit${i} = H('span','st-unit',${J(p.unit || '')});
-  row${i}.append(num${i}, unit${i}); const lab${i} = H('div','st-label',${J(p.label || '')});
+  const row${i} = H('div','st-row'); const num${i} = H('span','st-num','0'); const unit${i} = H('span','st-unit',${J(escHtml(p.unit || ''))});
+  row${i}.append(num${i}, unit${i}); const lab${i} = H('div','st-label',${J(escHtml(p.label || ''))});
   ${v}.append(row${i}, lab${i}); ${v}.__num = num${i}; r.append(${v}); els.push({key:${J(el.id)},e:${v}});`);
     });
     lines.push(`  S['${sc.id}'] = { r, els }; scenesEl.append(r); }`);

@@ -1,5 +1,5 @@
 'use strict';
-function hexToRgb(hex) { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function hexToRgb(hex) { if (typeof hex !== 'string' || !/^#[0-9a-f]{6}$/i.test(hex)) return [0, 0, 0]; const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 function lum(hex) {
   const [r, g, b] = hexToRgb(hex).map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
@@ -15,6 +15,7 @@ function lintMotion({ scenes, tokens, components }) {
     const dur = estDur(sc);
     for (const b of boxes) {
       const bottom = b.y + b.h;
+      if (b.x < 0 || b.y < 0 || b.x + b.w > 1920 || b.y + b.h > 1080) out.push({ level: 'B', code: 'SCREEN_BOUNDS', scene: sc.id, el: b.id, msg: `盒 (${b.x},${b.y},${b.w},${b.h}) 超出 1920×1080 画布` });
       if (bottom > 940) out.push({ level: 'B', code: 'SUBTITLE_ZONE', scene: sc.id, el: b.id, msg: `盒底 ${bottom} > 940（字幕区）` });
       else if (bottom > 900) out.push({ level: 'W', code: 'NEAR_SUBTITLE', scene: sc.id, el: b.id, msg: `盒底 ${bottom} > 900，接近字幕区` });
       if (b.text) {

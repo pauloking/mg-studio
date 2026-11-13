@@ -6,7 +6,7 @@ const AUDIENCES = ['patient', 'professional', 'general'];
 const TEMPLATES = ['science', 'product', 'teaching', 'free'];
 const ID_RE = /^[a-z][a-z0-9_]*$/i;
 const HEX_RE = /^#[0-9a-f]{6}$/i;
-const CUE_RE = /^(narration:[0-9.]+|lt:[0-9.]+)$/;
+const CUE_RE = /^(narration|lt):\d+(\.\d+)?$/;
 
 function validateStory(story) {
   const errors = [];
@@ -20,6 +20,7 @@ function validateStory(story) {
   if (!Array.isArray(story && story.beats) || beats.length === 0) errors.push('beats 不能为空');
   const seen = new Set();
   for (const b of beats) {
+    if (!b || typeof b !== 'object') { errors.push('beat 须为对象'); continue; }
     if (!b.id || !ID_RE.test(b.id)) errors.push('beat.id 非法: ' + b.id);
     if (seen.has(b.id)) errors.push('beat.id 重复: ' + b.id);
     seen.add(b.id);
@@ -59,13 +60,28 @@ function validateScene(sc, beatIds, layoutNames) {
   return { ok: errors.length === 0, errors };
 }
 
+const REQUIRED_COLORS = ['bg', 'ink', 'accent', 'accent2', 'muted'];
 function validateTokens(tk) {
   const errors = [];
   if (!tk || typeof tk.colors !== 'object' || tk.colors == null) return { ok: false, errors: ['tokens.colors 缺失'] };
-  for (const k of ['bg', 'ink', 'accent', 'accent2', 'muted']) if (!HEX_RE.test(tk.colors[k] || '')) errors.push('colors.' + k + ' 须为 #rrggbb');
-  for (const [k, v] of Object.entries(tk.colors)) if (!HEX_RE.test(v)) errors.push('colors.' + k + ' 非法: ' + v);
+  for (const k of REQUIRED_COLORS) if (!HEX_RE.test(tk.colors[k] || '')) errors.push('colors.' + k + ' 须为 #rrggbb');
+  for (const [k, v] of Object.entries(tk.colors)) if (!REQUIRED_COLORS.includes(k) && !HEX_RE.test(v)) errors.push('colors.' + k + ' 非法: ' + v);
+  if (!tk.font || typeof tk.font.family !== 'string' || !tk.font.family.trim()) errors.push('font.family 须为非空字符串');
   if (!tk.subtitle || typeof tk.subtitle.bottom !== 'number') errors.push('subtitle.bottom 须为数字');
+  else if (tk.subtitle.bottom !== 64) errors.push('subtitle.bottom 须为 64（M1 渲染核冻结字幕区，lint 940/900）');
+  if (!tk.subtitle || !Number.isFinite(tk.subtitle.fontSize) || tk.subtitle.fontSize <= 0) errors.push('subtitle.fontSize 须为正数');
+  if (!tk.subtitle || !Number.isFinite(tk.subtitle.maxW) || tk.subtitle.maxW <= 0) errors.push('subtitle.maxW 须为正数');
   return { ok: errors.length === 0, errors };
+}
+
+function deepMerge(base, over) {
+  const out = Object.assign({}, base);
+  for (const k of Object.keys(over && typeof over === 'object' ? over : {})) {
+    const ov = over[k], bv = base[k];
+    if (ov && typeof ov === 'object' && !Array.isArray(ov) && bv && typeof bv === 'object' && !Array.isArray(bv)) out[k] = deepMerge(bv, ov);
+    else out[k] = ov;
+  }
+  return out;
 }
 
 function loadProject(dir, layoutNames) {
@@ -77,13 +93,14 @@ function loadProject(dir, layoutNames) {
   }
   const story = JSON.parse(fs.readFileSync(storyPath, 'utf8'));
   const tkPath = path.join(dir, 'tokens.json');
-  const tokens = fs.existsSync(tkPath) ? JSON.parse(fs.readFileSync(tkPath, 'utf8'))
-    : JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'templates', 'tokens.default.json'), 'utf8'));
+  const defTokens = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'templates', 'tokens.default.json'), 'utf8'));
+  const tokens = fs.existsSync(tkPath) ? deepMerge(defTokens, JSON.parse(fs.readFileSync(tkPath, 'utf8'))) : defTokens;
   const beats = Array.isArray(story && story.beats) ? story.beats : [];
-  const beatIds = beats.map(b => b.id);
+  const beatIds = beats.map(b => b && b.id);
   const scenes = [];
   const errors = [...validateStory(story).errors, ...validateTokens(tokens).errors];
   for (const b of beats) {
+    if (!b || typeof b !== 'object') continue;
     const sp = path.join(dir, 'scenes', b.id + '.json');
     if (!fs.existsSync(sp)) { errors.push('缺少场景文件: scenes/' + b.id + '.json'); continue; }
     const sc = JSON.parse(fs.readFileSync(sp, 'utf8'));
