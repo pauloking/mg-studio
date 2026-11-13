@@ -3,5 +3,5 @@
   "version": "0.1.0",
   "private": true,
   "description": "MG 全链路工具包：声明式分镜编译 + 确定性帧渲染",
-  "scripts": { "test": "node --test --test-concurrency=1 tests/" }
+  "scripts": { "test": "node --test --test-concurrency=1 tests/*.test.js" }
 }
