@@ -1,0 +1,10 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><style>
+*{margin:0;padding:0}html,body{width:1920px;height:1080px;overflow:hidden;background:#070b16;font-family:"PingFang SC",sans-serif}
+.scene{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+h1{color:#f5f7ff;font-size:120px}
+</style></head><body><div class="scene"><h1>你好，世界</h1></div>
+<script>
+window.__ready=false;window.__err=null;let TL=null;
+window.__frame=function(i){try{/* 静态画面，帧号驱动契约占位 */}catch(e){window.__err=String(e);}};
+fetch('timeline.json').then(r=>r.json()).then(tl=>{TL=tl;window.__N=tl.totalFrames;window.__frame(0);window.__ready=true;}).catch(e=>{window.__err=String(e);});
+</script></body></html>

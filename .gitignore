@@ -1,0 +1,10 @@
+node_modules/
+frames/
+smoke/
+out/
+vo/
+cache/
+tests/work/
+tests/regression/work/
+*.log
+.DS_Store

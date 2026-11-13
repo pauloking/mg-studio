@@ -1,0 +1,5 @@
+{
+  "fps": 30, "width": 1920, "height": 1080,
+  "options": { "pad": 0.5, "leadIn": 0.2, "introLeadIn": 0.2, "introMinSec": 3, "outroMinSec": 3 },
+  "scenes": [ { "id": "intro", "minSec": 3, "narration": "你好，世界。", "subs": ["你好，世界"] } ]
+}
