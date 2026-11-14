@@ -9,45 +9,93 @@
  *   TTS_RATE    本地 say 语速（字/分，默认不传）
  *   TTS_INSTRUCTION 百炼语气指令（默认温暖平和科普语气）
  * 也可在 script.json 里写 tts:{backend,voice,model,instruction} 覆盖。
- * 百炼调用带 Call attribution（BAILIAN_CALLER_*），符合 bailian-protocol。
+ *
+ * 安全纪律：一律 execFileSync(命令, 参数数组)，不拼 shell 字符串。
+ * 旁白文本来自 story.json（可能由 Agent 生成），拼进 shell 会让 `$(...)`/反引号被展开执行。
  */
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
-const ROOT = process.cwd();
-const s = JSON.parse(fs.readFileSync(path.join(ROOT, 'script.json'), 'utf8'));
-const argBackend = (process.argv.find(a => a.startsWith('--backend=')) || '').split('=')[1]
-  || (process.argv.includes('--backend') ? process.argv[process.argv.indexOf('--backend') + 1] : null);
-const cfg = Object.assign({ backend: 'local', voice: null, model: null, instruction: null }, s.tts || {});
-if (argBackend) cfg.backend = argBackend;
-cfg.voice = process.env.TTS_VOICE || cfg.voice;
-cfg.model = process.env.TTS_MODEL || cfg.model;
-cfg.instruction = process.env.TTS_INSTRUCTION || cfg.instruction;
+const { execFileSync } = require('child_process');
 
-fs.mkdirSync(path.join(ROOT, 'vo'), { recursive: true });
-const PRE = `BAILIAN_CALLER_TYPE=agent BAILIAN_CALLER_NAME=${process.env.BAILIAN_CALLER_NAME || 'qoder'} BAILIAN_SKILL_NAME=bailian-gen BAILIAN_SKILL_VERSION=${process.env.BAILIAN_SKILL_VERSION || '2.8.2'} NO_COLOR=1 `;
+function parseArgs(argv) {
+  const out = { backend: null, dir: null };
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a.startsWith('--backend=')) out.backend = a.split('=')[1];
+    else if (a === '--backend') out.backend = argv[++i];
+    else if (!a.startsWith('--')) out.dir = a;
+  }
+  return out;
+}
 
-for (const sc of s.scenes) {
-  const raw = path.join(ROOT, 'vo', sc.id + '_raw.wav');
-  const wav = path.join(ROOT, 'vo', sc.id + '.wav');
+// 百炼调用归因（走 env 传，不拼命令串）
+function bailianEnv() {
+  return {
+    BAILIAN_CALLER_TYPE: 'agent',
+    BAILIAN_CALLER_NAME: process.env.BAILIAN_CALLER_NAME || 'qoder',
+    BAILIAN_SKILL_NAME: 'bailian-gen',
+    BAILIAN_SKILL_VERSION: process.env.BAILIAN_SKILL_VERSION || '2.8.2',
+    NO_COLOR: '1'
+  };
+}
+
+function loadScript(dir) {
+  return JSON.parse(fs.readFileSync(path.join(dir, 'script.json'), 'utf8'));
+}
+
+function configFor(s, argBackend) {
+  const cfg = Object.assign({ backend: 'local', voice: null, model: null, instruction: null }, s.tts || {});
+  if (argBackend) cfg.backend = argBackend;
+  cfg.voice = process.env.TTS_VOICE || cfg.voice;
+  cfg.model = process.env.TTS_MODEL || cfg.model;
+  cfg.instruction = process.env.TTS_INSTRUCTION || cfg.instruction;
+  return cfg;
+}
+
+/** 纯函数：返回 {cmd, args, env} 三元组（便于单测断言"文本是单个 argv 元素"） */
+function buildTtsCommand({ cfg, sc, raw }) {
   if (cfg.backend === 'bailian') {
     const voice = cfg.voice || 'longanlingxin';
     const model = cfg.model || 'qwen-audio-3.0-tts-plus';
     const instr = cfg.instruction || '用温暖、平和、清晰的语气朗读，语速适中，富有亲和力';
-    const cmd = PRE + `bl speech synthesize --model ${model} --voice ${voice} --format wav --seed 42`
-      + ` --instruction ${JSON.stringify(instr)} --text ${JSON.stringify(sc.narration)} --out "${raw}"`;
-    execSync(cmd, { stdio: ['ignore', 'pipe', 'pipe'] });
-  } else {
-    const voice = cfg.voice || 'Tingting';
-    const rate = process.env.TTS_RATE ? `-r ${process.env.TTS_RATE}` : '';
-    const aiff = path.join(ROOT, 'vo', sc.id + '_raw.aiff');
-    execSync(`say -v ${voice} ${rate} -o "${aiff}" ${JSON.stringify(sc.narration)}`);
-    execSync(`ffmpeg -y -loglevel error -i "${aiff}" "${raw}"`);
-    fs.unlinkSync(aiff);
+    return {
+      cmd: 'bl',
+      args: ['speech', 'synthesize', '--model', model, '--voice', voice, '--format', 'wav', '--seed', '42',
+        '--instruction', instr, '--text', sc.narration, '--out', raw],
+      env: Object.assign({}, process.env, bailianEnv())
+    };
   }
-  execSync(`ffmpeg -y -loglevel error -i "${raw}" -ar 44100 -ac 1 "${wav}"`);
-  fs.unlinkSync(raw);
-  const dur = parseFloat(execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${wav}"`).toString().trim());
-  console.log('ok', sc.id, dur.toFixed(2) + 's', '(' + cfg.backend + ')');
+  const args = ['-v', cfg.voice || 'Tingting'];
+  if (process.env.TTS_RATE) args.push('-r', String(process.env.TTS_RATE));
+  args.push('-o', raw, sc.narration);
+  return { cmd: 'say', args, env: Object.assign({}, process.env) };
 }
-console.log('配音完成 -> vo/<id>.wav，下一步: node build_timeline.js');
+
+function probeDuration(file) {
+  return parseFloat(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file]).toString().trim());
+}
+
+function run({ dir: argvDir, backend }) {
+  const dir = argvDir ? path.resolve(argvDir) : process.cwd();
+  const s = loadScript(dir);
+  const cfg = configFor(s, backend);
+  fs.mkdirSync(path.join(dir, 'vo'), { recursive: true });
+
+  for (const sc of s.scenes) {
+    const wav = path.join(dir, 'vo', sc.id + '.wav');
+    // 各后端原生产物：say 出 aiff、百炼出 wav，随后统一转 44100 单声道
+    const rawSrc = path.join(dir, 'vo', sc.id + (cfg.backend === 'bailian' ? '_raw.wav' : '_raw.aiff'));
+    const { cmd, args, env } = buildTtsCommand({ cfg, sc, raw: rawSrc });
+    execFileSync(cmd, args, { env, stdio: ['ignore', 'pipe', 'pipe'] });
+    execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', rawSrc, '-ar', '44100', '-ac', '1', wav], { stdio: ['ignore', 'pipe', 'pipe'] });
+    fs.unlinkSync(rawSrc);
+    console.log('ok', sc.id, probeDuration(wav).toFixed(2) + 's', '(' + cfg.backend + ')');
+  }
+  console.log('配音完成 -> vo/<id>.wav，下一步: node build_timeline.js');
+}
+
+if (require.main === module) {
+  try { run(parseArgs(process.argv.slice(2))); }
+  catch (e) { console.error(e && e.message || e); process.exit(1); }
+}
+module.exports = { parseArgs, configFor, buildTtsCommand, bailianEnv, probeDuration, run };
