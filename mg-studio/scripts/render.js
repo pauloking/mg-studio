@@ -63,6 +63,41 @@ const server = http.createServer((req, res) => {
   if (initErr) { console.error('INIT ERROR:', initErr); process.exit(1); }
   const n = await page.evaluate(() => window.__N);
 
+  // ── 增量模式：--all（逐 scene + 缓存）/ --scene <id>（单渲）/ --no-cache（强制）──
+  const ALL = process.argv.includes('--all');
+  const NO_CACHE = process.argv.includes('--no-cache');
+  const si = process.argv.indexOf('--scene');
+  const SCENE = si >= 0 ? process.argv[si + 1] : null;
+  if (ALL || SCENE) {
+    const fc = require('../lib/fcache');
+    let tokens = {}; try { tokens = JSON.parse(fs.readFileSync(path.join(ROOT, 'tokens.json'), 'utf8')); } catch (e) {}
+    let script = {}; try { script = JSON.parse(fs.readFileSync(path.join(ROOT, 'script.json'), 'utf8')); } catch (e) {}
+    const scenesById = {}; for (const sc of (script.scenes || [])) scenesById[sc.id] = sc;
+    const prev = fc.loadIndex(ROOT); const next = Object.assign({}, prev);
+    const targets = SCENE ? tl.scenes.filter(s => s.id === SCENE) : tl.scenes;
+    if (SCENE && !targets.length) { console.error('未知 scene:', SCENE); process.exit(1); }
+    let rendered = 0, skipped = 0; const t0a = Date.now();
+    for (const sc of targets) {
+      const nFrames = sc.end - sc.start;
+      const dir = path.join(ROOT, 'frames', sc.id);
+      const vis = fc.visualHash({ scene: scenesById[sc.id] || { id: sc.id }, tokens, compVersion: process.env.MG_COMP_VERSION || '1', compilerVersion: process.env.MG_COMPILER_VERSION || '1' });
+      const aud = fc.hashFile(path.join(ROOT, 'vo', sc.id + '.wav'));
+      const dec = fc.decide({ visualHash: vis, audioHash: aud, frameCount: nFrames, cached: prev[sc.id] });
+      const have = fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => f.endsWith('.png')).length : 0;
+      if (dec.render === false && !NO_CACHE && have === nFrames) { skipped++; console.log('  skip', sc.id, '(缓存命中)'); continue; }
+      fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
+      for (let k = 0; k < nFrames; k++) { await page.evaluate(f => window.__frame(f), sc.start + k); await page.screenshot({ path: path.join(dir, `f_${String(k).padStart(4, '0')}.png`) }); }
+      next[sc.id] = { visualHash: vis, audioHash: aud, frameCount: nFrames, duration: +((sc.end - sc.start) / tl.fps).toFixed(3) };
+      rendered++; console.log('  render', sc.id, nFrames, '帧');
+    }
+    fc.saveIndex(ROOT, next);
+    const err2 = await page.evaluate(() => window.__err);
+    fs.writeFileSync(path.join(ROOT, 'frames', 'render-status.json'), JSON.stringify({ runtimeError: err2 || null, rendered, skipped, at: new Date().toISOString() }));
+    console.log(`--all 完成：rendered ${rendered} skipped ${skipped} | ${((Date.now() - t0a) / 1000).toFixed(1)}s`);
+    await browser.close(); server.close();
+    process.exit(err2 ? 1 : 0);
+  }
+
   let list;
   if (RANGE) list = Array.from({ length: RANGE[1] - RANGE[0] }, (_, i) => RANGE[0] + i);
   else if (SMOKE) {
