@@ -52,6 +52,15 @@ const scenes = s.scenes.map((sc, idx) => {
 const tl = { fps: FPS, width: s.width || 1920, height: s.height || 1080, totalFrames: cursor, scenes };
 fs.writeFileSync(path.join(ROOT, 'timeline.json'), JSON.stringify(tl, null, 1));
 
+// 语速校准回写（§7）：用实测音频时长反推 charsPerSec，按 backend+voice 分键持久化，供 lintScript 自校准。
+try {
+  const cal = require('../lib/calibrate');
+  const ttsCfg = s.tts || {};
+  const pairs = scenes.map((sc, i) => ({ chars: (s.scenes[i].narration || '').length, dur: sc.dur }));
+  const cps = cal.charsPerSecFromPairs(pairs);
+  if (cps) cal.writeCalibrationSample(ROOT, cal.keyOf(ttsCfg.backend, ttsCfg.voice), cps);
+} catch (e) { /* 校准是增强项，失败不阻断时间轴 */ }
+
 // 校验：场景首尾相接、旁白/字幕不越界
 let ok = true, prev = 0;
 for (const sc of tl.scenes) {
