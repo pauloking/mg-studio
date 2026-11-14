@@ -56,6 +56,11 @@ window.__frame = function (j) { try {
     else { el.style.display = 'none'; op(el, 0); } }
   upSubtitle(t);
 } catch (e) { window.__err = String(e && e.stack || e); } };
+// 真实布局盒：供 lint_scene 用 DOM 实测（隐藏场景 display:none，须先 __frame 激活）
+window.__rects = function () { const out = {};
+  for (const sid in S) { out[sid] = {}; for (const x of S[sid].els) { const r = x.e.getBoundingClientRect();
+    out[sid][x.key] = { x: +r.x.toFixed(2), y: +r.y.toFixed(2), w: +r.width.toFixed(2), h: +r.height.toFixed(2) }; } }
+  return out; };
 const __only = new URLSearchParams(location.search).get('scene');
 fetch('timeline.json').then(r => r.json()).then(tl => { TL = tl;
   tl.scenes.forEach(sc => { sc.audioDur = sc.dur; sc.dur = (sc.end - sc.start) / tl.fps; });

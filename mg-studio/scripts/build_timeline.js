@@ -11,15 +11,16 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 
 const ROOT = process.cwd();
 const s = JSON.parse(fs.readFileSync(path.join(ROOT, 'script.json'), 'utf8'));
 const FPS = s.fps || 30;
 const opt = Object.assign({ pad: 1.1, leadIn: 0.45, introLeadIn: 0.7, introMinSec: 6.5, outroMinSec: 8.5 }, s.options || {});
 
+// 参数数组调用，不拼 shell（scene.id 直通这里的路径也不再是注入面）
 function durOf(file) {
-  return parseFloat(execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${file}"`).toString().trim());
+  return parseFloat(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file]).toString().trim());
 }
 
 let cursor = 0;

@@ -15,12 +15,23 @@ module.exports = {
   name: 'waveform',
   css: () => `.wf-canvas { position:absolute; }`,
   runtime: () => ECG_RUNTIME,
+  check: (el) => {
+    const errs = [];
+    if (el.type !== 'waveform') { errs.push(`waveform 不支持元素类型: ${el.type}`); return errs; }
+    // 缺省值必须显式给出（waveform 无几何默认值）：x/y/w/h 的类型由通用规则校验，这里只查必填
+    for (const k of ['x', 'y', 'w', 'h'])
+      if (el.props[k] == null) errs.push(`waveform ${el.id} props.${k} 必填（须为有限数）`);
+    if (Number.isFinite(el.props.w) && Number.isFinite(el.props.h) && (el.props.w <= 0 || el.props.h <= 0)) errs.push(`waveform ${el.id} w/h 须为正数`);
+    for (const k of ['vf', 'scroll']) if (el.props[k] != null && !Number.isFinite(el.props[k])) errs.push(`waveform ${el.id} props.${k} 须为有限数`);
+    if (el.props.color != null && typeof el.props.color !== 'string') errs.push(`waveform ${el.id} props.color 须为色键字符串`);
+    return errs;
+  },
   build: (sc) => {
     const lines = [`{ const r = H('div','scene'); r.id = 's-${sc.id}';`, `  const els = [];`];
     sc.elements.forEach((el, i) => {
       if (el.type !== 'waveform') throw new Error('waveform 不支持元素类型: ' + el.type);
       const p = el.props, v = `e${i}`;
-      lines.push(`  const ${v} = H('canvas','wf-canvas'); ${v}.width=${p.w}; ${v}.height=${p.h}; ${v}.style.left='${p.x}px'; ${v}.style.top='${p.y}px'; r.append(${v}); els.push({key:${J(el.id)},e:${v}});`);
+      lines.push(`  const ${v} = H('canvas','wf-canvas'); ${v}.width=${J(Number(p.w))}; ${v}.height=${J(Number(p.h))}; ${v}.style.left=${J(p.x + 'px')}; ${v}.style.top=${J(p.y + 'px')}; r.append(${v}); els.push({key:${J(el.id)},e:${v}});`);
     });
     lines.push(`  S['${sc.id}'] = { r, els }; scenesEl.append(r); }`);
     return lines.join('\n');

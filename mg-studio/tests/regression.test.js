@@ -41,9 +41,17 @@ test('千问办公 + S-ICD 抽帧与旧版像素等价（旧 timeline，AA 包�
   assert.deepEqual(bad, [], '超出 AA 包络的帧（疑似真实失真）: ' + JSON.stringify(bad));
 });
 
-// 可移植性契约：MG_REGRESSION_SRC 覆盖素材根；指向缺失素材时 run.sh 必须干净跳过
-// （stdout 末行输出 {"skip":true,...}、退出 0），而非沿用硬编码本机路径去渲染或崩溃。
-// 该测试同时证明 env 覆盖被尊重：若忽略 env，本机默认素材存在 → 不会 skip → 断言失败。
+// 可移植性契约：仓库不内置任何个人绝对路径；未设 MG_REGRESSION_SRC 时必须干净跳过
+// （stdout 末行输出 {"skip":true,...}、退出 0），而非去渲染或崩溃。
+test('regression 默认不依赖本机素材：未设 MG_REGRESSION_SRC 时干净跳过', { timeout: 420000 }, () => {
+  const env = { ...process.env };
+  delete env.MG_REGRESSION_SRC;
+  const out = execFileSync('bash', [path.join(__dirname, 'regression', 'run.sh')], { encoding: 'utf8', env, maxBuffer: 16 * 1024 * 1024 });
+  const last = JSON.parse(out.trim().split('\n').pop());
+  assert.equal(last.skip, true, '未设 MG_REGRESSION_SRC 时应输出 skip 标记');
+});
+
+// MG_REGRESSION_SRC 指向不存在的素材根时同样干净跳过（换机/CI 可移植）
 test('regression 路径可配置：旧素材缺失时干净跳过（换机/CI 可移植）', { timeout: 420000 }, () => {
   const bogus = path.join(__dirname, 'regression', '__no_such_footage__');
   const out = execFileSync('bash', [path.join(__dirname, 'regression', 'run.sh')], {

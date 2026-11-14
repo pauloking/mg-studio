@@ -6,8 +6,10 @@ const { PRESET_DEFAULT_DUR, PRE_RUNTIME, ENTER_PRESETS, EMPHASIS_PRESETS, EXIT_P
 const { emitSceneHtml } = require('./emit');
 const { COMPONENTS, LAYOUT_NAMES } = require('./components');
 const { lintMotion } = require('./motion-lint');
+const { checkElementProps } = require('./props');
 
-function normalizeScene(sc) {
+function normalizeScene(sc, components = COMPONENTS) {
+  const errors = [];
   const elements = (sc.elements || []).map(el => {
     const n = JSON.parse(JSON.stringify(el));
     if (n.enter) {
@@ -28,16 +30,11 @@ function normalizeScene(sc) {
       n.exit.dur = n.exit.dur != null ? n.exit.dur : PRESET_DEFAULT_DUR[n.exit.preset];
       if (!Number.isFinite(n.exit.dur) || n.exit.dur <= 0) throw new Error(`scene ${sc.id} element ${n.id} exit.dur 须为正有限数: ${n.exit.dur}`);
     } else n.exit = null;
-    if (n.type === 'stat') {
-      if (!Number.isFinite(n.props.value)) throw new Error(`scene ${sc.id} stat ${n.id} value 须为有限数: ${n.props.value}`);
-      if (n.props.decimals != null && (!Number.isInteger(n.props.decimals) || n.props.decimals < 0 || n.props.decimals > 20)) throw new Error(`scene ${sc.id} stat ${n.id} decimals 须为 0..20 整数: ${n.props.decimals}`);
-    }
-    if (n.type === 'waveform') {
-      for (const k of ['x', 'y', 'w', 'h']) if (!Number.isFinite(n.props[k])) throw new Error(`scene ${sc.id} waveform ${n.id} props.${k} 须为有限数: ${n.props[k]}`);
-      if (n.props.w <= 0 || n.props.h <= 0) throw new Error(`scene ${sc.id} waveform ${n.id} w/h 须为正数`);
-    }
+    // props 校验：数值/文本类型收敛，防止未校验值进入生成的 JS（坐标注入）或被字符串比较静默放行
+    errors.push(...checkElementProps(sc.layout, n, components).map(m => `scene ${sc.id} ${m}`));
     return n;
   });
+  if (errors.length) throw new Error(errors.join('\n'));
   return Object.assign({}, sc, { elements });
 }
 
@@ -76,7 +73,7 @@ function compileProject(dir) {
     }
   }
   let scenes, lint = [];
-  try { scenes = project.scenes.map(normalizeScene); }
+  try { scenes = project.scenes.map(sc => normalizeScene(sc, COMPONENTS)); }
   catch (e) { errors.push(e.message); scenes = project.scenes; }
   if (!errors.length) {
     lint = lintMotion({ scenes, tokens: project.tokens, components: COMPONENTS });

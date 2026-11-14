@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
-# make.sh — 一键跑完整管线（在含 script.json + scene.html 的项目目录里执行）
+# make.sh — 一键跑完整管线（在项目目录里执行，cwd 即项目目录）
 # 用法:
 #   bash <toolkit>/scripts/make.sh <toolkit目录> [local|bailian] [输出名]
 # 例:
-#   bash ../motion-video-toolkit/scripts/make.sh ../motion-video-toolkit bailian "S-ICD_科普"
-# 前置: node / 全局 playwright / 本机 Chrome / ffmpeg(含 libx264)；bailian 需 bl 已鉴权
+#   1) v2 项目（story.json + scenes/*.json [+ tokens.json]）：自动编译
+#      bash ../mg-studio/scripts/make.sh ../mg-studio local "my-film"
+#   2) v1 项目（script.json + scene.html）：直通，跳过编译与编译后门
+#      bash ../mg-studio/scripts/make.sh ../mg-studio bailian "S-ICD_科普"
+# 前置: node / 全局 playwright + 本机 Chrome / ffmpeg(含 libx264)；bailian 需 bl 已鉴权
+# 环境变量: RENDER_PORT（固定渲染端口）、PW_CHANNEL（浏览器通道）、MG_MEASURE=0（跳过实测盒）
 set -euo pipefail
 TOOLKIT="${1:?用法: make.sh <toolkit目录> [local|bailian] [输出名]}"
 BACKEND="${2:-local}"
@@ -20,6 +24,11 @@ node "$TOOLKIT/scripts/tts.js" --backend "$BACKEND"
 
 echo "==> 2/5 时间轴"
 node "$TOOLKIT/scripts/build_timeline.js"
+
+if [ -f story.json ]; then
+  echo "==> 2.5/5 编译后门（实测盒 + 实测时长）"
+  node "$TOOLKIT/scripts/lint_scene.js" .
+fi
 
 echo "==> 3/5 音频轨"
 node "$TOOLKIT/scripts/assemble_audio.js"
