@@ -30,22 +30,29 @@ const MODE = process.argv[2];
 const SMOKE = MODE === 'smoke';
 const RANGE = MODE === 'range' ? [parseInt(process.argv[3]), parseInt(process.argv[4])] : null;
 const OUT = path.join(ROOT, SMOKE ? 'smoke' : 'frames');
-const PORT = parseInt(process.env.RENDER_PORT || '8742');
+// 默认用临时端口（0 = 由内核分配），避免并行/残留进程抢占固定端口导致 EADDRINUSE；
+// 需要固定端口时设 RENDER_PORT。
+const REQ_PORT = process.env.RENDER_PORT ? parseInt(process.env.RENDER_PORT, 10) : 0;
+// 浏览器通道：默认本机 Chrome；PW_CHANNEL='' 用 playwright 自带 chromium（CI 用）
+const CHANNEL = process.env.PW_CHANNEL === undefined ? 'chrome' : process.env.PW_CHANNEL;
 fs.mkdirSync(OUT, { recursive: true });
 
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.css': 'text/css' };
+const ROOT_RESOLVED = path.resolve(ROOT);
 const server = http.createServer((req, res) => {
   let p = decodeURIComponent(req.url.split('?')[0]);
   if (p === '/') p = '/scene.html';
-  const f = path.join(ROOT, p);
-  if (!f.startsWith(ROOT) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.statusCode = 404; return res.end('nf'); }
+  const f = path.resolve(ROOT_RESOLVED, '.' + p);
+  if ((f !== ROOT_RESOLVED && !f.startsWith(ROOT_RESOLVED + path.sep)) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.statusCode = 404; return res.end('nf'); }
   res.setHeader('Content-Type', MIME[path.extname(f)] || 'application/octet-stream');
   res.end(fs.readFileSync(f));
 });
 
 (async () => {
-  await new Promise(r => server.listen(PORT, '127.0.0.1', r));
-  const browser = await PW.chromium.launch({ channel: 'chrome', args: ['--force-color-profile=srgb', '--disable-frame-rate-limit', '--hide-scrollbars'] });
+  const PORT = await new Promise(r => server.listen(REQ_PORT, '127.0.0.1', () => r(server.address().port)));
+  const launch = { args: ['--force-color-profile=srgb', '--disable-frame-rate-limit', '--hide-scrollbars'] };
+  if (CHANNEL) launch.channel = CHANNEL;
+  const browser = await PW.chromium.launch(launch);
   const tl = JSON.parse(fs.readFileSync(path.join(ROOT, 'timeline.json')));
   const page = await browser.newPage({ viewport: { width: tl.width, height: tl.height }, deviceScaleFactor: 1 });
   page.on('pageerror', e => console.log('PAGEERROR:', e.message));

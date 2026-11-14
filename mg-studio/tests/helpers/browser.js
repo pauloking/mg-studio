@@ -7,17 +7,24 @@ function loadPW() {
   return require(path.join(root, 'playwright'));
 }
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.css': 'text/css' };
+function launchOptions() {
+  const opts = { args: ['--force-color-profile=srgb', '--hide-scrollbars'] };
+  const channel = process.env.PW_CHANNEL === undefined ? 'chrome' : process.env.PW_CHANNEL;
+  if (channel) opts.channel = channel;
+  return opts;
+}
 async function withPage(dir, fn, query = '') {
+  const root = path.resolve(dir);
   const server = http.createServer((req, res) => {
     let p = decodeURIComponent(req.url.split('?')[0]); if (p === '/') p = '/scene.html';
-    const f = path.join(dir, p);
-    if (!f.startsWith(dir) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.statusCode = 404; return res.end('nf'); }
+    const f = path.resolve(root, '.' + p);
+    if ((f !== root && !f.startsWith(root + path.sep)) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.statusCode = 404; return res.end('nf'); }
     res.setHeader('Content-Type', MIME[path.extname(f)] || 'application/octet-stream');
     res.end(fs.readFileSync(f));
   });
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   const port = server.address().port;
-  const browser = await loadPW().chromium.launch({ channel: 'chrome', args: ['--force-color-profile=srgb', '--hide-scrollbars'] });
+  const browser = await loadPW().chromium.launch(launchOptions());
   try {
     const page = await browser.newPage({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 });
     await page.goto(`http://127.0.0.1:${port}/scene.html${query ? '?' + query : ''}`, { waitUntil: 'load' });
@@ -28,4 +35,4 @@ async function withPage(dir, fn, query = '') {
   } finally { await browser.close(); server.close(); }
 }
 async function frame(page, j) { return page.evaluate(j => { window.__frame(j); return window.__err; }, j); }
-module.exports = { withPage, frame, loadPW };
+module.exports = { withPage, frame, loadPW, launchOptions };

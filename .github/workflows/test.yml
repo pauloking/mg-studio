@@ -1,0 +1,32 @@
+name: test
+
+# 说明：
+# - 跑「编译核 + 浏览器帧驱动 + 编译后门」全套，不含 e2e（e2e 需要 macOS `say` 配音，Linux runner 没有）
+# - 旧片像素回归需要 MG_REGRESSION_SRC 指向旧素材，CI 无素材时 run.sh 会干净 skip
+# - PW_CHANNEL='' 让 playwright 用自带 chromium（runner 不保证有 chrome 通道）
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PW_CHANNEL: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: 安装 ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: 安装 playwright + chromium
+        working-directory: mg-studio
+        run: |
+          npm install --no-save playwright@1
+          npx playwright install --with-deps chromium
+      - name: 测试（不含 e2e 出片）
+        working-directory: mg-studio
+        run: npm run test:ci
