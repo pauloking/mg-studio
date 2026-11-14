@@ -75,9 +75,9 @@ fetch('timeline.json').then(r => r.json()).then(tl => { TL = tl;
 
 function emitSceneHtml({ tokens, scenes, components, preRuntime }) {
   const used = [...new Set(scenes.map(s => s.layout))];
-  const vars = Object.entries(tokens.colors).map(([k, v]) => `--${k}:${v};`).join('');
-// font.family 双保险：ir.js 已白名单校验；这里再剥掉白名单外字符后落地
+  // 双保险：ir.js 已白名单校验，这里落地前再剥白名单外字符（font.family 防 </style> 越狱、色键名防 CSS 变量名打断）
 const escFontFamily = String(tokens.font.family).replace(/[^\w"',\- ]/g, '');
+const vars = Object.entries(tokens.colors).map(([k, v]) => `--${String(k).replace(/[^\w-]/g, '')}:${v};`).join('');
   const css = used.map(n => components[n].css(tokens)).join('\n');
   const runtime = used.map(n => components[n].runtime ? components[n].runtime(tokens) : '').join('\n');
   const specs = {};

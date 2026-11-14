@@ -150,6 +150,29 @@ test('loadProject：beats 含 null 时抛带 irErrors 的 Error 而非 TypeError
   assert.throws(() => ir.loadProject(dir, []),
     e => e instanceof Error && !(e instanceof TypeError) && Array.isArray(e.irErrors));
 });
+test('validateTokens：font.family 只允许 CSS 字体族安全字符（防 </style> 越狱 / CSS 打断）', () => {
+  const bad = (family) => ir.validateTokens({ colors: { bg: '#070b16', ink: '#f5f7ff', accent: '#6a5cff', accent2: '#00c2ff', muted: '#c6cdf5' }, font: { family }, subtitle: { bottom: 64, fontSize: 40, maxW: 1560 } }).errors;
+  assert.deepEqual(bad('"PingFang SC","Hiragino Sans GB",sans-serif'), [], '常规字体族应通过');
+  assert.ok(bad('sans-serif; }</style><script>alert(1)</script>').some(e => /font.family/.test(e)), '</style> 越狱应被拒');
+  assert.ok(bad('x; } body { display:none } /*').some(e => /font.family/.test(e)), 'CSS 打断应被拒');
+  assert.ok(bad('PingFang; background:url(javascript:alert(1))').some(e => /font.family/.test(e)), 'url() 注入应被拒');
+});
+test('validateScene：subsOverride 单行 ≤18 字（覆盖不得绕过自动切句约束）', () => {
+  const el = { id: 'c1', type: 'card', props: { title: 't', desc: 'd' } };
+  const mk = (subs) => ir.validateScene({ id: 'hook', beat: 'hook', layout: 'points', minSec: 3, subsOverride: subs, elements: [el] }, ['hook'], ['points']).errors;
+  assert.deepEqual(mk(['十', '八字以内的两行']), [], '短行应通过');
+  assert.ok(mk(['一'.repeat(19)]).some(e => /18/.test(e)), '19 字应被拒');
+  assert.ok(mk(['']).some(e => /非空/.test(e)), '空行应被拒');
+});
+
+test('validateTokens：色键名只允许字母数字与连字符（防 CSS 变量名注入）', () => {
+  const colors = { bg: '#070b16', ink: '#f5f7ff', accent: '#6a5cff', accent2: '#00c2ff', muted: '#c6cdf5' };
+  const mk = (extra) => ir.validateTokens({ colors: Object.assign({}, colors, extra), font: { family: 'sans-serif' }, subtitle: { bottom: 64, fontSize: 40, maxW: 1560 } });
+  assert.deepEqual(mk({}).errors, []);
+  assert.deepEqual(mk({ 'accent-2': '#111111', 'A9': '#222222' }).errors, [], '字母开头 + 数字/连字符应通过');
+  assert.ok(mk({ 'x}; html{display:none': '#123456' }).errors.some(e => /colors 键名非法/.test(e)), 'CSS 打断串应被拒');
+  assert.ok(mk({ '-x': '#123456' }).errors.some(e => /colors 键名非法/.test(e)), '非字母开头应被拒');
+});
 test('validateTokens：required 色键 malformed 只产一条诊断（去重）', () => {
   const tk = JSON.parse(fs.readFileSync(path.join(FIX, 'mini-v2', 'tokens.json'), 'utf8'));
   tk.colors.accent = 'red';
