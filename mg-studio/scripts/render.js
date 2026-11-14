@@ -10,6 +10,7 @@
  * 重要: 换配音/改时间轴后必须先清空 ./frames 再全量渲染，避免残留旧帧混入。
  */
 const http = require('http'), fs = require('fs'), path = require('path');
+const { pickSmokeFrames } = require('../lib/scene-map');
 // 可移植地加载 playwright：PW_PATH > 本地 require > 全局 npm root > 常见路径
 function loadPW() {
   if (process.env.PW_PATH) return require(process.env.PW_PATH);
@@ -63,16 +64,13 @@ const server = http.createServer((req, res) => {
   if (initErr) { console.error('INIT ERROR:', initErr); process.exit(1); }
   const n = await page.evaluate(() => window.__N);
 
-  let list;
+  let list, smokeMap = null;
   if (RANGE) list = Array.from({ length: RANGE[1] - RANGE[0] }, (_, i) => RANGE[0] + i);
   else if (SMOKE) {
     let picks = {};
     try { picks = JSON.parse(fs.readFileSync(path.join(ROOT, 'script.json'))).smokePicks || {}; } catch (e) {}
-    list = [];
-    for (const sc of tl.scenes) {
-      const lt = picks[sc.id] || [Math.min(((sc.end - sc.start) / tl.fps) * 0.6, 4)];
-      for (const x of lt) list.push(Math.min(sc.end - 1, sc.start + Math.round(x * tl.fps)));
-    }
+    smokeMap = pickSmokeFrames(tl, picks);
+    list = smokeMap.map(x => x.frame);
   } else list = Array.from({ length: n }, (_, i) => i);
 
   console.log('frames to render:', list.length, SMOKE ? '(smoke)' : RANGE ? '(range)' : `(total ${n})`);
@@ -85,6 +83,11 @@ const server = http.createServer((req, res) => {
   }
   const err = await page.evaluate(() => window.__err);
   console.log('runtime error:', err || 'none');
+  if (SMOKE && smokeMap) {
+    const mp = path.join(OUT, '_scene_map.json');
+    fs.writeFileSync(mp, JSON.stringify(smokeMap, null, 2));
+    console.log('scene map ->', path.relative(ROOT, mp));
+  }
   await browser.close(); server.close();
   console.log('done in', ((Date.now() - t0) / 1000).toFixed(1), 's');
   if (err) process.exit(1);
