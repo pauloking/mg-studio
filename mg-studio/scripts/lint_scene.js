@@ -19,6 +19,7 @@ const ir = require('../lib/ir');
 const { COMPONENTS, LAYOUT_NAMES } = require('../lib/components');
 const { normalizeScene } = require('../lib/compile');
 const { lintMotion } = require('../lib/motion-lint');
+const { lintMedical } = require('../lib/medical-lint');
 const { measureBoxes } = require('../lib/measure');
 
 async function main() {
@@ -49,7 +50,9 @@ async function main() {
     console.warn('[W] 已按 MG_MEASURE=0 跳过实测盒：几何类检查强度下降');
   }
 
-  const lint = lintMotion({ scenes, tokens: project.tokens, components: COMPONENTS, measured, durations });
+  const lint = lintMotion({ scenes, tokens: project.tokens, components: COMPONENTS, measured, durations })
+    // 编译后门同样跑医学门：与编译期一致，避免"编译过了但 lint_scene 漏掉"或反之。
+    .concat(lintMedical({ story: project.story, scenes: project.scenes }));
   for (const l of lint) console.log(`[${l.level}] ${l.code} ${l.scene || ''}/${l.el || ''}: ${l.msg}`);
   const blocking = lint.filter(l => l.level === 'B');
   const geo = measured ? '实测盒' : '估算盒';

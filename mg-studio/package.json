@@ -3,11 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "description": "MG 全链路工具包：声明式分镜编译 + 确定性帧渲染",
-  "engines": { "node": ">=20" },
-  "peerDependencies": { "playwright": ">=1.40" },
-  "peerDependenciesMeta": { "playwright": { "optional": true } },
+  "engines": {
+    "node": ">=20"
+  },
+  "peerDependencies": {
+    "playwright": ">=1.40"
+  },
+  "peerDependenciesMeta": {
+    "playwright": {
+      "optional": true
+    }
+  },
   "scripts": {
     "test": "node --test --test-concurrency=1 tests/*.test.js",
-    "test:ci": "node --test --test-concurrency=1 tests/ir.test.js tests/subs.test.js tests/presets.test.js tests/props.test.js tests/shell-safety.test.js tests/compile.test.js tests/motion-lint.test.js tests/escape.test.js tests/components.test.js tests/components-av.test.js tests/measure.test.js tests/regression.test.js"
+    "test:ci": "node --test --test-concurrency=1 tests/ir.test.js tests/subs.test.js tests/presets.test.js tests/props.test.js tests/shell-safety.test.js tests/compile.test.js tests/motion-lint.test.js tests/escape.test.js tests/components.test.js tests/components-av.test.js tests/measure.test.js tests/regression.test.js tests/medical-lint.test.js"
   }
 }
