@@ -46,15 +46,35 @@ function serve(root) {
   });
   return new Promise(r => server.listen(0, '127.0.0.1', () => r({ server, port: server.address().port })));
 }
-// 取"所有入场动画都结束"之后的一帧：此时 transform 已归零，量到的是真实布局盒。
-// elements 来自编译后的场景（timeline 里的 scene 不含 elements），缺省退化到 60% 处采样。
+// cue → 场景内秒。与运行时 cueLt 同一换算：lt: 直读；narration:r 用
+// audioStart + r*audioDur（timeline.json 的 dur 字段即旁白音频时长）。
+function cueToLt(cue, scene, fps) {
+  if (!cue) return 0;
+  if (cue.startsWith('lt:')) return parseFloat(cue.slice(3));
+  const r = parseFloat(cue.slice(10));
+  const audioDur = scene.dur != null ? scene.dur : (scene.end - scene.start) / fps;
+  const audioStart = scene.audioStart != null ? scene.audioStart : scene.start / fps;
+  return audioStart - scene.start / fps + r * audioDur;
+}
+// 取一个"元素静止"的帧来量布局盒：须避开所有运动窗口——
+// enter 结束后、且不早于任何 emphasis 结束（pulse/scale 会临时放大盒，
+// 量到的是变形盒）；有 exit 时还要早于 exit 开始（sink 会下移盒）。
+// 若 emphasis 一直播到 exit（无静止窗口），退到 exit 开始前（保底：宁可量到
+// 尾部残影，也要尽量选运动最少的帧）；完全没有动画时取 60% 处。
+// elements 来自编译后的场景（timeline 里的 scene 不含 elements）。
 function measureFrame(scene, fps, elements) {
   const els = elements || scene.elements || [];
-  let end = 0;
-  for (const el of els) if (el.enter) end = Math.max(end, el.enter.at + el.enter.dur);
+  const sceneSec = (scene.end - scene.start) / fps;
+  let motionEnd = 0, exitStart = Infinity;
+  for (const el of els) {
+    if (el.enter) motionEnd = Math.max(motionEnd, el.enter.at + el.enter.dur);
+    for (const c of el.emphasis || []) motionEnd = Math.max(motionEnd, cueToLt(c.cue, scene, fps) + (c.dur || 0));
+    if (el.exit) exitStart = Math.min(exitStart, sceneSec - el.exit.dur);
+  }
+  let t = motionEnd > 0 ? motionEnd + 0.2 : sceneSec * 0.6;
+  if (Number.isFinite(exitStart)) t = Math.min(t, Math.max(0, exitStart - 0.1));
   const frames = scene.end - scene.start;
-  const j = end > 0 ? Math.round((end + 0.2) * fps) : Math.round(frames * 0.6);
-  return Math.max(0, Math.min(j, frames - 1));
+  return Math.max(0, Math.min(Math.round(t * fps), frames - 1));
 }
 
 /** @returns {Promise<null|{sceneId: {elId: {x,y,w,h}}}>} 环境不可用返回 null */
@@ -90,4 +110,4 @@ async function measureBoxes({ dir, timeline, scenes }) {
   }
 }
 
-module.exports = { measureBoxes, measureFrame, loadPW, launchOptions };
+module.exports = { measureBoxes, measureFrame, cueToLt, loadPW, launchOptions };

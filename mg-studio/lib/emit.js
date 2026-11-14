@@ -76,6 +76,8 @@ fetch('timeline.json').then(r => r.json()).then(tl => { TL = tl;
 function emitSceneHtml({ tokens, scenes, components, preRuntime }) {
   const used = [...new Set(scenes.map(s => s.layout))];
   const vars = Object.entries(tokens.colors).map(([k, v]) => `--${k}:${v};`).join('');
+// font.family 双保险：ir.js 已白名单校验；这里再剥掉白名单外字符后落地
+const escFontFamily = String(tokens.font.family).replace(/[^\w"',\- ]/g, '');
   const css = used.map(n => components[n].css(tokens)).join('\n');
   const runtime = used.map(n => components[n].runtime ? components[n].runtime(tokens) : '').join('\n');
   const specs = {};
@@ -101,7 +103,7 @@ function emitSceneHtml({ tokens, scenes, components, preRuntime }) {
 :root{${vars}}
 * { margin:0; padding:0; box-sizing:border-box; }
 html,body { width:1920px; height:1080px; overflow:hidden; background:var(--bg);
-  font-family:${tokens.font.family}; -webkit-font-smoothing:antialiased; }
+  font-family:${escFontFamily}; -webkit-font-smoothing:antialiased; }
 #bg { position:absolute; inset:0; }
 .vignette { position:absolute; inset:0; pointer-events:none;
   background:radial-gradient(ellipse at 50% 45%, transparent 55%, rgba(2,4,10,.55) 100%); }

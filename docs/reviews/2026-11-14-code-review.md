@@ -92,6 +92,14 @@ execSync(`say -v ${voice} ${rate} -o "${aiff}" ${JSON.stringify(sc.narration)}`)
 
 ---
 
+### P0-3　`tokens.font.family` 直接进 `<style>`，可越狱出样式块（复检提级）
+
+**位置**：`lib/ir.js:69`（只校验"非空字符串"）、`lib/emit.js:99`（原样插值进 `<style>`）
+
+第一轮把这条归在 backlog 的 M2 小项（"font.family sanitization"），复检实测后**提级为 P0**：它与 P0-1 同类——tokens 是作者 JSON，`family: 'x; }</style><script>…'` 编译通过、`</style>` 成功越狱出样式块。CSS 值的安全字符集很小，白名单校验 + 落地转义即可双保险。
+
+---
+
 ### P1-1　动效 lint 的包围盒是硬编码估算（门可以被打穿）
 
 **位置**：`lib/components/points.js:24-27`（恒返回 `h: 260`）、`lib/components/stat.js:25-28`（恒返回 `h: 280`）、`lib/components/title-card.js:27-31`（固定 y/w/h）
@@ -201,6 +209,8 @@ to:   winFrom + span * (k + 1) / arr.length
 | 4 | `TEXT_DWELL` 按文本块独立计、语速 4.5 字/秒；对比度按真实渲染色与卡片合成底色 | P1-2 / P1-3 | 小 |
 | 5 | 渲染端口改临时端口、`engines`/`peerDependencies`、CI、去个人路径 | P2 | 小 |
 | 6 | 医学门四条（verified / 免责声明 / 绝对化词表 / 术语密度） | P1-5 | 中，建议独立 PR |
+| 7 | `font.family` 白名单 + 落地转义（P0-3，复检新增） | P0-3 | 小 |
+| 8 | 实测盒取样帧避开 emphasis/exit 运动窗口（PR 复检发现，pulse 会让盒虚增 ~4%，方向保守、只误报不漏报） | — | 小，已随 PR 修复 |
 | 7 | 字幕按字数加权分配时长 | P1-4 | 小，独立 PR |
 | 8 | LICENSE、编译产物 ignore 策略、`make.sh` 注释、目录嵌套 | P2 / P3 | 小 |
 

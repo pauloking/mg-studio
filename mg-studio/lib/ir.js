@@ -66,7 +66,11 @@ function validateTokens(tk) {
   if (!tk || typeof tk.colors !== 'object' || tk.colors == null) return { ok: false, errors: ['tokens.colors 缺失'] };
   for (const k of REQUIRED_COLORS) if (!HEX_RE.test(tk.colors[k] || '')) errors.push('colors.' + k + ' 须为 #rrggbb');
   for (const [k, v] of Object.entries(tk.colors)) if (!REQUIRED_COLORS.includes(k) && !HEX_RE.test(v)) errors.push('colors.' + k + ' 非法: ' + v);
+  // font.family 直接进 scene.html 的 <style>，只允许 CSS 字体族的安全字符集：
+  // 字母数字、引号、逗号、空格、连字符、下划线；</style>、{}、;、<、>、url() 一律拒绝。
+  const FONT_RE = /^[\w"',\- ]+$/;
   if (!tk.font || typeof tk.font.family !== 'string' || !tk.font.family.trim()) errors.push('font.family 须为非空字符串');
+  else if (!FONT_RE.test(tk.font.family)) errors.push('font.family 含非法字符（只允许字母数字、引号、逗号、空格、连字符）: ' + JSON.stringify(tk.font.family.slice(0, 40)));
   if (!tk.subtitle || typeof tk.subtitle.bottom !== 'number') errors.push('subtitle.bottom 须为数字');
   else if (tk.subtitle.bottom !== 64) errors.push('subtitle.bottom 须为 64（M1 渲染核冻结字幕区，lint 940/900）');
   if (!tk.subtitle || !Number.isFinite(tk.subtitle.fontSize) || tk.subtitle.fontSize <= 0) errors.push('subtitle.fontSize 须为正数');
