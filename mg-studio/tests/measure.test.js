@@ -64,6 +64,45 @@ test('lint_scene：估算盒放行、实测盒拦截（P1-1 回归）', { timeou
   assert.ok(!fs.existsSync(path.join(work, 'out')), '门不应产出成片');
 });
 
+test('measure：取样帧避开 emphasis/exit 运动窗口（pulse 放大不进盒）', { timeout: 180000 }, async (t) => {
+  const { measureFrame } = require('../lib/measure');
+  // 纯函数层：pulse 播 1~3s、enter 0~0.6s → 取样应在 3.2s 而非 0.8s
+  const tlScene = { id: 'hook', start: 0, end: 300, audioStart: 0.7, dur: 8 };
+  const els = [{ enter: { at: 0, dur: 0.6 }, emphasis: [{ cue: 'lt:1.0', dur: 2 }], exit: null }];
+  assert.equal(measureFrame(tlScene, 30, els), Math.round(3.2 * 30));
+  // narration:0.5（audioStart 0.7 + 0.5*8 = 4.7s）+ 2s emphasis → 6.9s 后
+  const els2 = [{ enter: { at: 0, dur: 0.6 }, emphasis: [{ cue: 'narration:0.5', dur: 2 }], exit: null }];
+  assert.equal(measureFrame(tlScene, 30, els2), Math.round(6.9 * 30));
+  // 有 exit（末 0.4s）→ 取样须早于 exit 开始
+  const els3 = [{ enter: { at: 0, dur: 0.6 }, emphasis: [], exit: { dur: 0.4 } }];
+  assert.ok(measureFrame(tlScene, 30, els3) < 300 - 0.4 * 30, '取样帧应早于 exit 窗口');
+
+  // 浏览器层（无环境则 skip）：pulse 进行中盒 w=542，静止帧应为 520
+  const work = path.join(ROOT, 'tests', 'work', 'measure-emph');
+  fs.rmSync(work, { recursive: true, force: true });
+  fs.mkdirSync(path.join(work, 'scenes'), { recursive: true });
+  fs.writeFileSync(path.join(work, 'story.json'), JSON.stringify({
+    schema: 2, meta: { title: 'emph', audience: 'general', template: 'science', durationTarget: 20 },
+    beats: [{ id: 'hook', role: 'hook', emotion: 3, intent: 'x', narration: '较长旁白保证场景时间充裕。', facts: [] }]
+  }, null, 2));
+  fs.writeFileSync(path.join(work, 'scenes', 'hook.json'), JSON.stringify({
+    id: 'hook', beat: 'hook', layout: 'points', minSec: 10,
+    elements: [{ id: 'c1', type: 'card', props: { title: '强调中的卡', desc: '描述。', x: 130, y: 400 },
+      enter: { preset: 'rise', at: 0, dur: 0.6 },
+      emphasis: [{ preset: 'pulse', cue: 'lt:1.0', dur: 2 }] }]
+  }, null, 2));
+  const { execFileSync } = require('child_process');
+  execFileSync('node', [path.join(ROOT, 'scripts', 'compile.js')], { cwd: work, stdio: 'pipe' });
+  fs.writeFileSync(path.join(work, 'timeline.json'), JSON.stringify({ fps: 30, width: 1920, height: 1080, totalFrames: 300,
+    scenes: [{ id: 'hook', start: 0, end: 300, audioStart: 0.7, dur: 8, subs: [] }] }));
+  const { measureBoxes } = require('../lib/measure');
+  const { normalizeScene } = require('../lib/compile');
+  const scenes = [Object.assign(normalizeScene(JSON.parse(fs.readFileSync(path.join(work, 'scenes', 'hook.json'), 'utf8'))), { id: 'hook' })];
+  const measured = await measureBoxes({ dir: work, timeline: JSON.parse(fs.readFileSync(path.join(work, 'timeline.json'))), scenes });
+  if (!measured) return t.skip('无 Playwright/Chrome，实测盒不可用');
+  assert.equal(measured.hook.c1.w, 520, '静止帧盒宽应为布局宽 520，而不是 pulse 放大中的 542');
+});
+
 test('lint_scene：实测时长覆盖估算时长（TEXT_DWELL 用真实 timeline）', () => {
   const sc = normalizeScene({
     id: 'a', layout: 'points', minSec: 1,

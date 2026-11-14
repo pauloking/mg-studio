@@ -103,6 +103,15 @@ test('validateScene：cue 含多个小数点（narration:1.2.3 / lt:1.2.3）报�
   sc.elements[0].emphasis = [{ preset: 'highlight', cue: 'lt:1.2.3', dur: 0.4 }];
   assert.ok(!ir.validateScene(sc, ['hook', 'takeaway'], ['title-card', 'points']).ok);
 });
+test('validateTokens：font.family 只允许 CSS 字体族安全字符（防 </style> 越狱 / CSS 打断）', () => {
+  const bad = (family) => ir.validateTokens({ colors: { bg: '#070b16', ink: '#f5f7ff', accent: '#6a5cff', accent2: '#00c2ff', muted: '#c6cdf5' }, font: { family }, subtitle: { bottom: 64, fontSize: 40, maxW: 1560 } }).errors;
+  const ok = bad('"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif');
+  assert.deepEqual(ok, [], '常规字体族应通过');
+  assert.ok(bad('sans-serif; }</style><script>alert(1)</script>').some(e => /font.family/.test(e)), '</style> 越狱应被拒');
+  assert.ok(bad('x; } body { display:none } /*').some(e => /font.family/.test(e)), 'CSS 打断应被拒');
+  assert.ok(bad('PingFang; background:url(javascript:alert(1))').some(e => /font.family/.test(e)), 'url() 注入应被拒');
+});
+
 test('validateTokens：缺 font/fontSize/maxW 或 bottom≠64 报错', () => {
   const base = JSON.parse(fs.readFileSync(path.join(FIX, 'mini-v2', 'tokens.json'), 'utf8'));
   const clone = () => JSON.parse(JSON.stringify(base));
