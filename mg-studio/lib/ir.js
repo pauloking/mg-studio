@@ -6,6 +6,11 @@ const AUDIENCES = ['patient', 'professional', 'general'];
 const TEMPLATES = ['science', 'product', 'teaching', 'free'];
 const ID_RE = /^[a-z][a-z0-9_]*$/i;
 const HEX_RE = /^#[0-9a-f]{6}$/i;
+// font.family 直接进 scene.html 的 <style>，只允许 CSS 字体族的安全字符集：
+// 字母数字、引号、逗号、空格、连字符；</style>、{}、;、<、>、url() 一律拒绝。
+const FONT_RE = /^[\w"',\- ]+$/;
+// 色键名直接进 CSS 变量名 --<k>:<v>，与 font.family 同类注入面：字母数字与连字符。
+const COLOR_KEY_RE = /^[a-zA-Z][a-zA-Z0-9-]*$/;
 const CUE_RE = /^(narration|lt):\d+(\.\d+)?$/;
 
 function validateStory(story) {
@@ -57,6 +62,12 @@ function validateScene(sc, beatIds, layoutNames) {
     if (!seen.has(c.target)) errors.push(`scene ${sc.id} cue.target 不存在: ${c.target}`);
   }
   if (sc.subsOverride != null && !Array.isArray(sc.subsOverride)) errors.push(`scene ${sc.id} subsOverride 须为数组或 null`);
+  if (Array.isArray(sc.subsOverride)) {
+    // 自动切句的 ≤18 字约束是可读性门（subs.js 注释），覆盖时同一约束必须成立，否则覆盖绕过该门
+    for (const line of sc.subsOverride)
+      if (typeof line !== 'string' || !line.trim()) errors.push(`scene ${sc.id} subsOverride 行须为非空字符串`);
+      else if (line.length > 18) errors.push(`scene ${sc.id} subsOverride 单行 ${line.length} 字 > 18（与自动切句约束一致）`);
+  }
   return { ok: errors.length === 0, errors };
 }
 
@@ -66,11 +77,9 @@ function validateTokens(tk) {
   if (!tk || typeof tk.colors !== 'object' || tk.colors == null) return { ok: false, errors: ['tokens.colors 缺失'] };
   for (const k of REQUIRED_COLORS) if (!HEX_RE.test(tk.colors[k] || '')) errors.push('colors.' + k + ' 须为 #rrggbb');
   for (const [k, v] of Object.entries(tk.colors)) if (!REQUIRED_COLORS.includes(k) && !HEX_RE.test(v)) errors.push('colors.' + k + ' 非法: ' + v);
-  // font.family 直接进 scene.html 的 <style>，只允许 CSS 字体族的安全字符集：
-  // 字母数字、引号、逗号、空格、连字符、下划线；</style>、{}、;、<、>、url() 一律拒绝。
-  const FONT_RE = /^[\w"',\- ]+$/;
   if (!tk.font || typeof tk.font.family !== 'string' || !tk.font.family.trim()) errors.push('font.family 须为非空字符串');
   else if (!FONT_RE.test(tk.font.family)) errors.push('font.family 含非法字符（只允许字母数字、引号、逗号、空格、连字符）: ' + JSON.stringify(tk.font.family.slice(0, 40)));
+  for (const k of Object.keys(tk.colors)) if (!COLOR_KEY_RE.test(k)) errors.push('colors 键名非法（只允许字母数字与连字符，且以字母开头）: ' + JSON.stringify(k));
   if (!tk.subtitle || typeof tk.subtitle.bottom !== 'number') errors.push('subtitle.bottom 须为数字');
   else if (tk.subtitle.bottom !== 64) errors.push('subtitle.bottom 须为 64（M1 渲染核冻结字幕区，lint 940/900）');
   if (!tk.subtitle || !Number.isFinite(tk.subtitle.fontSize) || tk.subtitle.fontSize <= 0) errors.push('subtitle.fontSize 须为正数');

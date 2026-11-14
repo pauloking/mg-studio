@@ -199,6 +199,18 @@ to:   winFrom + span * (k + 1) / arr.length
 
 ---
 
+---
+
+## 2.5 第三轮复检发现（2026-11-15，针对合并后代码）
+
+| # | 发现 | 级别 | 状态 |
+| --- | --- | --- | --- |
+| R3-1 | `tokens.colors` **键名**未校验：键直接进 CSS 变量 `--<k>:<v>`，`'x}; html{display:none'` 编译通过且打断 CSS（与 font.family 同类注入面，font.family 已在 PR #2 修，键名漏了） | P0 | 已修：`COLOR_KEY_RE` 白名单（字母开头 + 字母数字/连字符）+ emit.js 落地二次剥离 |
+| R3-2 | `subsOverride` 单行长度不校验：自动切句有"每行 ≤18 字"约束，但作者覆盖时绕过——40 字单行放行，可读性门形同虚设 | P1 | 已修：`validateScene` 对覆盖行施加同一 ≤18 字约束 + 非空校验 |
+| R3-3 | `scene.id` / `beat.id` 允许 `constructor`/`toString` 这类保留名：当前生成代码里 `S['<id>']` 是对象字面量键、`els.find(x => x.key === id)` 是严格比较，**暂无可利用点**，但 `up_<id>` 函数名允许 `constructor` 会产生遮蔽（`up_constructor` 合法但不冲突）；建议收紧 ID_RE 排除保留字 | P3 | 未修（无实际危害，留作加固项） |
+| R3-4 | `test:ci` 硬编码 12 个测试文件名：新增测试文件必须手动加进 package.json，否则 CI 静默漏跑（本次 `measure.test.js` 就差点漏掉）；改为 glob + 排除 e2e 更稳 | P2 | 未修（glob 排除 e2e 需要 node --test 支持排除模式，或目录分离） |
+
+---
 ## 3. 修复优先级（本次 PR 覆盖 1～5）
 
 | # | 动作 | 对应问题 | 量级 |
