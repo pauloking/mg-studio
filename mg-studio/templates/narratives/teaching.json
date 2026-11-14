@@ -1,0 +1,8 @@
+{
+  "id": "teaching", "name": "教学",
+  "firstRole": "objective",
+  "lastRoles": ["summary", "selfcheck", "takeaway"],
+  "requiredRoles": ["objective", "steps", "summary"],
+  "recommendRoles": ["prerequisite", "selfcheck"],
+  "durationRatio": {}
+}
