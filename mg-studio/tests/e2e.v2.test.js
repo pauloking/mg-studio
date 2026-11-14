@@ -12,11 +12,11 @@ function runE2E(fixture, workName) {
   const out = execFileSync('bash', [path.join(ROOT, 'scripts', 'make.sh'), ROOT, 'local', 'test'], { cwd: work, encoding: 'utf8' });
   assert.ok(out.includes('compile OK'), '应触发编译步骤');
   assert.ok(out.includes('timeline OK'));
-  assert.ok(out.includes('runtime error: none'));
+  assert.ok(out.includes('QA OK'), 'auto_qa 应通过（B=0）');
   const script = JSON.parse(fs.readFileSync(path.join(work, 'script.json'), 'utf8'));
   assert.equal(script.schema, 2);
   const tl = JSON.parse(fs.readFileSync(path.join(work, 'timeline.json'), 'utf8'));
-  const frames = fs.readdirSync(path.join(work, 'frames')).filter(f => f.endsWith('.png'));
+  const frames = fs.readdirSync(path.join(work, 'frames', 'all')).filter(f => f.endsWith('.png'));
   assert.equal(frames.length, tl.totalFrames, '帧数应等于时间轴总帧数');
   const mp4 = path.join(work, 'out', 'test.mp4');
   assert.ok(fs.existsSync(mp4));
