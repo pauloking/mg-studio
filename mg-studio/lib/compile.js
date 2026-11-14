@@ -6,6 +6,7 @@ const { PRESET_DEFAULT_DUR, PRE_RUNTIME, ENTER_PRESETS, EMPHASIS_PRESETS, EXIT_P
 const { emitSceneHtml } = require('./emit');
 const { COMPONENTS, LAYOUT_NAMES } = require('./components');
 const { lintMotion } = require('./motion-lint');
+const { lintMedical } = require('./medical-lint');
 const { checkElementProps } = require('./props');
 
 function normalizeScene(sc, components = COMPONENTS) {
@@ -77,6 +78,9 @@ function compileProject(dir) {
   catch (e) { errors.push(e.message); scenes = project.scenes; }
   if (!errors.length) {
     lint = lintMotion({ scenes, tokens: project.tokens, components: COMPONENTS });
+    // 医学安全门（§6/§10）：与动效 lint 同批跑，B 级同样阻断写产物。
+    // 用 project.scenes（带 beat.facts/narration），而非 normalizeScene 后的纯视觉 scenes。
+    lint = lint.concat(lintMedical({ story: project.story, scenes: project.scenes }));
     for (const l of lint) if (l.level === 'B') errors.push(`${l.code} ${l.scene}/${l.el || ''}: ${l.msg}`);
   }
   if (errors.length) return { mode: 'v2', lint, errors };
