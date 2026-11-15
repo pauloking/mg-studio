@@ -5,6 +5,15 @@ const ROLES = ['hook', 'context', 'conflict', 'mechanism', 'evidence', 'demo', '
 const AUDIENCES = ['patient', 'professional', 'general'];
 const TEMPLATES = ['science', 'product', 'teaching', 'free'];
 const ID_RE = /^[a-z][a-z0-9_]*$/i;
+const RESERVED_IDS = new Set([
+  'constructor', 'prototype', '__proto__', 'tostring', 'valueof',
+  'hasownproperty', 'isprototypeof', 'propertyisenumerable', 'tolocalestring'
+]);
+
+function isSafeId(id) {
+  if (typeof id !== 'string' || !ID_RE.test(id)) return false;
+  return !RESERVED_IDS.has(id.toLowerCase());
+}
 const HEX_RE = /^#[0-9a-f]{6}$/i;
 // font.family 直接进 scene.html 的 <style>，只允许 CSS 字体族的安全字符集：
 // 字母数字、引号、逗号、空格、连字符；</style>、{}、;、<、>、url() 一律拒绝。
@@ -26,7 +35,7 @@ function validateStory(story) {
   const seen = new Set();
   for (const b of beats) {
     if (!b || typeof b !== 'object') { errors.push('beat 须为对象'); continue; }
-    if (!b.id || !ID_RE.test(b.id)) errors.push('beat.id 非法: ' + b.id);
+    if (!b.id || !isSafeId(b.id)) errors.push('beat.id 非法: ' + b.id);
     if (seen.has(b.id)) errors.push('beat.id 重复: ' + b.id);
     seen.add(b.id);
     if (!ROLES.includes(b.role)) errors.push(`beat ${b.id} role 非法: ${b.role}`);
@@ -42,7 +51,7 @@ function validateStory(story) {
 function validateScene(sc, beatIds, layoutNames) {
   const errors = [];
   if (!sc || typeof sc !== 'object') return { ok: false, errors: ['scene 须为对象'] };
-  if (!ID_RE.test(sc.id || '')) errors.push('scene.id 非法: ' + sc.id);
+  if (!isSafeId(sc.id || '')) errors.push('scene.id 非法: ' + sc.id);
   if (!beatIds.includes(sc.beat)) errors.push(`scene ${sc.id} 引用不存在的 beat: ${sc.beat}`);
   if (sc.id !== sc.beat) errors.push(`M1 要求 scene.id === beat（${sc.id} vs ${sc.beat}）`);
   if (!layoutNames.includes(sc.layout)) errors.push(`scene ${sc.id} layout 未知: ${sc.layout}`);
@@ -51,7 +60,7 @@ function validateScene(sc, beatIds, layoutNames) {
   if (!Array.isArray(els) || els.length === 0) errors.push(`scene ${sc.id} elements 不能为空`);
   const seen = new Set();
   for (const el of els) {
-    if (!el.id || seen.has(el.id)) errors.push(`scene ${sc.id} element.id 缺失/重复: ${el.id}`);
+    if (!el.id || !isSafeId(el.id) || seen.has(el.id)) errors.push(`scene ${sc.id} element.id 缺失/重复/非法: ${el.id}`);
     seen.add(el.id);
     if (typeof el.type !== 'string') errors.push(`scene ${sc.id} element ${el.id} 缺 type`);
     if (typeof el.props !== 'object' || el.props == null) errors.push(`scene ${sc.id} element ${el.id} props 须为对象`);

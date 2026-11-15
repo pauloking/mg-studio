@@ -180,3 +180,24 @@ test('validateTokens：required 色键 malformed 只产一条诊断（去重）'
   assert.ok(!r.ok);
   assert.equal(r.errors.filter(m => /accent/.test(m)).length, 1);
 });
+
+test('validateStory / validateScene：拒绝 constructor/toString 等原型保留名作为 id（R3-3 加固）', () => {
+  const s = story();
+  s.beats[0].id = 'constructor';
+  const r1 = ir.validateStory(s);
+  assert.ok(!r1.ok);
+  assert.ok(r1.errors.some(e => /beat\.id 非法.*constructor/.test(e)));
+
+  const sc = JSON.parse(fs.readFileSync(path.join(FIX, 'mini-v2', 'scenes', 'hook.json'), 'utf8'));
+  sc.id = 'toString';
+  sc.beat = 'toString';
+  const r2 = ir.validateScene(sc, ['toString'], ['title-card', 'points']);
+  assert.ok(!r2.ok);
+  assert.ok(r2.errors.some(e => /scene\.id 非法.*toString/.test(e)));
+
+  const sc2 = JSON.parse(fs.readFileSync(path.join(FIX, 'mini-v2', 'scenes', 'hook.json'), 'utf8'));
+  sc2.elements[0].id = '__proto__';
+  const r3 = ir.validateScene(sc2, ['hook'], ['title-card', 'points']);
+  assert.ok(!r3.ok);
+  assert.ok(r3.errors.some(e => /element\.id.*__proto__/.test(e)));
+});
