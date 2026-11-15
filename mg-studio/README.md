@@ -209,6 +209,8 @@ my-project/
 
 ## 3. 动效预设与时间锚点
 
+> 详细的动效数学模型、历史成片动效提炼与候选效果库，参见 [docs/motion-effects-guide.md](../docs/motion-effects-guide.md)。
+
 所有动画完全由帧号推进，运行时在 `lib/presets.js` 固化：
 
 | 动效预设 | 分类 | 默认时长 | 视觉表现 |
