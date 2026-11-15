@@ -18,6 +18,8 @@ FPS=30
 if [ -f story.json ]; then
   echo "==> 0/5 编译分镜"
   node "$TOOLKIT/scripts/compile.js"
+  echo "==> 0/5 G0 脚本门（lint_story）"
+  node "$TOOLKIT/scripts/lint_story.js" .
 fi
 
 echo "==> 1/5 配音 ($BACKEND)"

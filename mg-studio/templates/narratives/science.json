@@ -1,0 +1,8 @@
+{
+  "id": "science", "name": "科普",
+  "firstRole": "hook",
+  "lastRoles": ["takeaway", "cta"],
+  "requiredRoles": ["hook", "mechanism", "evidence", "takeaway"],
+  "recommendRoles": ["conflict"],
+  "durationRatio": { "hook": 0.1, "mechanism": 0.4, "evidence": 0.3, "takeaway": 0.2 }
+}

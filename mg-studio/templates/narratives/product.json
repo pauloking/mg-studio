@@ -1,0 +1,8 @@
+{
+  "id": "product", "name": "产品",
+  "firstRole": "hook",
+  "lastRoles": ["cta", "takeaway"],
+  "requiredRoles": ["hook", "demo", "evidence", "cta"],
+  "recommendRoles": [],
+  "durationRatio": { "hook": 0.15, "demo": 0.4, "evidence": 0.25, "cta": 0.2 }
+}
