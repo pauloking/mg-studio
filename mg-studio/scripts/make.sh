@@ -34,13 +34,15 @@ fi
 echo "==> 3/5 音频轨"
 node "$TOOLKIT/scripts/assemble_audio.js"
 
-echo "==> 4/5 清帧 + 全量渲染"
-rm -f frames/*.png
-node "$TOOLKIT/scripts/render.js"
+echo "==> 4/5 逐 scene 增量渲染"
+node "$TOOLKIT/scripts/render.js" --all
+
+echo "==> 4.5/5 拼接帧"
+node "$TOOLKIT/scripts/assemble_frames.js" .
 
 echo "==> 5/5 编码 + 混音"
 mkdir -p out
-ffmpeg -y -loglevel error -framerate "$FPS" -i frames/f_%04d.png \
+ffmpeg -y -loglevel error -framerate "$FPS" -i frames/all/f_%04d.png \
   -c:v libx264 -crf 18 -preset medium -pix_fmt yuv420p out/video_only.mp4
 if [ -f vo/bgm.wav ]; then
   ffmpeg -y -loglevel error -i out/video_only.mp4 -i vo/narration.wav -i vo/bgm.wav \
@@ -50,5 +52,7 @@ else
   ffmpeg -y -loglevel error -i out/video_only.mp4 -i vo/narration.wav \
     -map 0:v -map 1:a -c:v copy -c:a aac -b:a 192k "out/${OUTNAME}.mp4"
 fi
+echo "==> 5.5/5 QA"
+node "$TOOLKIT/scripts/auto_qa.js" .
 echo "==> 完成: out/${OUTNAME}.mp4"
 ffprobe -v error -show_entries format=duration,size -of csv=p=0 "out/${OUTNAME}.mp4"
