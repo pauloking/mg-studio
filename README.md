@@ -71,7 +71,8 @@
 │   │       ├── 2026-11-15-mg-studio-m3.md        # M3 增量渲染与自动 QA 实现计划
 │   │       └── 2026-11-15-mg-studio-m4.md        # M4 医学安全门与 3D 渲染实现计划
 │   ├── reviews/2026-11-14-code-review.md         # 架构审查与加固报告
-│   └── medical-assets-guide.md                   # ★ 医学解剖与生理波形开源素材指南
+│   ├── medical-assets-guide.md                   # ★ 医学解剖与生理波形开源素材指南
+│   └── motion-effects-guide.md                   # ★ 动效系统全景指南与效果库手册
 └── .gitignore                 # 排除 frames/out/vo/*.log/tests/work 等中间产物
 ```
 
@@ -313,3 +314,4 @@ npm run test:ci     # 动态自动扫描所有测试文件（CI 专用，防漏�
 * **开发者手册与资源库**：
   * [mg-studio 开发者详细用法手册](mg-studio/README.md)
   * [医学解剖与生理波形开源素材指南](docs/medical-assets-guide.md)
+  * [动效系统全景指南与效果库手册](docs/motion-effects-guide.md)
