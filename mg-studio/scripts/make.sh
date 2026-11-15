@@ -8,7 +8,8 @@
 #   2) v1 项目（script.json + scene.html）：直通，跳过编译与编译后门
 #      bash ../mg-studio/scripts/make.sh ../mg-studio bailian "S-ICD_科普"
 # 前置: node / 全局 playwright + 本机 Chrome / ffmpeg(含 libx264)；bailian 需 bl 已鉴权
-# 环境变量: RENDER_PORT（固定渲染端口）、PW_CHANNEL（浏览器通道）、MG_MEASURE=0（跳过实测盒）
+#       执行前建议运行 npm run doctor 自检环境。
+# 环境变量: RENDER_PORT（固定渲染端口）、PW_CHANNEL（浏览器通道）、MG_MEASURE=0（跳过实测盒）、MG_DOCTOR=1（执行前跑诊断）
 set -euo pipefail
 TOOLKIT="${1:?用法: make.sh <toolkit目录> [local|bailian] [输出名]}"
 BACKEND="${2:-local}"
