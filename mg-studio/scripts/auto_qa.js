@@ -29,6 +29,11 @@ function runQA({ dir, timeline, story, videoPath, skipMedia, subsByBeat = {} }) 
   }
   // B: 患者向医学门
   for (const d of lintMedical({ story, scenes: [] })) if (d.level === 'B') diag.push({ level: 'B', code: d.code, scene: d.scene, msg: d.msg });
+  // B: 患者向渲染产物（scene.html）必须含可见免责叠层 #disclaimer
+  if (story && story.meta && story.meta.audience === 'patient') {
+    let html = ''; try { html = fs.readFileSync(path.join(dir, 'scene.html'), 'utf8'); } catch (e) {}
+    if (!html.includes('id="disclaimer"')) diag.push({ level: 'B', code: 'QA_DISCLAIMER', scene: '', msg: '患者向 scene.html 缺可见免责叠层 #disclaimer' });
+  }
   // W: 媒体检查（黑场/静止/时长）
   if (!skipMedia && videoPath && fs.existsSync(videoPath)) {
     const bl = ffmpegParse(['-hide_banner', '-i', videoPath, '-vf', 'blackdetect=d=0.5:pix_th=0.02', '-an', '-f', 'null', '-']);

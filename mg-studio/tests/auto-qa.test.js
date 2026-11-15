@@ -28,6 +28,14 @@ test('runtimeError 非空 → B QA_RUNTIME', () => {
   assert.ok(r.diagnostics.some(d => d.level === 'B' && d.code === 'QA_RUNTIME'));
 });
 
+test('患者向 scene.html 缺 #disclaimer → B QA_DISCLAIMER', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-'));
+  fs.mkdirSync(path.join(dir, 'frames', 'all'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'scene.html'), '<html></html>');
+  const tl = { fps: 30, totalFrames: 0, scenes: [] };
+  const r = qa.runQA({ dir, timeline: tl, story: { meta: { audience: 'patient' }, beats: [] }, videoPath: null, skipMedia: true });
+  assert.ok(r.diagnostics.some(d => d.level === 'B' && d.code === 'QA_DISCLAIMER'));
+});
 test('帧数一致 + 无 runtime → 无 B', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-'));
   fs.mkdirSync(path.join(dir, 'frames', 'all'), { recursive: true });
