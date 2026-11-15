@@ -5,10 +5,10 @@ module.exports = {
   name: 'title-card',
   css: () => `
 .tc-wrap { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
-.tc-title { font-size:150px; font-weight:700; color:var(--ink); letter-spacing:8px; }
+.tc-title { font-size:150px; font-weight:700; color:var(--ink); letter-spacing:8px; text-align:center; }
 .tc-bar { width:420px; height:6px; border-radius:3px; margin-top:34px;
-  background:linear-gradient(90deg,var(--accent),var(--accent2)); transform-origin:left center; }
-.tc-tag { font-size:50px; color:var(--muted); margin-top:32px; letter-spacing:5px; }`,
+  background:linear-gradient(90deg,var(--accent),var(--accent2)); transform-origin:center center; }
+.tc-tag { font-size:50px; color:var(--muted); margin-top:32px; letter-spacing:5px; text-align:center; }`,
   check: (el) => {
     const errs = [];
     if (el.type === 'bar') return errs;
