@@ -73,7 +73,7 @@ fetch('timeline.json').then(r => r.json()).then(tl => { TL = tl;
 }).catch(e => { window.__err = String(e); });
 `;
 
-function emitSceneHtml({ tokens, scenes, components, preRuntime }) {
+function emitSceneHtml({ tokens, scenes, components, preRuntime, disclaimer }) {
   const used = [...new Set(scenes.map(s => s.layout))];
   // 双保险：ir.js 已白名单校验，这里落地前再剥白名单外字符（font.family 防 </style> 越狱、色键名防 CSS 变量名打断）
 const escFontFamily = String(tokens.font.family).replace(/[^\w"',\- ]/g, '');
@@ -112,6 +112,8 @@ html,body { width:1920px; height:1080px; overflow:hidden; background:var(--bg);
   max-width:${tokens.subtitle.maxW}px; padding:18px 46px; border-radius:16px; z-index:60;
   background:rgba(8,12,26,.72); border:1px solid rgba(120,140,220,.18); backdrop-filter:blur(6px);
   color:#f2f5ff; font-size:${tokens.subtitle.fontSize}px; font-weight:500; letter-spacing:1px; text-align:center; white-space:nowrap; opacity:0; }
+#disclaimer { position:absolute; left:50%; bottom:12px; transform:translateX(-50%); z-index:61; max-width:1840px;
+  color:rgba(200,212,240,.66); font-size:20px; font-weight:500; letter-spacing:.5px; text-align:center; white-space:nowrap; }
 ${css}
 </style>
 </head>
@@ -120,6 +122,7 @@ ${css}
 <div class="vignette"></div>
 <div id="scenes"></div>
 <div id="subtitle"></div>
+${disclaimer ? '<div id="disclaimer">' + String(disclaimer).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])) + '</div>' : ''}
 <script>
 'use strict';
 ${HELPERS}
