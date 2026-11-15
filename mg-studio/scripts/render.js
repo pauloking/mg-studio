@@ -79,6 +79,7 @@ const server = http.createServer((req, res) => {
     if (SCENE && !targets.length) { console.error('未知 scene:', SCENE); process.exit(1); }
     let rendered = 0, skipped = 0; const t0a = Date.now();
     for (const sc of targets) {
+      if ((scenesById[sc.id] || {}).layout === 'three3d') { skipped++; console.log('  skip', sc.id, '(3D 段，由 render_three 提供帧)'); continue; }
       const nFrames = sc.end - sc.start;
       const dir = path.join(ROOT, 'frames', sc.id);
       const vis = fc.visualHash({ scene: scenesById[sc.id] || { id: sc.id }, tokens, compVersion: process.env.MG_COMP_VERSION || '1', compilerVersion: process.env.MG_COMPILER_VERSION || '1' });
