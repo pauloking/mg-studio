@@ -17,10 +17,11 @@ v1 项目（script.json + scene.html）直通，行为与旧工具包一致（�
 
 环境变量：`PW_PATH`（playwright 路径）、`PW_CHANNEL`（浏览器通道，默认 chrome；空串=playwright 自带 chromium）、`RENDER_PORT`（固定渲染端口，默认临时端口）、`MG_MEASURE=0`（跳过实测盒）。
 
-## 测试
+## 环境诊断与测试
 
+    npm run doctor    # 环境诊断：自检 Node/Chrome/ffmpeg/ffprobe/TTS 运行环境
     npm test          # 全量（含 e2e 出片；需 macOS say + Chrome + ffmpeg）
-    npm run test:ci   # 不含 e2e 出片，CI 用这个
+    npm run test:ci   # 自动动态搜集所有非 e2e 测试（CI 专用，防漏测）
 
 含 props/shell 安全单测、浏览器帧驱动测试（全局 Playwright + Chrome）、编译后门实测盒回归、旧片像素回归（python3 + PIL）。
 

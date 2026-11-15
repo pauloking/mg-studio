@@ -26,14 +26,19 @@
 │   │   ├── compile.js         #   编译编排 + props/色键/视频规格守卫
 │   │   ├── motion-lint.js     #   动效 lint（估算盒 / 实测盒 / 实测时长均可驱动）
 │   │   ├── measure.js         #   真实 DOM 量盒（Playwright，缺环境则回退估算盒）
+│   │   ├── preview.js         #   配音前分镜预览（旁白/标签/facts，纯函数）
+│   │   ├── scene-map.js       #   烟测帧→场景映射（供人工核查定位）
 │   │   ├── color.js           #   对比度与半透明层合成（纯函数）
 │   │   ├── escape.js          #   作者文本转义（防 script breakout）
 │   │   └── components/        #   title-card / points / waveform / stat
 │   ├── scripts/               # 渲染核（冻结）+ 一键管线 + 编译 CLI
 │   │   ├── make.sh            #   一键：编译→配音→时间轴→编译后门→音频→渲染→编码混音
+│   │   ├── doctor.js          #   环境诊断：Node/Chrome/ffmpeg/ffprobe/TTS 自检
+│   │   ├── test_ci.js         #   CI 运行器：自动动态搜集全量非 e2e 单元测试
 │   │   ├── compile.js         #   单独编译 CLI（B 级 lint 阻断写文件）
 │   │   ├── lint_scene.js      #   编译后门：实测盒 + 实测时长跑同一套 lint
-│   │   ├── tts.js             #   配音（local say / bailian）
+│   │   ├── preview_script.js  #   配音前人审门：打印分镜，未核实 facts 阻断
+│   │   ├── tts.js             #   配音（local say / bailian，--only 按场景过滤）
 │   │   ├── build_timeline.js  #   按真实音频时长排时间轴
 │   │   ├── assemble_audio.js  #   旁白 + 可选 BGM 混音
 │   │   └── render.js          #   headless Chrome 逐帧确定性渲染
@@ -74,9 +79,12 @@ bash ../mg-studio/scripts/make.sh ../mg-studio local demo
 ```bash
 node mg-studio/scripts/compile.js [项目目录]      # 只编译 + 看 lint（B 级错阻断写文件）
 node mg-studio/scripts/lint_scene.js [项目目录]   # 编译后门：实测盒 + 实测时长重跑同一套 lint
+node mg-studio/scripts/preview_script.js [项目目录]  # 配音前分镜预览（--md 出 Markdown；--yes 跳过未核实阻断）
 # 单场景调试：浏览器开 scene.html?scene=<id>（__N 为该场景帧数）
 # v1 老项目（script.json + scene.html）直通，不编译，行为与旧工具包一致
 ```
+
+**配音前先人审（推荐）**：改动旁白后，先 `node scripts/preview_script.js` 打印逐场分镜（旁白 + 画面标签 + facts），经作者/领域专家逐句确认再配音。存在未核实 fact（`verified:false`）时该命令以退出码 2 阻断，需 `--yes` 或把 `verified` 置 `true`。只改个别场景旁白时，`tts.js --only id1,id2` 只重配这些场景，其余 `vo/*.wav` 不变，避免无谓的全量重配与计费。烟测（`render.js smoke`）会在 `smoke/_scene_map.json` 写出「帧号→场景→时间」对照，便于人工定位。
 
 ## 工作原理
 
@@ -133,12 +141,13 @@ node mg-studio/scripts/lint_scene.js [项目目录]   # 编译后门：实测盒
 - **M2（backlog）**：可配 subtitle bottom + 派生 zone、waveform 揭示耦合 enter.at/dur、points 自动换行、DENSITY 整数步进、lint try/catch、色键 `Object.hasOwn`、`font.family` 入 `<style>` 的 sanitization、字幕按字数加权分配时长、医学安全门四条（verified / 免责声明 / 绝对化词表 / 术语密度）。
 - **M3+**：增量渲染、更多组件与故事模板。
 
-## 测试
+## 环境诊断与测试
 
 ```bash
 cd mg-studio
-npm test          # = node --test --test-concurrency=1 tests/*.test.js（串行；渲染用临时端口，无固定端口冲突）
-npm run test:ci   # 不含 e2e 出片（e2e 需要 macOS say 配音），CI 用这个
+npm run doctor      # 自检 Node/Chrome/ffmpeg/ffprobe/TTS 运行环境
+npm test            # 全量测试（含 e2e macOS say 1080p 视频生成；临时端口防冲突）
+npm run test:ci     # 动态自动扫描所有非 e2e 测试（CI 专用，防漏测）
 ```
 
 覆盖：IR/字幕/预设/props/编译/lint/转义单元测试、shell 参数化安全测试（含含 `$(...)` 旁白不执行的端到端）、浏览器帧驱动组件测试（全局 Playwright + Chrome）、编译后门实测盒回归（估算盒放行 vs 实测盒拦截）、声明式端到端出片（mini-v2 / mini-av）、旧片像素等价回归（python3 + PIL）。

@@ -18,14 +18,27 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 
 function parseArgs(argv) {
-  const out = { backend: null, dir: null };
+  const out = { backend: null, dir: null, only: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a.startsWith('--backend=')) out.backend = a.split('=')[1];
     else if (a === '--backend') out.backend = argv[++i];
+    else if (a.startsWith('--only=')) out.only = a.split('=')[1];
+    else if (a === '--only') out.only = argv[++i];
     else if (!a.startsWith('--')) out.dir = a;
   }
   return out;
+}
+
+/** 纯函数：按 --only 过滤场景（无 only → 全部）；返回 { scenes, missing }
+ *  only 形如 "demo_trans,mech_v6"；missing 为未命中的 id（调用方告警但不崩溃） */
+function selectScenes(scenes, only) {
+  if (!only) return { scenes, missing: [] };
+  const ids = String(only).split(',').map(s => s.trim()).filter(Boolean);
+  const want = new Set(ids);
+  const picked = scenes.filter(sc => want.has(sc.id));
+  const found = new Set(picked.map(sc => sc.id));
+  return { scenes: picked, missing: ids.filter(id => !found.has(id)) };
 }
 
 // 百炼调用归因（走 env 传，不拼命令串）
@@ -75,13 +88,17 @@ function probeDuration(file) {
   return parseFloat(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file]).toString().trim());
 }
 
-function run({ dir: argvDir, backend }) {
+function run({ dir: argvDir, backend, only }) {
   const dir = argvDir ? path.resolve(argvDir) : process.cwd();
   const s = loadScript(dir);
   const cfg = configFor(s, backend);
   fs.mkdirSync(path.join(dir, 'vo'), { recursive: true });
 
-  for (const sc of s.scenes) {
+  const { scenes, missing } = selectScenes(s.scenes, only);
+  if (missing.length) console.warn('[!] --only 未命中场景 id（已忽略）:', missing.join(', '));
+  if (!scenes.length) { console.error('[!] --only 未选中任何场景，未生成配音'); process.exit(1); }
+
+  for (const sc of scenes) {
     const wav = path.join(dir, 'vo', sc.id + '.wav');
     // 各后端原生产物：say 出 aiff、百炼出 wav，随后统一转 44100 单声道
     const rawSrc = path.join(dir, 'vo', sc.id + (cfg.backend === 'bailian' ? '_raw.wav' : '_raw.aiff'));
@@ -91,6 +108,7 @@ function run({ dir: argvDir, backend }) {
     fs.unlinkSync(rawSrc);
     console.log('ok', sc.id, probeDuration(wav).toFixed(2) + 's', '(' + cfg.backend + ')');
   }
+  if (only) console.log(`（--only：仅重配 ${scenes.length} 个场景，其余 vo/*.wav 保持不变）`);
   console.log('配音完成 -> vo/<id>.wav，下一步: node build_timeline.js');
 }
 
@@ -98,4 +116,4 @@ if (require.main === module) {
   try { run(parseArgs(process.argv.slice(2))); }
   catch (e) { console.error(e && e.message || e); process.exit(1); }
 }
-module.exports = { parseArgs, configFor, buildTtsCommand, bailianEnv, probeDuration, run };
+module.exports = { parseArgs, selectScenes, configFor, buildTtsCommand, bailianEnv, probeDuration, run };
