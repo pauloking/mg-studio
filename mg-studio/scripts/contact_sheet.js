@@ -7,15 +7,22 @@
 const fs = require('fs'), path = require('path');
 const { execFileSync } = require('child_process');
 
-// 取每 scene 的首帧（f_0000.png）作代表；montage 成 cols 列网格
+// 取每 scene 的代表帧（约 60% 处，避开开头全黑/入场过渡）；montage 成 cols 列网格
 const PY = `
 import sys, os, json
 from PIL import Image
 dirp, outp, cols, scenes = sys.argv[1], sys.argv[2], int(sys.argv[3]), json.loads(sys.argv[4])
 files = []
 for sid in scenes:
-    p = os.path.join(dirp, 'frames', sid, 'f_0000.png')
-    if os.path.exists(p): files.append(p)
+    sdir = os.path.join(dirp, 'frames', sid)
+    if os.path.isdir(sdir):
+        all_frames = sorted([f for f in os.listdir(sdir) if f.startswith('f_') and f.endswith('.png')])
+        if all_frames:
+            pick_idx = min(len(all_frames) - 1, int(len(all_frames) * 0.6))
+            files.append(os.path.join(sdir, all_frames[pick_idx]))
+    else:
+        p = os.path.join(dirp, 'frames', sid, 'f_0000.png')
+        if os.path.exists(p): files.append(p)
 if not files:
     sys.exit(3)
 imgs = [Image.open(f).convert('RGB') for f in files]

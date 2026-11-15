@@ -9,7 +9,7 @@ const CARD_BG = { hex: '#121934', alpha: .94 }; // 与 .pt-card 的 background �
 module.exports = {
   name: 'points',
   css: () => `
-.pt-card { position:absolute; width:${CARD_W}px; padding:46px 44px; border-radius:26px;
+.pt-card { position:absolute; width:${CARD_W}px; min-height:${CARD_H}px; padding:46px 44px; border-radius:26px;
   background:rgba(18,25,52,.94); border:1px solid rgba(120,140,220,.3); box-shadow:0 24px 60px rgba(0,0,0,.45); }
 .pt-card h3 { font-size:46px; font-weight:700; color:var(--ink); letter-spacing:2px; }
 .pt-card p { font-size:30px; color:var(--muted); margin-top:18px; line-height:1.5; }`,
@@ -23,9 +23,13 @@ module.exports = {
   },
   build: (sc) => {
     const lines = [`{ const r = H('div','scene'); r.id = 's-${sc.id}';`, `  const els = [];`];
+    const n = sc.elements.length;
+    const gap = 50;
+    const totalW = n * CARD_W + (n - 1) * gap;
+    const startX = Math.round((1920 - totalW) / 2);
     sc.elements.forEach((el, i) => {
       if (el.type !== 'card') throw new Error('points 不支持元素类型: ' + el.type);
-      const x = el.props.x != null ? el.props.x : 130 + i * 570;
+      const x = el.props.x != null ? el.props.x : startX + i * (CARD_W + gap);
       const y = el.props.y != null ? el.props.y : 420;
       const v = `e${i}`;
       const html = '<h3>' + escHtml(el.props.title) + '</h3><p>' + escHtml(el.props.desc) + '</p>';
@@ -37,9 +41,13 @@ module.exports = {
   },
   boxes: (sc, tokens) => {
     const cardBg = blendHex(CARD_BG.hex, CARD_BG.alpha, (tokens && tokens.colors && tokens.colors.bg) || '#070b16');
+    const n = sc.elements.length;
+    const gap = 50;
+    const totalW = n * CARD_W + (n - 1) * gap;
+    const startX = Math.round((1920 - totalW) / 2);
     return sc.elements.map((el, i) => ({
       id: el.id,
-      x: el.props.x != null ? el.props.x : 130 + i * 570,
+      x: el.props.x != null ? el.props.x : startX + i * (CARD_W + gap),
       y: el.props.y != null ? el.props.y : 420,
       w: CARD_W, h: CARD_H,
       blocks: [
