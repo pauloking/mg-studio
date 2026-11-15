@@ -34,6 +34,9 @@ fi
 echo "==> 3/5 音频轨"
 node "$TOOLKIT/scripts/assemble_audio.js"
 
+echo "==> 3.8/5 three3d 段渲染（外部喂帧工程）"
+node "$TOOLKIT/scripts/render_three.js" .
+
 echo "==> 4/5 逐 scene 增量渲染"
 node "$TOOLKIT/scripts/render.js" --all
 
