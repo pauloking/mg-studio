@@ -6,7 +6,7 @@ const { PRESET_DEFAULT_DUR, PRE_RUNTIME, ENTER_PRESETS, EMPHASIS_PRESETS, EXIT_P
 const { emitSceneHtml } = require('./emit');
 const { COMPONENTS, LAYOUT_NAMES } = require('./components');
 const { lintMotion } = require('./motion-lint');
-const { lintMedical } = require('./medical-lint');
+const { lintMedical, DISCLAIMER } = require('./medical-lint');
 const { checkElementProps } = require('./props');
 
 function normalizeScene(sc, components = COMPONENTS) {
@@ -87,7 +87,7 @@ function compileProject(dir) {
   for (const sc of scenes) for (const el of sc.elements)
     if (el.type === 'waveform') el.props.colorHex = project.tokens.colors[el.props.color || 'accent'];
   const script = buildScriptJson(Object.assign({}, project, { scenes }));
-  const html = emitSceneHtml({ tokens: project.tokens, scenes, components: COMPONENTS, preRuntime: PRE_RUNTIME });
+  const html = emitSceneHtml({ tokens: project.tokens, scenes, components: COMPONENTS, preRuntime: PRE_RUNTIME, disclaimer: ((project.story.meta && project.story.meta.audience) === 'patient') ? DISCLAIMER : null });
   const scriptPath = path.join(dir, 'script.json');
   const htmlPath = path.join(dir, 'scene.html');
   fs.writeFileSync(scriptPath, JSON.stringify(script, null, 2));
