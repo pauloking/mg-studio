@@ -164,3 +164,4 @@ CI：`.github/workflows/test.yml` 在 Ubuntu 上跑 `npm run test:ci`（装 ffmp
 - [M1 代码评估（2026-11-14）](docs/reviews/2026-11-14-code-review.md)
 - [M1 实现计划](docs/superpowers/plans/2026-11-13-mg-studio-m1.md)
 - [工具包详细用法](mg-studio/README.md)
+- [医学解剖与生理波形开源素材指南](docs/medical-assets-guide.md)
