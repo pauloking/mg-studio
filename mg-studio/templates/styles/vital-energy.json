@@ -1,0 +1,34 @@
+{
+  "style": "vital-energy",
+  "name": "活力暖橙",
+  "bgType": "vital-energy",
+  "colors": {
+    "bg": "#fffaf5",
+    "ink": "#271c19",
+    "muted": "#786962",
+    "accent": "#c2410c",
+    "accent2": "#15803d",
+    "surface": "#ffffff",
+    "surface2": "#fff1e6",
+    "border": "#fed7aa",
+    "success": "#16a34a",
+    "warning": "#ea580c",
+    "danger": "#dc2626"
+  },
+  "font": {
+    "family": "\"PingFang SC\",\"Hiragino Sans GB\",\"Microsoft YaHei\",sans-serif"
+  },
+  "card": {
+    "radius": 24,
+    "borderWidth": 1,
+    "shadow": "0 20px 48px rgba(194,65,12,0.08)"
+  },
+  "subtitle": {
+    "bottom": 64,
+    "fontSize": 40,
+    "maxW": 1560,
+    "color": "#271c19",
+    "bg": "rgba(255,255,255,0.92)",
+    "border": "rgba(254,215,170,0.6)"
+  }
+}

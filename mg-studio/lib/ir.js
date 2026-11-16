@@ -4,8 +4,8 @@ const fs = require('fs'), path = require('path');
 const ROLES = ['hook', 'context', 'conflict', 'mechanism', 'evidence', 'demo', 'takeaway', 'cta', 'objective', 'prerequisite', 'steps', 'summary', 'selfcheck'];
 const AUDIENCES = ['patient', 'professional', 'general'];
 const TEMPLATES = ['science', 'product', 'teaching', 'free'];
-const STYLES = ['deep-tech', 'clean-medical', 'warm-editorial', 'swiss-modern'];
-const BG_TYPES = ['grid-tech', 'clean-light', 'warm-editorial', 'swiss-modern', 'solid'];
+const STYLES = ['deep-tech', 'clean-medical', 'warm-editorial', 'swiss-modern', 'vital-energy', 'cyber-neon', 'ink-zen', 'aurora-glass'];
+const BG_TYPES = ['grid-tech', 'clean-light', 'warm-editorial', 'swiss-modern', 'vital-energy', 'cyber-neon', 'ink-zen', 'aurora-glass', 'solid'];
 const ID_RE = /^[a-z][a-z0-9_]*$/i;
 const RESERVED_IDS = new Set([
   'constructor', 'prototype', '__proto__', 'tostring', 'valueof',

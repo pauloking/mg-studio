@@ -1,0 +1,34 @@
+{
+  "style": "ink-zen",
+  "name": "极简水墨",
+  "bgType": "ink-zen",
+  "colors": {
+    "bg": "#f8f6f0",
+    "ink": "#18181b",
+    "muted": "#57534e",
+    "accent": "#991b1b",
+    "accent2": "#047857",
+    "surface": "#ffffff",
+    "surface2": "#f2eee5",
+    "border": "#e4dfd3",
+    "success": "#15803d",
+    "warning": "#b45309",
+    "danger": "#991b1b"
+  },
+  "font": {
+    "family": "\"Songti SC\",\"SimSun\",\"Georgia\",serif"
+  },
+  "card": {
+    "radius": 8,
+    "borderWidth": 1,
+    "shadow": "0 12px 36px rgba(41,37,36,0.06)"
+  },
+  "subtitle": {
+    "bottom": 64,
+    "fontSize": 40,
+    "maxW": 1560,
+    "color": "#18181b",
+    "bg": "rgba(255,255,255,0.95)",
+    "border": "rgba(228,223,211,0.7)"
+  }
+}
