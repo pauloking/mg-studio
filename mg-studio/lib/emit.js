@@ -159,7 +159,7 @@ function emitSceneHtml({ tokens, scenes, components, preRuntime, disclaimer }) {
   if (tokens.card) {
     if (tokens.card.radius != null) varsArr.push(`--card-radius:${tokens.card.radius}px;`);
     if (tokens.card.borderWidth != null) varsArr.push(`--card-border-width:${tokens.card.borderWidth}px;`);
-    if (tokens.card.shadow) varsArr.push(`--card-shadow:${tokens.card.shadow};`);
+    if (tokens.card.shadow) varsArr.push(`--card-shadow:${String(tokens.card.shadow).replace(/[^\w\s,.()#%\/-]/g, '')};`);
   }
   if (tokens.titleBar) {
     varsArr.push(`--title-bar:${tokens.titleBar};`);

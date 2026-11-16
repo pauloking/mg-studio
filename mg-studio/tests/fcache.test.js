@@ -4,6 +4,21 @@ const assert = require('node:assert');
 const fs = require('fs'), os = require('os'), path = require('path');
 const fc = require('../lib/fcache');
 
+test('visualHash：M5 新 token 面（bgType/card/titleBar/style）进哈希，样式变化须触发重渲', () => {
+  const scene = { id: 'a', layout: 'points', elements: [] };
+  const base = { colors: { bg: '#070b16' }, font: { family: 'x' }, subtitle: { bottom: 64 } };
+  const h0 = fc.visualHash({ scene, tokens: base });
+  const hBg = fc.visualHash({ scene, tokens: Object.assign({}, base, { bgType: 'aurora-soft' }) });
+  const hCard = fc.visualHash({ scene, tokens: Object.assign({}, base, { card: { radius: 30 } }) });
+  const hBar = fc.visualHash({ scene, tokens: Object.assign({}, base, { titleBar: { height: 8 } }) });
+  const hStyle = fc.visualHash({ scene, tokens: Object.assign({}, base, { style: 'deep-tech' }) });
+  assert.notEqual(h0, hBg, 'bgType 变化须换哈希');
+  assert.notEqual(h0, hCard, 'card 变化须换哈希');
+  assert.notEqual(h0, hBar, 'titleBar 变化须换哈希');
+  assert.notEqual(h0, hStyle, 'style 变化须换哈希');
+  assert.equal(h0, fc.visualHash({ scene, tokens: base }), '同 tokens 哈希稳定');
+});
+
 test('visualHash 确定性 + 随 scene/tokens 变化', () => {
   const a = fc.visualHash({ scene: { id: 'x', a: 1 }, tokens: { colors: { accent: '#000' } }, compVersion: '1', compilerVersion: '1' });
   const b = fc.visualHash({ scene: { id: 'x', a: 1 }, tokens: { colors: { accent: '#000' } }, compVersion: '1', compilerVersion: '1' });
