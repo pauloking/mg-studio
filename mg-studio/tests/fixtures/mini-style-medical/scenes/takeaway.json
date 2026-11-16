@@ -1,0 +1,10 @@
+{
+  "id": "takeaway",
+  "beat": "takeaway",
+  "layout": "points",
+  "minSec": 3,
+  "elements": [
+    { "id": "c1", "type": "card", "props": { "title": "规律作息", "desc": "每日充足睡眠避免早搏" }, "enter": { "preset": "rise", "at": 0.4, "dur": 0.7, "easing": "spring" } },
+    { "id": "c2", "type": "card", "props": { "title": "专业筛查", "desc": "动态心电图及时发现异常" }, "enter": { "preset": "rise", "at": 0.7, "dur": 0.7, "easing": "spring" } }
+  ]
+}
