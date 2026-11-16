@@ -2,9 +2,12 @@
 const ENTER_PRESETS = ['rise', 'fade', 'scale', 'popLeft', 'grow'];
 const EMPHASIS_PRESETS = ['pulse', 'highlight'];
 const EXIT_PRESETS = ['fadeOut', 'sink'];
+const EASINGS = ['ease', 'spring', 'overshoot'];
 const PRESET_DEFAULT_DUR = { rise: .6, fade: .5, scale: .6, popLeft: .6, grow: .7, pulse: .5, highlight: .6, fadeOut: .4, sink: .4 };
 
 const PRE_RUNTIME = `
+const _clamp01 = v => Math.max(0, Math.min(1, v));
+const _overshoot = p => { const s = 1.70158; p = _clamp01(p) - 1; return p * p * ((s + 1) * p + s) + 1; };
 const PRE = {
   rise: p => ({ op: p, ty: (1 - p) * 48 }),
   fade: p => ({ op: p }),
@@ -40,7 +43,8 @@ function cueLt(c, sc) {
   return Math.round(((sc.audioStart - sc.start / TL.fps) + r * ad) * 1e9) / 1e9;
 }
 function upEl(e, sp, lt, dur, sc) {
-  const en = sp.enter ? PRE[sp.enter.preset](eo(seg(lt, sp.enter.at, sp.enter.at + sp.enter.dur))) : {};
+  const easeFn = (sp.enter && (sp.enter.easing === 'spring' || sp.enter.easing === 'overshoot')) ? (typeof overshoot === 'function' ? overshoot : _overshoot) : eo;
+  const en = sp.enter ? PRE[sp.enter.preset](easeFn(seg(lt, sp.enter.at, sp.enter.at + sp.enter.dur))) : {};
   const ex = sp.exit ? PRE[sp.exit.preset](seg(lt, dur - sp.exit.dur, dur)) : {};
   let em = {};
   for (const c of sp.emphasis || []) { const ct = cueLt(c.cue, sc); em = chan(em, PRE[c.preset](seg(lt, ct, ct + c.dur))); }
@@ -51,4 +55,4 @@ function upEl(e, sp, lt, dur, sc) {
   }
 }
 `;
-module.exports = { ENTER_PRESETS, EMPHASIS_PRESETS, EXIT_PRESETS, PRESET_DEFAULT_DUR, PRE_RUNTIME };
+module.exports = { ENTER_PRESETS, EMPHASIS_PRESETS, EXIT_PRESETS, EASINGS, PRESET_DEFAULT_DUR, PRE_RUNTIME };

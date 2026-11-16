@@ -1,0 +1,11 @@
+{
+  "id": "hook",
+  "beat": "hook",
+  "layout": "title-card",
+  "minSec": 2,
+  "elements": [
+    { "id": "t1", "type": "text", "props": { "role": "title", "content": "心律监测" }, "enter": { "preset": "rise", "at": 0.3, "dur": 0.8, "easing": "spring" } },
+    { "id": "b1", "type": "bar", "props": {}, "enter": { "preset": "grow", "at": 0.5, "dur": 0.6 } },
+    { "id": "t2", "type": "text", "props": { "role": "subtitle", "content": "临床医学解析" }, "enter": { "preset": "fade", "at": 0.7, "dur": 0.6 } }
+  ]
+}

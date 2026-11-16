@@ -1,0 +1,34 @@
+{
+  "style": "swiss-modern",
+  "name": "瑞士现代",
+  "bgType": "swiss-modern",
+  "colors": {
+    "bg": "#f4f4f5",
+    "ink": "#09090b",
+    "muted": "#52525b",
+    "accent": "#1d4ed8",
+    "accent2": "#be123c",
+    "surface": "#ffffff",
+    "surface2": "#e4e4e7",
+    "border": "#18181b",
+    "success": "#16a34a",
+    "warning": "#ca8a04",
+    "danger": "#dc2626"
+  },
+  "font": {
+    "family": "\"Helvetica Neue\",Arial,\"PingFang SC\",sans-serif"
+  },
+  "card": {
+    "radius": 4,
+    "borderWidth": 2,
+    "shadow": "8px 8px 0px rgba(0,0,0,0.9)"
+  },
+  "subtitle": {
+    "bottom": 64,
+    "fontSize": 40,
+    "maxW": 1560,
+    "color": "#09090b",
+    "bg": "#ffffff",
+    "border": "#18181b"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "schema": 2,
+  "meta": { "title": "心律科普", "audience": "general", "template": "free", "durationTarget": 20, "style": "clean-medical" },
+  "beats": [
+    { "id": "hook", "role": "hook", "emotion": 4, "intent": "标题开场", "narration": "心律正常吗？", "facts": [] },
+    { "id": "takeaway", "role": "takeaway", "emotion": 3, "intent": "医疗要点总结", "narration": "第一，保持平稳。第二，定期检查。", "facts": [] }
+  ]
+}

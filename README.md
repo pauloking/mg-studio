@@ -7,8 +7,8 @@
 渲染核继承自已验证的 motion-explainer-video 管线（字节级冻结），本项目新增 **IR v2 声明式编译层**、**增量渲染缓存**、**自动化质检体系**及 **3D 解剖/器械外部喂帧管道**。
 
 * **当前形态**：本地 CLI / Agent 工具包（纯 Node CommonJS，**零额外 npm 运行时依赖**，非网页/GUI）。
-* **交付状态**：**M1（编译核）+ M2（叙事与脚本门）+ M3（增量渲染与自动化 QA）+ M4（医学安全门与 3D 解剖渲染）全量交付**。
-* **质量保证**：自动化测试套件共 **174 项（173 通过 / 1 跳过=旧片素材回归，0 失败）**，100% 持续集成（GitHub Actions CI）绿灯通过。
+* **交付状态**：**M1（编译核）+ M2（叙事与脚本门）+ M3（增量渲染与自动化 QA）+ M4（医学安全门与 3D 解剖渲染）+ M5（MG 视觉与动效风格系统）全量交付**。
+* **质量保证**：自动化测试套件共 **184 项（183 通过 / 1 跳过=旧片素材回归，0 失败）**，100% 持续集成（GitHub Actions CI）绿灯通过。
 
 ---
 
@@ -58,9 +58,10 @@
 │   │   └── auto_qa.js         #   自动化 QA 门禁：帧数核对、运行时报错、免责声明可见性、音量监测
 │   ├── templates/             # 预置模板
 │   │   ├── tokens.default.json#   默认设计令牌（色板/字体/安全边距/字幕规范）
+│   │   ├── styles/            #   MG 风格套件（deep-tech / clean-medical / warm-editorial / swiss-modern）
 │   │   ├── narratives/        #   叙事骨架模板（science.json / product.json / teaching.json / free.json）
 │   │   └── prompts/           #   AI Agent 生成 story.json 的提示词模板（story-draft.md）
-│   ├── tests/                 # 174 项 node:test 套件 + fixtures + 旧片像素回归
+│   ├── tests/                 # 184 项 node:test 套件 + fixtures + 旧片像素回归
 │   └── README.md              # ★ 详细开发者手册（项目规范 / 5 组件 Props / 进阶参数）
 ├── docs/                      # 架构设计与实现文档
 │   ├── superpowers/
@@ -69,7 +70,8 @@
 │   │       ├── 2026-11-13-mg-studio-m1.md        # M1 编译核实现计划
 │   │       ├── 2026-11-15-mg-studio-m2.md        # M2 叙事与脚本门实现计划
 │   │       ├── 2026-11-15-mg-studio-m3.md        # M3 增量渲染与自动 QA 实现计划
-│   │       └── 2026-11-15-mg-studio-m4.md        # M4 医学安全门与 3D 渲染实现计划
+│   │       ├── 2026-11-15-mg-studio-m4.md        # M4 医学安全门与 3D 渲染实现计划
+│   │       └── 2026-11-16-mg-studio-m5-styles.md # M5 MG 视觉与动效风格系统实现计划
 │   ├── reviews/2026-11-14-code-review.md         # 架构审查与加固报告
 │   ├── medical-assets-guide.md                   # ★ 医学解剖与生理波形开源素材指南
 │   └── motion-effects-guide.md                   # ★ 动效系统全景指南与效果库手册
@@ -223,6 +225,25 @@ my-film/
 
 ---
 
+## MG 视觉风格与动效系统（Styles & Themes）
+
+为了彻底解决传统 MG 自动成片“千篇一律深蓝科技调、视觉高度同质化”的问题，`mg-studio` 引入了可插拔的风格套件系统（Design Themes），支持背景渲染策略解耦、卡片材质自适应与弹性缓动增强：
+
+1. **4 大开箱即用官方预设风格**：
+   * **`deep-tech`（深邃科技）**：深蓝黑网格 + 粒子悬浮 + 玻璃拟态卡片 + 冷白电光青配色（100% 向后兼容默认风格）。
+   * **`clean-medical`（清爽医疗）**：浅灰白背景 + 微细蓝点阵 (Dot Grid) + 纯白高光卡片 + 临床湖蓝/珊瑚红重点色，专为现代临床与患者科普设计。
+   * **`warm-editorial`（人文典雅）**：暖米羊皮纸底色 + 纸张微细网格 + 象牙白大圆角卡片 + 衬线体，专为医学史话与深度纪录设计。
+   * **`swiss-modern`（瑞士现代）**：纯净高对比冷灰 + 极简四角十字标记 + 纯黑硬朗描边，专为高冲击力产品演示与年轻化科普设计。
+2. **三级级联深合并**：
+   `templates/tokens.default.json` → `templates/styles/<style>.json` → 用户自定义 `tokens.json`。
+   在 `story.json` 中仅需声明 `"style": "clean-medical"` 即可一键更换整片调性；用户若想微调品牌色，在 `tokens.json` 中局部声明即可覆盖。
+3. **弹性缓动（Spring/Overshoot）增强**：
+   除默认的三次平滑缓出（`ease`）外，支持在元素的 `enter` 动画中配置 `"easing": "spring"` 或 `"easing": "overshoot"`，在入场收尾时实现极富动感的微超调回弹。
+4. **严格的 WCAG AA 对比度防线**：
+   所有官方预设风格的卡片正文、醒目数值、辅助说明文字与背景之间均经过实测检验，对比度均 $\ge 4.5$，从根本上杜绝浅色背景下的文字看不清与编译阻断。
+
+---
+
 ## 3D 解剖与器械渲染管线
 
 针对医学手术入路、器械结构与高精解剖动画需求，`mg-studio` 拒绝不可控的 AI 生成式视频，采用**确定性 WebGL/Three.js 喂帧契约**：
@@ -311,6 +332,7 @@ npm run test:ci     # 动态自动扫描所有测试文件（CI 专用，防漏�
   * [M2 叙事与脚本门实现计划](docs/superpowers/plans/2026-11-15-mg-studio-m2.md)
   * [M3 增量渲染与自动化 QA 实现计划](docs/superpowers/plans/2026-11-15-mg-studio-m3.md)
   * [M4 医学安全门与 3D 渲染实现计划](docs/superpowers/plans/2026-11-15-mg-studio-m4.md)
+  * [M5 视觉与动效风格系统实现计划](docs/superpowers/plans/2026-11-16-mg-studio-m5-styles.md)
 * **开发者手册与资源库**：
   * [mg-studio 开发者详细用法手册](mg-studio/README.md)
   * [医学解剖与生理波形开源素材指南](docs/medical-assets-guide.md)

@@ -2,7 +2,7 @@
 const fs = require('fs'), path = require('path');
 const ir = require('./ir');
 const { splitSubs, checkSubs } = require('./subs');
-const { PRESET_DEFAULT_DUR, PRE_RUNTIME, ENTER_PRESETS, EMPHASIS_PRESETS, EXIT_PRESETS } = require('./presets');
+const { PRESET_DEFAULT_DUR, PRE_RUNTIME, ENTER_PRESETS, EMPHASIS_PRESETS, EXIT_PRESETS, EASINGS } = require('./presets');
 const { emitSceneHtml } = require('./emit');
 const { COMPONENTS, LAYOUT_NAMES } = require('./components');
 const { lintMotion } = require('./motion-lint');
@@ -19,6 +19,9 @@ function normalizeScene(sc, components = COMPONENTS) {
       n.enter.dur = n.enter.dur != null ? n.enter.dur : PRESET_DEFAULT_DUR[n.enter.preset];
       if (!Number.isFinite(n.enter.at)) throw new Error(`scene ${sc.id} element ${n.id} enter.at 须为有限数: ${n.enter.at}`);
       if (!Number.isFinite(n.enter.dur) || n.enter.dur <= 0) throw new Error(`scene ${sc.id} element ${n.id} enter.dur 须为正有限数: ${n.enter.dur}`);
+      if (n.enter.easing != null && !EASINGS.includes(n.enter.easing)) {
+        throw new Error(`scene ${sc.id} element ${n.id} 非法 enter.easing: ${n.enter.easing}`);
+      }
     } else n.enter = null;
     n.emphasis = (n.emphasis || []).map(c => {
       if (!EMPHASIS_PRESETS.includes(c.preset)) throw new Error(`非法 emphasis 预设: ${c.preset}`);

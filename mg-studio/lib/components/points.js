@@ -9,8 +9,8 @@ const CARD_BG = { hex: '#121934', alpha: .94 }; // 与 .pt-card 的 background �
 module.exports = {
   name: 'points',
   css: () => `
-.pt-card { position:absolute; width:${CARD_W}px; min-height:${CARD_H}px; padding:46px 44px; border-radius:26px;
-  background:rgba(18,25,52,.94); border:1px solid rgba(120,140,220,.3); box-shadow:0 24px 60px rgba(0,0,0,.45); }
+.pt-card { position:absolute; width:${CARD_W}px; min-height:${CARD_H}px; padding:46px 44px; border-radius:var(--card-radius, 26px);
+  background:var(--surface, rgba(18,25,52,.94)); border:var(--card-border-width, 1px) solid var(--border, rgba(120,140,220,.3)); box-shadow:var(--card-shadow, 0 24px 60px rgba(0,0,0,.45)); }
 .pt-card h3 { font-size:46px; font-weight:700; color:var(--ink); letter-spacing:2px; }
 .pt-card p { font-size:30px; color:var(--muted); margin-top:18px; line-height:1.5; }`,
   check: (el) => {
@@ -40,7 +40,8 @@ module.exports = {
     return lines.join('\n');
   },
   boxes: (sc, tokens) => {
-    const cardBg = blendHex(CARD_BG.hex, CARD_BG.alpha, (tokens && tokens.colors && tokens.colors.bg) || '#070b16');
+    const cardBgHex = (tokens && tokens.colors && tokens.colors.surface) || CARD_BG.hex;
+    const cardBg = blendHex(cardBgHex, CARD_BG.alpha, (tokens && tokens.colors && tokens.colors.bg) || '#070b16');
     const n = sc.elements.length;
     const gap = 50;
     const totalW = n * CARD_W + (n - 1) * gap;

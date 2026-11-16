@@ -4,6 +4,8 @@ const fs = require('fs'), path = require('path');
 const ROLES = ['hook', 'context', 'conflict', 'mechanism', 'evidence', 'demo', 'takeaway', 'cta', 'objective', 'prerequisite', 'steps', 'summary', 'selfcheck'];
 const AUDIENCES = ['patient', 'professional', 'general'];
 const TEMPLATES = ['science', 'product', 'teaching', 'free'];
+const STYLES = ['deep-tech', 'clean-medical', 'warm-editorial', 'swiss-modern'];
+const BG_TYPES = ['grid-tech', 'clean-light', 'warm-editorial', 'swiss-modern', 'solid'];
 const ID_RE = /^[a-z][a-z0-9_]*$/i;
 const RESERVED_IDS = new Set([
   'constructor', 'prototype', '__proto__', 'tostring', 'valueof',
@@ -29,6 +31,7 @@ function validateStory(story) {
   if (!m.title || typeof m.title !== 'string') errors.push('meta.title 缺失');
   if (!AUDIENCES.includes(m.audience)) errors.push('meta.audience 非法: ' + m.audience);
   if (!TEMPLATES.includes(m.template)) errors.push('meta.template 非法: ' + m.template);
+  if (m.style != null && !STYLES.includes(m.style)) errors.push('meta.style 未知: ' + m.style);
   if (!(typeof m.durationTarget === 'number' && m.durationTarget > 0)) errors.push('meta.durationTarget 必须为正数');
   const beats = Array.isArray(story && story.beats) ? story.beats : [];
   if (!Array.isArray(story && story.beats) || beats.length === 0) errors.push('beats 不能为空');
@@ -93,6 +96,8 @@ function validateTokens(tk) {
   else if (tk.subtitle.bottom !== 64) errors.push('subtitle.bottom 须为 64（M1 渲染核冻结字幕区，lint 940/900）');
   if (!tk.subtitle || !Number.isFinite(tk.subtitle.fontSize) || tk.subtitle.fontSize <= 0) errors.push('subtitle.fontSize 须为正数');
   if (!tk.subtitle || !Number.isFinite(tk.subtitle.maxW) || tk.subtitle.maxW <= 0) errors.push('subtitle.maxW 须为正数');
+  if (tk.style != null && !STYLES.includes(tk.style)) errors.push('tokens.style 未知: ' + tk.style);
+  if (tk.bgType != null && !BG_TYPES.includes(tk.bgType)) errors.push('tokens.bgType 未知: ' + tk.bgType);
   return { ok: errors.length === 0, errors };
 }
 
@@ -115,8 +120,21 @@ function loadProject(dir, layoutNames) {
   }
   const story = JSON.parse(fs.readFileSync(storyPath, 'utf8'));
   const tkPath = path.join(dir, 'tokens.json');
+  const userTokens = fs.existsSync(tkPath) ? JSON.parse(fs.readFileSync(tkPath, 'utf8')) : null;
   const defTokens = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'templates', 'tokens.default.json'), 'utf8'));
-  const tokens = fs.existsSync(tkPath) ? deepMerge(defTokens, JSON.parse(fs.readFileSync(tkPath, 'utf8'))) : defTokens;
+
+  // 风格解析：优先 userTokens.style，其次 story.meta.style
+  const styleName = (userTokens && userTokens.style) || (story && story.meta && story.meta.style);
+  let baseTokens = defTokens;
+  if (styleName && STYLES.includes(styleName)) {
+    const stylePath = path.join(__dirname, '..', 'templates', 'styles', styleName + '.json');
+    if (fs.existsSync(stylePath)) {
+      const styleTokens = JSON.parse(fs.readFileSync(stylePath, 'utf8'));
+      baseTokens = deepMerge(defTokens, styleTokens);
+    }
+  }
+  const tokens = userTokens ? deepMerge(baseTokens, userTokens) : baseTokens;
+
   const beats = Array.isArray(story && story.beats) ? story.beats : [];
   const beatIds = beats.map(b => b && b.id);
   const scenes = [];
@@ -134,4 +152,4 @@ function loadProject(dir, layoutNames) {
   return { mode: 'v2', story, tokens, scenes };
 }
 
-module.exports = { ROLES, AUDIENCES, TEMPLATES, validateStory, validateScene, validateTokens, loadProject };
+module.exports = { ROLES, AUDIENCES, TEMPLATES, STYLES, BG_TYPES, validateStory, validateScene, validateTokens, loadProject, deepMerge };
