@@ -1,0 +1,34 @@
+{
+  "style": "aurora-glass",
+  "name": "极光微观",
+  "bgType": "aurora-glass",
+  "colors": {
+    "bg": "#060918",
+    "ink": "#f0fdf4",
+    "muted": "#a7f3d0",
+    "accent": "#38bdf8",
+    "accent2": "#34d399",
+    "surface": "#0f172a",
+    "surface2": "#16233d",
+    "border": "#1e3a5f",
+    "success": "#10b981",
+    "warning": "#fbbf24",
+    "danger": "#f87171"
+  },
+  "font": {
+    "family": "\"PingFang SC\",\"Hiragino Sans GB\",\"Microsoft YaHei\",sans-serif"
+  },
+  "card": {
+    "radius": 28,
+    "borderWidth": 1,
+    "shadow": "0 24px 60px rgba(45,212,191,0.18)"
+  },
+  "subtitle": {
+    "bottom": 64,
+    "fontSize": 40,
+    "maxW": 1560,
+    "color": "#f0fdf4",
+    "bg": "rgba(15,23,42,0.85)",
+    "border": "rgba(45,212,191,0.25)"
+  }
+}

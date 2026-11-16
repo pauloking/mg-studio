@@ -16,11 +16,12 @@ const FIX = path.join(__dirname, 'fixtures');
 const STYLES_DIR = path.join(ROOT, 'templates', 'styles');
 
 test('STYLES 与 BG_TYPES 白名单定义完整', () => {
-  assert.deepEqual(STYLES, ['deep-tech', 'clean-medical', 'warm-editorial', 'swiss-modern']);
-  assert.deepEqual(BG_TYPES, ['grid-tech', 'clean-light', 'warm-editorial', 'swiss-modern', 'solid']);
+  assert.deepEqual(STYLES, ['deep-tech', 'clean-medical', 'warm-editorial', 'swiss-modern', 'vital-energy', 'cyber-neon', 'ink-zen', 'aurora-glass']);
+  assert.deepEqual(BG_TYPES, ['grid-tech', 'clean-light', 'warm-editorial', 'swiss-modern', 'vital-energy', 'cyber-neon', 'ink-zen', 'aurora-glass', 'solid']);
 });
 
-test('全部 4 种预设样式 JSON 存在且符合 WCAG AA 对比度 (>= 4.5)', () => {
+test('全部 8 种预设样式 JSON 存在且符合 WCAG AA 对比度 (>= 4.5)', () => {
+  assert.equal(STYLES.length, 8);
   for (const s of STYLES) {
     const p = path.join(STYLES_DIR, `${s}.json`);
     assert.ok(fs.existsSync(p), `样式定义文件缺失: ${s}.json`);
@@ -136,6 +137,22 @@ test('getDrawBg 生成对应背景策略代码', () => {
   const swissBg = getDrawBg('swiss-modern');
   assert.ok(swissBg.includes('bg.strokeRect(36,36,1848,1008)'));
   assert.ok(swissBg.includes('#f4f4f5'));
+
+  const vitalBg = getDrawBg('vital-energy');
+  assert.ok(vitalBg.includes('#fffaf5'));
+  assert.ok(vitalBg.includes('rgba(234,88,12,0.06)'));
+
+  const cyberBg = getDrawBg('cyber-neon');
+  assert.ok(cyberBg.includes('#090614'));
+  assert.ok(cyberBg.includes('P_NEON'));
+
+  const zenBg = getDrawBg('ink-zen');
+  assert.ok(zenBg.includes('#f8f6f0'));
+  assert.ok(zenBg.includes('rgba(153,27,27,0.18)'));
+
+  const auroraBg = getDrawBg('aurora-glass');
+  assert.ok(auroraBg.includes('#060918'));
+  assert.ok(auroraBg.includes('P_AURORA'));
 
   const solidBg = getDrawBg('solid', { colors: { bg: '#1a1a2e' } });
   assert.ok(solidBg.includes("bg.fillStyle = '#1a1a2e'"));
