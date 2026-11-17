@@ -9,6 +9,28 @@ const { app, BrowserWindow, Menu, dialog, shell, ipcMain, Notification } = requi
 const path = require('path');
 const fs = require('fs');
 
+function logError(title, err) {
+  try {
+    const userData = app.isReady() ? app.getPath('userData') : process.cwd();
+    const logPath = path.join(userData, 'mg-studio-error.log');
+    const msg = `[${new Date().toISOString()}] ${title}: ${err && (err.stack || err.message || err)}\n`;
+    fs.appendFileSync(logPath, msg, 'utf8');
+  } catch (e) {}
+}
+
+process.on('uncaughtException', (err) => {
+  logError('Uncaught Exception', err);
+  try {
+    if (dialog && typeof dialog.showErrorBox === 'function') {
+      dialog.showErrorBox('MG Studio 运行异常', `程序遇到未处理的错误：\n${err && (err.stack || err.message || err)}`);
+    }
+  } catch (e) {}
+});
+
+process.on('unhandledRejection', (reason) => {
+  logError('Unhandled Rejection', reason);
+});
+
 const { createStudioServer, resolveProjectDir } = require('../scripts/studio');
 const { runDiagnostics } = require('../scripts/doctor');
 
@@ -120,9 +142,19 @@ function createMainWindow() {
   const args = process.argv.slice(1).filter(a => !a.startsWith('-') && !a.endsWith('.js') && !a.includes('electron'));
   const candidateDir = args.length > 0 ? args[0] : null;
 
+  let initialProject = null;
   if (candidateDir && fs.existsSync(candidateDir)) {
+    try {
+      const stat = fs.statSync(candidateDir);
+      if (stat.isDirectory() && fs.existsSync(path.join(candidateDir, 'story.json'))) {
+        initialProject = candidateDir;
+      }
+    } catch (e) {}
+  }
+
+  if (initialProject) {
     // 直接载入指定工程
-    startStudioForProject(candidateDir).then(info => {
+    startStudioForProject(initialProject).then(info => {
       mainWindow.loadURL(`http://${info.host}:${info.port}/`);
     }).catch(err => {
       console.error('Failed to load project from args:', err);
