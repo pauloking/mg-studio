@@ -20,6 +20,7 @@ const { loadTemplate } = require('../lib/narratives');
 const { splitSubs } = require('../lib/subs');
 const { searchLiterature, getCuratedTopics } = require('../lib/research');
 const { buildStoryboardDefinition, writeAndCompileGeneratedProject } = require('../lib/ai-generator');
+const { extractRawText, analyzeDocumentText } = require('../lib/doc-parser');
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -184,7 +185,7 @@ function collectAllDiagnostics(projectDir) {
 function createStudioServer(options = {}) {
   const projectDir = resolveProjectDir(options.projectDir);
   const host = options.host || '127.0.0.1';
-  const port = options.port || 3000;
+  const port = typeof options.port === 'number' ? options.port : 3000;
   const studioHtmlPath = path.join(__dirname, '..', 'lib', 'studio.html');
 
   const server = http.createServer(async (req, res) => {
@@ -261,6 +262,30 @@ function createStudioServer(options = {}) {
           const maxResults = body.maxResults || 5;
           const result = await searchLiterature(query, { maxResults });
           sendJson(res, 200, result);
+          return;
+        }
+
+        // POST /api/parse-doc (用户自定义资料上传与知识抽取)
+        if (pathname === '/api/parse-doc' && req.method === 'POST') {
+          const body = await parseJsonBody(req);
+          const filename = body.filename || '自定义参考资料.txt';
+          let buffer = null;
+          if (body.contentBase64) {
+            try {
+              buffer = Buffer.from(body.contentBase64, 'base64');
+            } catch (e) {
+              sendJson(res, 400, { ok: false, error: 'Invalid base64 payload' });
+              return;
+            }
+          }
+          const textContent = body.textContent || '';
+          try {
+            const rawText = await extractRawText({ filename, buffer, textContent });
+            const analysis = analyzeDocumentText(rawText, filename);
+            sendJson(res, 200, { ok: true, ...analysis });
+          } catch (err) {
+            sendJson(res, 500, { ok: false, error: '资料解析失败: ' + err.message });
+          }
           return;
         }
 
@@ -662,7 +687,8 @@ function createStudioServer(options = {}) {
     host,
     start: () => new Promise((resolve, reject) => {
       server.listen(port, host, () => {
-        resolve({ host, port, projectDir });
+        const actualPort = server.address().port;
+        resolve({ host, port: actualPort, projectDir });
       });
       server.on('error', reject);
     }),
