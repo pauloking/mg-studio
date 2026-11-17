@@ -54,7 +54,12 @@ test('Desktop: preload.js 安全隔离规范校验', () => {
 test('Desktop: Electron 主进程冒烟启动 (Smoke Test)', () => {
   const electronBin = require('electron');
   const { execFileSync } = require('child_process');
-  const out = execFileSync(electronBin, ['.'], {
+  const args = ['.'];
+  // CI 环境与 Linux 无特权容器需添加 --no-sandbox
+  if (process.env.CI || process.platform === 'linux') {
+    args.push('--no-sandbox');
+  }
+  const out = execFileSync(electronBin, args, {
     cwd: path.join(__dirname, '..'),
     env: Object.assign({}, process.env, { ELECTRON_SMOKE_TEST: '1' }),
     encoding: 'utf8',
