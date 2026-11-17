@@ -444,3 +444,13 @@ node scripts/studio.js ../my-film --port 3000 --open
      * `[ ↑ 上移 ]` / `[ ↓ 下移 ]`：调整叙事顺序并重新编译。
      * `[ 🗑️ 删除 ]`：移除多余分镜并自动刷新工程。
 
+### 7.5 独立桌面客户端 (MG Studio Desktop - M9)
+
+为了让临床医生、科研工作者及非技术背景创作者享受开箱即用的原生软件体验，`mg-studio` 现已提供原生窗口独立桌面客户端：
+
+* **启动命令**：`npm run desktop`（或指定分镜目录 `npm run desktop ../my-project`）。
+* **核心组成**：
+  * **主进程托管 (`desktop/main.js`)**：自动启动并托管本地 Studio 服务（动态分配可用端口，严格本地回环），管理原生应用菜单与快捷键（`Cmd+N` 新建 / `Cmd+O` 打开 / `Cmd+B` 编译 / `Cmd+E` 导出）。
+  * **项目中心 (`desktop/project-hub.html`)**：启动欢迎中心，展示快速创作入口、内置经典模板、最近项目记录与环境自检看板。
+  * **安全上下文隔离桥 (`desktop/preload.js`)**：通过 `contextBridge` 注入安全的原生对话框、文件定位（Finder）与系统通知能力。
+
