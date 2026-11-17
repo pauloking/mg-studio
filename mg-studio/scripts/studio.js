@@ -189,8 +189,35 @@ function createStudioServer(options = {}) {
   const studioHtmlPath = path.join(__dirname, '..', 'lib', 'studio.html');
 
   const server = http.createServer(async (req, res) => {
-    // 强制 CORS 仅限本地回环
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    // ── 同源/回环防线（第六轮复检 R6-4）────────────────────────────
+    // 服务器只绑 127.0.0.1，但浏览器同源策略并不区分端口：恶意网页可以
+    // fetch('http://127.0.0.1:<port>/api/...') 借本机 Studio 写项目文件。
+    // 因此：
+    //   1) CORS 只允许本地源：无 Origin 头（curl/同源页面）直接放行；
+    //      带 Origin 时仅当其 host 为 127.0.0.1/localhost 时回显允许。
+    //   2) Host 头校验（DNS rebinding 防线）：远程域名解析到 127.0.0.1
+    //      再访问时 Host 不会是本机名，直接 403。
+    const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
+    const hostHeader = String(req.headers.host || '').toLowerCase();
+    const hostNoPort = hostHeader.split(':')[0];
+    if (!LOOPBACK_HOSTS.has(hostNoPort)) {
+      res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('403 Forbidden: non-loopback Host header.');
+      return;
+    }
+    const origin = req.headers.origin;
+    if (origin) {
+      let originHost = '';
+      try { originHost = new URL(origin).hostname; } catch (e) { originHost = ''; }
+      if (!LOOPBACK_HOSTS.has(originHost)) {
+        // 跨站且非本地源：不放行 CORS，且不回 CORS 头（浏览器将按同源策略拦截响应）
+        res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('403 Forbidden: cross-origin request rejected.');
+        return;
+      }
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+    }
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 

@@ -203,3 +203,45 @@ test('Studio HTTP 服务端生命周期与核心路由集成测试', async () =>
     await app.close();
   }
 });
+
+// ── 第六轮 R6-4：同源/回环防线（CORS 收紧 + DNS rebinding 拦截）──
+// 用原生 http 客户端（undici/fetch 会强制改写 Host 头，测不到真实场景）
+test('Studio 服务器：非回环 Host 头 403（DNS rebinding 防线）', async () => {
+  const work = copyFixture('studio-guard-host', 'mini-style-medical');
+  const port = 3890 + Math.floor(Math.random() * 50);
+  const app = createStudioServer({ projectDir: work, port });
+  await app.start();
+  const http = require('http');
+  const req = (headers) => new Promise((resolve, reject) => {
+    const r = http.request({ host: '127.0.0.1', port, path: '/api/topics', headers }, resp => {
+      resolve(resp.statusCode);
+    });
+    r.on('error', reject); r.end();
+  });
+  try {
+    assert.equal(await req({ Host: 'evil.example.com' }), 403, '远程域名 Host 应 403');
+    assert.equal(await req({ Host: 'localhost:' + port }), 200, '本地 Host 应放行');
+    assert.equal(await req({ Host: '127.0.0.1:' + port }), 200, '127.0.0.1 Host 应放行');
+  } finally { await app.close(); }
+});
+
+test('Studio 服务器：恶意 Origin 403、本地 Origin 回显 CORS、无 Origin 放行', async () => {
+  const work = copyFixture('studio-guard-origin', 'mini-style-medical');
+  const port = 3950 + Math.floor(Math.random() * 50);
+  const app = createStudioServer({ projectDir: work, port });
+  await app.start();
+  const http = require('http');
+  const req = (headers) => new Promise((resolve, reject) => {
+    const r = http.request({ host: '127.0.0.1', port, path: '/api/topics', headers }, resp => {
+      resolve({ status: resp.statusCode, acao: resp.headers['access-control-allow-origin'] });
+    });
+    r.on('error', reject); r.end();
+  });
+  try {
+    assert.equal((await req({ Host: 'localhost:' + port })).status, 200, '同源（无 Origin）应放行');
+    const local = await req({ Host: 'localhost:' + port, Origin: 'http://localhost:5173' });
+    assert.equal(local.status, 200);
+    assert.equal(local.acao, 'http://localhost:5173', '本地 Origin 应回显 CORS');
+    assert.equal((await req({ Host: 'localhost:' + port, Origin: 'http://evil.example.com' })).status, 403, '恶意 Origin 应 403');
+  } finally { await app.close(); }
+});
