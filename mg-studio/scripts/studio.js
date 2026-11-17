@@ -18,6 +18,8 @@ const { lintMedical } = require('../lib/medical-lint');
 const { lintMotion } = require('../lib/motion-lint');
 const { loadTemplate } = require('../lib/narratives');
 const { splitSubs } = require('../lib/subs');
+const { searchLiterature, getCuratedTopics } = require('../lib/research');
+const { buildStoryboardDefinition, writeAndCompileGeneratedProject } = require('../lib/ai-generator');
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -243,6 +245,161 @@ function createStudioServer(options = {}) {
             hasTimeline,
             project: projectData
           });
+          return;
+        }
+
+        // GET /api/topics (精选推荐选题)
+        if (pathname === '/api/topics' && req.method === 'GET') {
+          sendJson(res, 200, { ok: true, topics: getCuratedTopics() });
+          return;
+        }
+
+        // POST /api/research (文献检索与事实抽取)
+        if (pathname === '/api/research' && req.method === 'POST') {
+          const body = await parseJsonBody(req);
+          const query = body.query || '';
+          const maxResults = body.maxResults || 5;
+          const result = await searchLiterature(query, { maxResults });
+          sendJson(res, 200, result);
+          return;
+        }
+
+        // POST /api/create-project (一键创建/重构新项目并编译)
+        if (pathname === '/api/create-project' && req.method === 'POST') {
+          const body = await parseJsonBody(req);
+          // 创作者在向导中确认采纳的事实默认置为 verified: true
+          if (Array.isArray(body.facts)) {
+            body.facts = body.facts.map(f => Object.assign({}, f, { verified: true }));
+          }
+          const generated = buildStoryboardDefinition(body);
+          const result = writeAndCompileGeneratedProject(projectDir, generated);
+          sendJson(res, 200, result);
+          return;
+        }
+
+        // POST /api/beat/add (动态插入新分镜)
+        if (pathname === '/api/beat/add' && req.method === 'POST') {
+          const body = await parseJsonBody(req);
+          const beat = body.beat;
+          if (!beat || !beat.id) {
+            sendJson(res, 400, { ok: false, error: 'beat with id is required' });
+            return;
+          }
+          const storyPath = path.join(projectDir, 'story.json');
+          if (!fs.existsSync(storyPath)) {
+            sendJson(res, 400, { ok: false, error: 'story.json not found' });
+            return;
+          }
+          const story = JSON.parse(fs.readFileSync(storyPath, 'utf8'));
+          story.beats = story.beats || [];
+          if (story.beats.some(b => b.id === beat.id)) {
+            sendJson(res, 400, { ok: false, error: 'beat id already exists: ' + beat.id });
+            return;
+          }
+          const afterIndex = typeof body.afterIndex === 'number' ? body.afterIndex : story.beats.length - 1;
+          const newBeat = {
+            id: beat.id,
+            role: beat.role || 'mechanism',
+            emotion: beat.emotion || 3,
+            intent: beat.intent || '新分镜意图',
+            narration: beat.narration || '这是一段新加入的分镜旁白。',
+            facts: beat.facts || []
+          };
+          story.beats.splice(Math.max(0, afterIndex + 1), 0, newBeat);
+          fs.writeFileSync(storyPath, JSON.stringify(story, null, 2));
+
+          // 自动创建对应的 scenes/<id>.json
+          const scPath = path.join(projectDir, 'scenes', beat.id + '.json');
+          const layout = body.layout || 'title-card';
+          let defaultElements = [];
+          if (layout === 'title-card') {
+            defaultElements = [
+              { id: 'title', type: 'text', props: { role: 'title', content: beat.narration ? beat.narration.slice(0, 10) : '新分镜标题' }, enter: { preset: 'scale', at: 0.3, dur: 0.8 } },
+              { id: 'bar', type: 'bar', props: {}, enter: { preset: 'grow', at: 0.7, dur: 0.6 } }
+            ];
+          } else if (layout === 'points') {
+            defaultElements = [
+              { id: 'card0', type: 'card', props: { title: '核心要点', desc: beat.narration || '要点说明' }, enter: { preset: 'popLeft', at: 0.4, dur: 0.8 } }
+            ];
+          } else if (layout === 'waveform') {
+            defaultElements = [
+              { id: 'wf', type: 'waveform', props: { x: 260, y: 300, w: 1400, h: 480, color: 'accent', vf: 0, scroll: 0.6 }, enter: { preset: 'fade', at: 0.4, dur: 0.8 } }
+            ];
+          } else if (layout === 'stat') {
+            defaultElements = [
+              { id: 's0', type: 'stat', props: { value: 88, unit: '%', label: '临床有效率', decimals: 0 }, enter: { preset: 'scale', at: 0.5, dur: 1.0 } }
+            ];
+          } else {
+            defaultElements = [
+              { id: 'title', type: 'text', props: { role: 'title', content: '新场景' }, enter: { preset: 'rise', at: 0.3, dur: 0.6 } }
+            ];
+          }
+          const newScene = {
+            id: beat.id,
+            beat: beat.id,
+            minSec: 4,
+            layout,
+            elements: body.elements || defaultElements
+          };
+          fs.writeFileSync(scPath, JSON.stringify(newScene, null, 2));
+
+          const comp = compileProject(projectDir);
+          const updated = ir.loadProject(projectDir, LAYOUT_NAMES);
+          sendJson(res, 200, { ok: comp.errors.length === 0, compile: comp, project: updated });
+          return;
+        }
+
+        // POST /api/beat/delete (删除分镜)
+        if (pathname === '/api/beat/delete' && req.method === 'POST') {
+          const body = await parseJsonBody(req);
+          const beatId = body.beatId;
+          if (!beatId) {
+            sendJson(res, 400, { ok: false, error: 'beatId is required' });
+            return;
+          }
+          const storyPath = path.join(projectDir, 'story.json');
+          if (!fs.existsSync(storyPath)) {
+            sendJson(res, 400, { ok: false, error: 'story.json not found' });
+            return;
+          }
+          const story = JSON.parse(fs.readFileSync(storyPath, 'utf8'));
+          if (!story.beats || story.beats.length <= 1) {
+            sendJson(res, 400, { ok: false, error: 'Cannot delete the only remaining beat' });
+            return;
+          }
+          story.beats = story.beats.filter(b => b.id !== beatId);
+          fs.writeFileSync(storyPath, JSON.stringify(story, null, 2));
+
+          const scPath = path.join(projectDir, 'scenes', beatId + '.json');
+          if (fs.existsSync(scPath)) fs.unlinkSync(scPath);
+
+          const comp = compileProject(projectDir);
+          const updated = ir.loadProject(projectDir, LAYOUT_NAMES);
+          sendJson(res, 200, { ok: comp.errors.length === 0, compile: comp, project: updated });
+          return;
+        }
+
+        // POST /api/beat/reorder (调整分镜排序)
+        if (pathname === '/api/beat/reorder' && req.method === 'POST') {
+          const body = await parseJsonBody(req);
+          const order = body.order;
+          if (!Array.isArray(order) || order.length === 0) {
+            sendJson(res, 400, { ok: false, error: 'order array of beatIds is required' });
+            return;
+          }
+          const storyPath = path.join(projectDir, 'story.json');
+          const story = JSON.parse(fs.readFileSync(storyPath, 'utf8'));
+          const beatMap = new Map((story.beats || []).map(b => [b.id, b]));
+          const newBeats = [];
+          for (const id of order) {
+            if (beatMap.has(id)) newBeats.push(beatMap.get(id));
+          }
+          story.beats = newBeats;
+          fs.writeFileSync(storyPath, JSON.stringify(story, null, 2));
+
+          const comp = compileProject(projectDir);
+          const updated = ir.loadProject(projectDir, LAYOUT_NAMES);
+          sendJson(res, 200, { ok: comp.errors.length === 0, compile: comp, project: updated });
           return;
         }
 
