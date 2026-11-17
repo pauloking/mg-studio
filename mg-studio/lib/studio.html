@@ -660,6 +660,47 @@ textarea {
   overflow-y: auto;
   white-space: pre-wrap;
 }
+.wz-step-pill {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 4px 12px;
+  border-radius: 12px;
+  background: var(--bg-card);
+  transition: all 0.2s;
+}
+.wz-step-pill.active {
+  color: white;
+  background: var(--accent);
+}
+.hot-chip {
+  font-size: 11px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  padding: 3px 8px;
+  border-radius: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.hot-chip:hover {
+  border-color: var(--accent-light);
+  color: white;
+  background: var(--bg-hover);
+}
+.beat-action-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: 2px 4px;
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.beat-action-btn:hover {
+  color: white;
+  background: var(--bg-hover);
+}
 </style>
 </head>
 <body>
@@ -689,6 +730,10 @@ textarea {
   </div>
 
   <div class="action-buttons">
+    <button id="btnNewProject" class="primary" style="background: linear-gradient(135deg, #6366f1, #06b6d4); font-weight:700; border:none; box-shadow:0 2px 10px rgba(99,102,241,0.4);" title="开启 AI 视频策划与文献检索向导">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      新建视频 (AI 创作工坊)
+    </button>
     <button id="btnCompile" title="重新编译 script.json 与 scene.html">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
       编译
@@ -714,7 +759,10 @@ textarea {
   <aside class="sidebar-left">
     <div class="sidebar-header">
       <span class="sidebar-title">分镜大纲 (Storyboard)</span>
-      <span class="beat-count" id="beatCount">0 BEATS</span>
+      <div style="display:flex; align-items:center; gap:6px;">
+        <button id="btnAddBeat" style="padding:2px 8px; font-size:11px; background:var(--bg-card);" title="添加新分镜">＋分镜</button>
+        <span class="beat-count" id="beatCount">0 BEATS</span>
+      </div>
     </div>
     <div class="beat-list" id="beatList">
       <!-- 动态插入 Beat 卡片 -->
@@ -833,6 +881,166 @@ textarea {
   </aside>
 </main>
 
+<!-- 模态框：AI 视频策划工坊向导 -->
+<div class="modal-mask" id="creatorModal">
+  <div class="modal-box" style="width: 740px; max-width: 95vw; max-height: 90vh; display: flex; flex-direction: column;">
+    <!-- 向导顶栏 -->
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 16px;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div style="background: linear-gradient(135deg, #6366f1, #06b6d4); color:white; padding:4px 8px; border-radius:6px; font-size:12px; font-weight:700;">AI CREATOR</div>
+        <h3 style="font-size:16px; font-weight:700;">AI 视频策划工坊 (全流程向导)</h3>
+      </div>
+      <button id="btnCloseCreatorModal" style="padding:3px 8px; font-size:11px;">关闭</button>
+    </div>
+
+    <!-- 步骤指示器 -->
+    <div class="wizard-steps-bar" style="display:flex; justify-content:space-between; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
+      <div class="wz-step-pill active" id="pillStep1">1. 选题与受众</div>
+      <div class="wz-step-pill" id="pillStep2">2. 文献检索与事实库</div>
+      <div class="wz-step-pill" id="pillStep3">3. 故事线与分镜</div>
+    </div>
+
+    <!-- Step 1 内容: 选题设定 -->
+    <div class="wz-step-content" id="step1Content" style="flex:1; overflow-y:auto; padding-right:4px;">
+      <div class="form-group">
+        <label>推荐权威选题快速选择</label>
+        <div id="hotTopicChips" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;">
+          <!-- 动态注入选题 chips -->
+        </div>
+      </div>
+      <div class="form-group">
+        <label>视频主题 (Topic / 关键词)</label>
+        <input type="text" id="wzTopic" placeholder="例如：心房颤动脉冲电场消融术、冠状动脉支架术后注意事项..." style="font-size:14px; padding:10px;">
+      </div>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+        <div class="form-group">
+          <label>受众对象 (Audience)</label>
+          <select id="wzAudience">
+            <option value="patient">患者科普 (自动执行最严安全门与科普免责)</option>
+            <option value="professional">专业医务/学术研讨 (高密度医学术语)</option>
+            <option value="general">大众通用科普 (通俗生活常识)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>叙事模板 (Narrative Template)</label>
+          <select id="wzTemplate">
+            <option value="science">科普模板 (Hook-Conflict-Mechanism-Evidence-Takeaway)</option>
+            <option value="teaching">教学拆解 (Hook-Steps-Summary)</option>
+            <option value="product">产品/器械发布 (Hook-Demo-Takeaway)</option>
+            <option value="free">自由模式 (Free)</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+        <div class="form-group">
+          <label>目标时长 (Target Duration)</label>
+          <select id="wzDuration">
+            <option value="35">35 秒 (快问快答短视频)</option>
+            <option value="45" selected>45 秒 (标准MG精炼科普)</option>
+            <option value="60">60 秒 (深度机理解析)</option>
+            <option value="90">90 秒 (全景完整叙事)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>视觉风格 (Initial Style)</label>
+          <select id="wzStyle">
+            <option value="clean-medical" selected>清爽医疗 (clean-medical)</option>
+            <option value="deep-tech">深邃科技 (deep-tech)</option>
+            <option value="warm-editorial">人文典雅 (warm-editorial)</option>
+            <option value="swiss-modern">瑞士现代 (swiss-modern)</option>
+            <option value="vital-energy">活力暖橙 (vital-energy)</option>
+            <option value="cyber-neon">赛博霓虹 (cyber-neon)</option>
+            <option value="ink-zen">极简水墨 (ink-zen)</option>
+            <option value="aurora-glass">极光微观 (aurora-glass)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2 内容: 文献检索与事实库 -->
+    <div class="wz-step-content" id="step2Content" style="display:none; flex:1; overflow-y:auto; padding-right:4px;">
+      <div style="display:flex; gap:8px; margin-bottom:12px;">
+        <input type="text" id="wzSearchQuery" placeholder="搜索文献关键词..." style="flex:1;">
+        <button id="btnRunSearch" class="primary" style="white-space:nowrap;">🔍 联网检索文献</button>
+      </div>
+      <div id="searchStatus" style="font-size:12px; color:var(--text-muted); margin-bottom:8px;"></div>
+      
+      <div style="font-size:12px; font-weight:700; color:var(--accent-light); margin-bottom:6px;">权威学术文献检索结果 (Europe PMC / OpenAlex)</div>
+      <div id="wzArticleList" style="max-height:140px; overflow-y:auto; background:var(--bg-card); border:1px solid var(--border); border-radius:6px; padding:8px; margin-bottom:12px;">
+        <div style="color:var(--text-muted); font-size:11px;">点击【联网检索文献】后将在此呈现权威论文与指南出处。</div>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <div style="font-size:12px; font-weight:700; color:var(--accent-light);">核心医学与科学事实证据库 (Facts Checklist)</div>
+        <button id="btnAddCustomFact" style="font-size:10px; padding:2px 6px;">+ 手动添加事实</button>
+      </div>
+      <div id="wzFactsList" style="max-height:160px; overflow-y:auto; display:flex; flex-direction:column; gap:6px;">
+        <!-- 动态注入事实条目 -->
+      </div>
+    </div>
+
+    <!-- Step 3 内容: 故事大纲与分镜生成预览 -->
+    <div class="wz-step-content" id="step3Content" style="display:none; flex:1; overflow-y:auto; padding-right:4px;">
+      <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <h4 id="previewMetaTitle" style="font-size:15px; color:white;">分镜故事线规划</h4>
+          <span id="previewMetaBadges" style="font-size:11px; color:var(--accent-light);">5 BEATS</span>
+        </div>
+      </div>
+      <div id="wzBeatsPreviewFlow" style="display:flex; flex-direction:column; gap:8px;">
+        <!-- 动态注入故事大纲与分镜卡片流 -->
+      </div>
+    </div>
+
+    <!-- 向导底栏操作 -->
+    <div style="border-top:1px solid var(--border); padding-top:14px; margin-top:14px; display:flex; justify-content:space-between; align-items:center;">
+      <button id="btnWzPrev" style="visibility:hidden;">上一步</button>
+      <div style="display:flex; gap:8px;">
+        <button id="btnWzNext" class="primary">下一步：文献检索</button>
+        <button id="btnWzCreate" class="primary" style="display:none; background:linear-gradient(135deg, #10b981, #06b6d4); border:none;">🚀 载入工作台并开始演播</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 模态框：添加新分镜 -->
+<div class="modal-mask" id="addBeatModal">
+  <div class="modal-box" style="width: 440px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <h3 style="font-size:15px; font-weight:700;">添加新分镜 (Add Beat)</h3>
+      <button id="btnCloseAddBeatModal" style="padding:2px 6px; font-size:11px;">关闭</button>
+    </div>
+    <div class="form-group">
+      <label>分镜 ID (小写英文字母)</label>
+      <input type="text" id="newBeatId" placeholder="例如：mechanism_2">
+    </div>
+    <div class="form-group">
+      <label>叙事角色 (Role)</label>
+      <select id="newBeatRole">
+        <option value="mechanism">mechanism (机制机理阐释)</option>
+        <option value="evidence">evidence (循证医学依据)</option>
+        <option value="conflict">conflict (认知冲突/误区)</option>
+        <option value="hook">hook (悬念痛点引出)</option>
+        <option value="takeaway">takeaway (总结与免责行动)</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>排版布局组件 (Layout)</label>
+      <select id="newBeatLayout">
+        <option value="points">points (多卡片要点布局)</option>
+        <option value="title-card">title-card (标题卡开场布局)</option>
+        <option value="waveform">waveform (生理ECG/信号波形布局)</option>
+        <option value="stat">stat (大数字统计指标布局)</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>旁白文案草稿</label>
+      <textarea id="newBeatNarration" rows="3" placeholder="输入当前分镜的配音口播文案..."></textarea>
+    </div>
+    <button id="btnConfirmAddBeat" class="primary" style="width:100%; margin-top:8px;">确认添加并重新编译</button>
+  </div>
+</div>
+
 <!-- 模态框：出片任务进度 -->
 <div class="modal-mask" id="exportModal">
   <div class="modal-box">
@@ -906,7 +1114,51 @@ const dom = {
   btnSaveFacts: document.getElementById('btnSaveFacts'),
   lintSummary: document.getElementById('lintSummary'),
   lintDetails: document.getElementById('lintDetails'),
-  btnRefreshLint: document.getElementById('btnRefreshLint')
+  btnRefreshLint: document.getElementById('btnRefreshLint'),
+  // AI 创作工坊
+  btnNewProject: document.getElementById('btnNewProject'),
+  creatorModal: document.getElementById('creatorModal'),
+  btnCloseCreatorModal: document.getElementById('btnCloseCreatorModal'),
+  pillStep1: document.getElementById('pillStep1'),
+  pillStep2: document.getElementById('pillStep2'),
+  pillStep3: document.getElementById('pillStep3'),
+  step1Content: document.getElementById('step1Content'),
+  step2Content: document.getElementById('step2Content'),
+  step3Content: document.getElementById('step3Content'),
+  hotTopicChips: document.getElementById('hotTopicChips'),
+  wzTopic: document.getElementById('wzTopic'),
+  wzAudience: document.getElementById('wzAudience'),
+  wzTemplate: document.getElementById('wzTemplate'),
+  wzDuration: document.getElementById('wzDuration'),
+  wzStyle: document.getElementById('wzStyle'),
+  wzSearchQuery: document.getElementById('wzSearchQuery'),
+  btnRunSearch: document.getElementById('btnRunSearch'),
+  searchStatus: document.getElementById('searchStatus'),
+  wzArticleList: document.getElementById('wzArticleList'),
+  btnAddCustomFact: document.getElementById('btnAddCustomFact'),
+  wzFactsList: document.getElementById('wzFactsList'),
+  previewMetaTitle: document.getElementById('previewMetaTitle'),
+  previewMetaBadges: document.getElementById('previewMetaBadges'),
+  wzBeatsPreviewFlow: document.getElementById('wzBeatsPreviewFlow'),
+  btnWzPrev: document.getElementById('btnWzPrev'),
+  btnWzNext: document.getElementById('btnWzNext'),
+  btnWzCreate: document.getElementById('btnWzCreate'),
+  // 分镜增删改
+  btnAddBeat: document.getElementById('btnAddBeat'),
+  addBeatModal: document.getElementById('addBeatModal'),
+  btnCloseAddBeatModal: document.getElementById('btnCloseAddBeatModal'),
+  newBeatId: document.getElementById('newBeatId'),
+  newBeatRole: document.getElementById('newBeatRole'),
+  newBeatLayout: document.getElementById('newBeatLayout'),
+  newBeatNarration: document.getElementById('newBeatNarration'),
+  btnConfirmAddBeat: document.getElementById('btnConfirmAddBeat')
+};
+
+// 向导状态
+const wizardState = {
+  currentStep: 1,
+  articles: [],
+  facts: []
 };
 
 function showToast(msg) {
@@ -1115,10 +1367,18 @@ function renderBeatList(project) {
       factsHtml = `<div class="facts-badge ${allDone ? '' : 'unverified'}">${allDone ? '✓' : '⚠️'} ${verified}/${b.facts.length} 事实</div>`;
     }
 
+    const isFirst = idx === 0;
+    const isLast = idx === project.scenes.length - 1;
+
     card.innerHTML = `
       <div class="beat-card-header">
         <span class="beat-id">${sc.id}</span>
-        <span class="role-badge ${roleClass}">${b.role || 'beat'}</span>
+        <div style="display:flex; align-items:center; gap:4px;">
+          <span class="role-badge ${roleClass}">${b.role || 'beat'}</span>
+          <button class="beat-action-btn btn-beat-up" title="上移分镜" ${isFirst ? 'disabled style="opacity:0.3;cursor:not-allowed;"' : ''}>↑</button>
+          <button class="beat-action-btn btn-beat-down" title="下移分镜" ${isLast ? 'disabled style="opacity:0.3;cursor:not-allowed;"' : ''}>↓</button>
+          <button class="beat-action-btn btn-beat-del" title="删除分镜" style="color:#ef4444;">🗑️</button>
+        </div>
       </div>
       <div class="beat-meta-row">
         <span class="emotion-badge">情绪: ${b.emotion ? '★'.repeat(b.emotion) : '-'}</span>
@@ -1127,12 +1387,83 @@ function renderBeatList(project) {
       <div class="beat-narration">${sc.narration || '(无旁白)'}</div>
     `;
 
+    // 绑定分镜操作事件
+    const btnUp = card.querySelector('.btn-beat-up');
+    if (btnUp && !isFirst) {
+      btnUp.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await reorderBeat(sc.id, 'up');
+      });
+    }
+
+    const btnDown = card.querySelector('.btn-beat-down');
+    if (btnDown && !isLast) {
+      btnDown.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await reorderBeat(sc.id, 'down');
+      });
+    }
+
+    const btnDel = card.querySelector('.btn-beat-del');
+    if (btnDel) {
+      btnDel.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (confirm(`确定要删除分镜 [${sc.id}] 吗？`)) {
+          await deleteBeat(sc.id);
+        }
+      });
+    }
+
     card.addEventListener('click', () => {
       selectScene(idx);
     });
 
     dom.beatList.appendChild(card);
   });
+}
+
+// 分镜重排序
+async function reorderBeat(beatId, direction) {
+  try {
+    showToast(`正在${direction === 'up' ? '上移' : '下移'}分镜 ${beatId}...`);
+    const res = await fetch('/api/beat/reorder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ beatId, direction })
+    });
+    const r = await res.json();
+    if (r.ok) {
+      showToast('分镜顺序已调整并重新编译！');
+      await loadProjectData();
+      reloadIframe();
+    } else {
+      showToast('调整失败: ' + (r.error || (r.compile && r.compile.errors.join('; '))));
+    }
+  } catch (err) {
+    showToast('操作异常: ' + err.message);
+  }
+}
+
+// 删除分镜
+async function deleteBeat(beatId) {
+  try {
+    showToast(`正在删除分镜 ${beatId}...`);
+    const res = await fetch('/api/beat/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ beatId })
+    });
+    const r = await res.json();
+    if (r.ok) {
+      showToast(`分镜 [${beatId}] 已删除并重新编译！`);
+      await loadProjectData();
+      reloadIframe();
+    } else {
+      showToast('删除失败: ' + (r.error || (r.compile && r.compile.errors.join('; '))));
+    }
+  } catch (err) {
+    showToast('操作异常: ' + err.message);
+  }
 }
 
 // 选中某个场景
@@ -1461,17 +1792,17 @@ document.getElementById('btnLint').addEventListener('click', () => {
 });
 
 // 辅助遮罩切换
-dom.viewportContainer.querySelector('#toggleGrid').addEventListener('click', (e) => {
+document.getElementById('toggleGrid').addEventListener('click', (e) => {
   state.overlays.grid = !state.overlays.grid;
   e.target.classList.toggle('active', state.overlays.grid);
   showToast(state.overlays.grid ? '辅助网格已开启' : '辅助网格已关闭');
 });
-dom.viewportContainer.querySelector('#toggleSubtitleSafe').addEventListener('click', (e) => {
+document.getElementById('toggleSubtitleSafe').addEventListener('click', (e) => {
   state.overlays.subtitleSafe = !state.overlays.subtitleSafe;
   e.target.classList.toggle('active', state.overlays.subtitleSafe);
   showToast(state.overlays.subtitleSafe ? '字幕盲区警戒线已开启 (y > 940)' : '字幕盲区警戒线已关闭');
 });
-dom.viewportContainer.querySelector('#toggleRects').addEventListener('click', (e) => {
+document.getElementById('toggleRects').addEventListener('click', (e) => {
   state.overlays.rects = !state.overlays.rects;
   e.target.classList.toggle('active', state.overlays.rects);
   try {
@@ -1537,11 +1868,373 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
+// ==========================================
+// M7: AI 创作工坊与分镜向导逻辑
+// ==========================================
+
+// 打开 AI 创作工坊
+async function openCreatorModal() {
+  wizardState.currentStep = 1;
+  setWizardStep(1);
+  dom.creatorModal.classList.add('show');
+
+  // 加载推荐选题 chips
+  if (dom.hotTopicChips.children.length === 0) {
+    try {
+      const res = await fetch('/api/topics');
+      const data = await res.json();
+      if (data.ok && data.topics) {
+        data.topics.forEach(t => {
+          const title = t.title || t.topic || '';
+          const chip = document.createElement('div');
+          chip.className = 'hot-chip';
+          chip.textContent = `${title} (${t.audience === 'patient' ? '患者' : '专业'})`;
+          chip.addEventListener('click', () => {
+            dom.wzTopic.value = title;
+            dom.wzAudience.value = t.audience || 'patient';
+            dom.wzTemplate.value = t.template || 'science';
+            if (t.facts) {
+              wizardState.facts = JSON.parse(JSON.stringify(t.facts));
+            }
+          });
+          dom.hotTopicChips.appendChild(chip);
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to load topics:', e);
+    }
+  }
+}
+
+// 切换向导步骤
+function setWizardStep(step) {
+  wizardState.currentStep = step;
+
+  // 步骤指示灯
+  dom.pillStep1.classList.toggle('active', step === 1);
+  dom.pillStep2.classList.toggle('active', step === 2);
+  dom.pillStep3.classList.toggle('active', step === 3);
+
+  // 页面内容
+  dom.step1Content.style.display = step === 1 ? 'block' : 'none';
+  dom.step2Content.style.display = step === 2 ? 'block' : 'none';
+  dom.step3Content.style.display = step === 3 ? 'block' : 'none';
+
+  // 底部按钮
+  dom.btnWzPrev.style.visibility = step === 1 ? 'hidden' : 'visible';
+  if (step === 1) {
+    dom.btnWzNext.style.display = 'inline-block';
+    dom.btnWzNext.textContent = '下一步：文献检索与事实库 ➔';
+    dom.btnWzCreate.style.display = 'none';
+  } else if (step === 2) {
+    dom.btnWzNext.style.display = 'inline-block';
+    dom.btnWzNext.textContent = '下一步：生成分镜大纲 ➔';
+    dom.btnWzCreate.style.display = 'none';
+  } else if (step === 3) {
+    dom.btnWzNext.style.display = 'none';
+    dom.btnWzCreate.style.display = 'inline-block';
+  }
+}
+
+// 检索学术文献
+async function runLiteratureSearch(query) {
+  dom.searchStatus.textContent = '正在检索 Europe PMC 与 OpenAlex 权威学术库...';
+  dom.wzArticleList.innerHTML = '<div style="color:var(--text-muted); font-size:11px;">🔍 检索中，请稍候...</div>';
+
+  try {
+    const res = await fetch('/api/research', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, limit: 5 })
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      dom.searchStatus.textContent = '检索失败: ' + (data.error || '未知错误');
+      return;
+    }
+
+    wizardState.articles = data.articles || [];
+    wizardState.facts = data.facts || [];
+
+    dom.searchStatus.textContent = `检索完成：找到 ${wizardState.articles.length} 篇权威文献，提炼出 ${wizardState.facts.length} 条结构化证据事实。`;
+
+    // 渲染文献列表
+    dom.wzArticleList.innerHTML = '';
+    if (wizardState.articles.length === 0) {
+      dom.wzArticleList.innerHTML = '<div style="color:var(--text-muted); font-size:11px;">未查询到相关文献。</div>';
+    } else {
+      wizardState.articles.forEach(art => {
+        const item = document.createElement('div');
+        item.style.marginBottom = '6px';
+        item.style.paddingBottom = '6px';
+        item.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+        item.innerHTML = `
+          <div style="font-size:12px; font-weight:600; color:white;">
+            <a href="${art.url || '#'}" target="_blank" style="color:var(--accent-light); text-decoration:none;">📄 ${art.title}</a>
+          </div>
+          <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">
+            ${Array.isArray(art.authors) ? art.authors.slice(0, 3).join(', ') : (art.authors || '')} ${art.journal ? '· ' + art.journal : ''} (${art.year || ''}) [来源: ${art.source || 'Pub'}]
+          </div>
+        `;
+        dom.wzArticleList.appendChild(item);
+      });
+    }
+
+    renderWizardFacts();
+  } catch (err) {
+    dom.searchStatus.textContent = '检索请求出错: ' + err.message;
+  }
+}
+
+// 渲染事实清单
+function renderWizardFacts() {
+  dom.wzFactsList.innerHTML = '';
+  if (!wizardState.facts || wizardState.facts.length === 0) {
+    dom.wzFactsList.innerHTML = '<div style="color:var(--text-muted); font-size:11px;">暂无医学事实条目，可点击上方按钮手动添加。</div>';
+    return;
+  }
+
+  wizardState.facts.forEach((fact, idx) => {
+    const item = document.createElement('div');
+    item.style.display = 'flex';
+    item.style.alignItems = 'flex-start';
+    item.style.gap = '8px';
+    item.style.padding = '6px 8px';
+    item.style.background = 'var(--bg-card)';
+    item.style.borderRadius = '4px';
+    item.style.border = '1px solid var(--border)';
+
+    item.innerHTML = `
+      <input type="checkbox" id="wzFactChk_${idx}" checked style="margin-top:3px;">
+      <div style="flex:1;">
+        <div style="font-size:12px; color:white; line-height:1.4;">${fact.statement || fact.claim}</div>
+        ${fact.evidence ? `<div style="font-size:10px; color:var(--accent-light); margin-top:2px;">证据: ${fact.evidence}</div>` : ''}
+      </div>
+    `;
+
+    const chk = item.querySelector('input');
+    chk.addEventListener('change', (e) => {
+      fact._checked = e.target.checked;
+    });
+    fact._checked = true;
+
+    dom.wzFactsList.appendChild(item);
+  });
+}
+
+// 准备 Step 3 故事线与分镜流预览
+function prepareStep3Preview() {
+  const topic = dom.wzTopic.value.trim();
+  const audience = dom.wzAudience.value;
+  const template = dom.wzTemplate.value;
+  const duration = parseInt(dom.wzDuration.value, 10);
+  const style = dom.wzStyle.value;
+
+  dom.previewMetaTitle.textContent = `${topic} · ${template.toUpperCase()} 分镜规划`;
+  dom.previewMetaBadges.textContent = `目标: ${duration}s | 受众: ${audience} | 风格: ${style}`;
+
+  let roles = ['hook', 'conflict', 'mechanism', 'evidence', 'takeaway'];
+  if (template === 'teaching') {
+    roles = ['hook', 'steps', 'summary'];
+  } else if (template === 'product') {
+    roles = ['hook', 'demo', 'takeaway'];
+  }
+
+  const roleLayoutMap = {
+    hook: { layout: 'title-card', title: '悬念与临床痛点引出', desc: '开门见山提出核心痛点与关注要点' },
+    conflict: { layout: 'points', title: '认知冲突与传统局限', desc: '剖析传统方案弊端或大众常见认知盲区' },
+    mechanism: { layout: 'waveform', title: '核心机理/电生理脉冲', desc: '生动呈现组织选择性电穿孔或治疗机制' },
+    evidence: { layout: 'stat', title: '权威临床试验与统计数据', desc: '呈现多中心临床有效率、安全性指标' },
+    takeaway: { layout: 'points', title: '专家行动建议与就医免责', desc: '明确遵医嘱提示与就诊规范须知' },
+    steps: { layout: 'points', title: '操作规范步骤拆解', desc: '标准作业流程分步呈现' },
+    demo: { layout: 'waveform', title: '技术特性与实测参数', desc: '产品核心参数与指标对比' },
+    summary: { layout: 'points', title: '重点回顾与总结', desc: '提炼操作要领与核心结论' }
+  };
+
+  dom.wzBeatsPreviewFlow.innerHTML = '';
+  roles.forEach((r, idx) => {
+    const info = roleLayoutMap[r] || { layout: 'points', title: r, desc: '内容阐述' };
+    const beatCard = document.createElement('div');
+    beatCard.style.padding = '10px 12px';
+    beatCard.style.background = 'var(--bg-card)';
+    beatCard.style.border = '1px solid var(--border)';
+    beatCard.style.borderRadius = '6px';
+    beatCard.style.display = 'flex';
+    beatCard.style.gap = '12px';
+    beatCard.style.alignItems = 'center';
+
+    beatCard.innerHTML = `
+      <div style="font-size:16px; font-weight:800; color:var(--accent); min-width:30px;">#${idx + 1}</div>
+      <div style="flex:1;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <strong style="font-size:13px; color:white;">分镜: ${r}</strong>
+          <span class="role-badge role-${['hook','conflict','mechanism','evidence','takeaway'].includes(r)?r:'other'}">${r}</span>
+          <span style="font-size:11px; color:var(--text-muted); background:var(--bg-input); padding:1px 6px; border-radius:4px;">组件: ${info.layout}</span>
+        </div>
+        <div style="font-size:12px; color:var(--text-muted); margin-top:4px;">${info.title} - ${info.desc}</div>
+      </div>
+      <div style="font-size:11px; color:var(--accent-light); font-weight:600;">约 ${Math.round(duration / roles.length)}s</div>
+    `;
+    dom.wzBeatsPreviewFlow.appendChild(beatCard);
+  });
+}
+
+// 绑定向导事件
+dom.btnNewProject.addEventListener('click', openCreatorModal);
+dom.btnCloseCreatorModal.addEventListener('click', () => {
+  dom.creatorModal.classList.remove('show');
+});
+
+dom.btnWzPrev.addEventListener('click', () => {
+  if (wizardState.currentStep > 1) {
+    setWizardStep(wizardState.currentStep - 1);
+  }
+});
+
+dom.btnWzNext.addEventListener('click', () => {
+  if (wizardState.currentStep === 1) {
+    const topic = dom.wzTopic.value.trim();
+    if (!topic) {
+      showToast('请先输入视频主题或点击上方推荐选题！');
+      return;
+    }
+    dom.wzSearchQuery.value = topic;
+    setWizardStep(2);
+    if (wizardState.articles.length === 0 && wizardState.facts.length === 0) {
+      runLiteratureSearch(topic);
+    }
+  } else if (wizardState.currentStep === 2) {
+    prepareStep3Preview();
+    setWizardStep(3);
+  }
+});
+
+dom.btnRunSearch.addEventListener('click', () => {
+  const q = dom.wzSearchQuery.value.trim() || dom.wzTopic.value.trim();
+  if (q) {
+    runLiteratureSearch(q);
+  }
+});
+
+dom.btnAddCustomFact.addEventListener('click', () => {
+  const claim = prompt('请输入新的医学/科学事实断言:');
+  if (claim && claim.trim()) {
+    const evidence = prompt('请输入该事实的参考文献或证据出处 (可选):') || '专家临床共识';
+    wizardState.facts.push({
+      claim: claim.trim(),
+      statement: claim.trim(),
+      evidence: evidence.trim(),
+      verified: true,
+      _checked: true
+    });
+    renderWizardFacts();
+    showToast('自定义事实已添加');
+  }
+});
+
+// 一键创建并载入工作台
+dom.btnWzCreate.addEventListener('click', async () => {
+  const topic = dom.wzTopic.value.trim();
+  const audience = dom.wzAudience.value;
+  const template = dom.wzTemplate.value;
+  const targetDuration = parseInt(dom.wzDuration.value, 10);
+  const style = dom.wzStyle.value;
+  const facts = wizardState.facts.filter(f => f._checked !== false);
+
+  try {
+    dom.btnWzCreate.disabled = true;
+    dom.btnWzCreate.textContent = '正在全自动生成分镜与代码...';
+    showToast('AI 正在构建分镜骨架、编写排版组件并全量编译...');
+
+    const res = await fetch('/api/create-project', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        topic,
+        audience,
+        template,
+        targetDuration,
+        style,
+        facts
+      })
+    });
+
+    const data = await res.json();
+    if (!data.ok) {
+      showToast('创建失败: ' + (data.error || (data.compile && data.compile.errors.join('; '))));
+      dom.btnWzCreate.disabled = false;
+      dom.btnWzCreate.textContent = '🚀 载入工作台并开始演播';
+      return;
+    }
+
+    showToast('🎉 新工程创建并全量编译成功！正在载入工作台...');
+    dom.creatorModal.classList.remove('show');
+    dom.btnWzCreate.disabled = false;
+    dom.btnWzCreate.textContent = '🚀 载入工作台并开始演播';
+
+    await loadProjectData();
+    reloadIframe();
+    seekFrame(0);
+  } catch (err) {
+    showToast('创建异常: ' + err.message);
+    dom.btnWzCreate.disabled = false;
+    dom.btnWzCreate.textContent = '🚀 载入工作台并开始演播';
+  }
+});
+
+// 添加新分镜弹窗事件
+dom.btnAddBeat.addEventListener('click', () => {
+  dom.newBeatId.value = 'beat_' + (state.project && state.project.scenes ? state.project.scenes.length + 1 : 1);
+  dom.newBeatNarration.value = '';
+  dom.addBeatModal.classList.add('show');
+});
+
+dom.btnCloseAddBeatModal.addEventListener('click', () => {
+  dom.addBeatModal.classList.remove('show');
+});
+
+dom.btnConfirmAddBeat.addEventListener('click', async () => {
+  const id = dom.newBeatId.value.trim();
+  const role = dom.newBeatRole.value;
+  const layout = dom.newBeatLayout.value;
+  const narration = dom.newBeatNarration.value.trim();
+
+  if (!id) {
+    showToast('请输入分镜 ID');
+    return;
+  }
+
+  try {
+    showToast('正在添加新分镜...');
+    const res = await fetch('/api/beat/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, role, layout, narration })
+    });
+    const r = await res.json();
+    if (r.ok) {
+      showToast(`新分镜 [${id}] 添加成功！`);
+      dom.addBeatModal.classList.remove('show');
+      await loadProjectData();
+      reloadIframe();
+    } else {
+      showToast('添加失败: ' + (r.error || (r.compile && r.compile.errors.join('; '))));
+    }
+  } catch (err) {
+    showToast('添加异常: ' + err.message);
+  }
+});
+
 // 初始化启动
-window.addEventListener('DOMContentLoaded', () => {
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', () => {
+    autoScaleViewport();
+    loadProjectData();
+  });
+} else {
   autoScaleViewport();
   loadProjectData();
-});
+}
 </script>
 </body>
 </html>
