@@ -74,7 +74,7 @@ test('ai-generator: buildStoryboardDefinition 生成符合 IR v2 与门禁规范
   });
 });
 
-test('ai-generator: writeAndCompileGeneratedProject 落地并全量编译成功', () => {
+test('ai-generator: writeAndCompileGeneratedProject 患者向初稿被医学门阻断（verified 待核实）', () => {
   const work = path.join(ROOT, 'tests', 'work', 'ai-creator-compile');
   fs.rmSync(work, { recursive: true, force: true });
 
@@ -86,12 +86,32 @@ test('ai-generator: writeAndCompileGeneratedProject 落地并全量编译成功'
   });
 
   const res = writeAndCompileGeneratedProject(work, def);
-  assert.equal(res.ok, true);
-  assert.equal(res.compile.mode, 'v2');
-  assert.deepEqual(res.compile.errors, []);
-  assert.ok(fs.existsSync(path.join(work, 'story.json')));
-  assert.ok(fs.existsSync(path.join(work, 'script.json')));
-  assert.ok(fs.existsSync(path.join(work, 'scene.html')));
+  // 第六轮修复后：AI 初稿 facts 一律待核实 → MED_FACT_UNVERIFIED B 级阻断，不写产物。
+  // 创作者在向导逐条核实后才会放行（设计文档 §6 的人工核实流程）。
+  assert.equal(res.ok, false);
+  assert.ok(res.compile.errors.some(e => e.includes('MED_FACT_UNVERIFIED')), '应命中未核实诊断: ' + res.compile.errors.join('|'));
+  assert.ok(!fs.existsSync(path.join(work, 'scene.html')), '阻断时不写 scene.html');
+});
+
+test('ai-generator: 全部核实后（_checked）患者向项目放行', () => {
+  const work = path.join(ROOT, 'tests', 'work', 'ai-creator-verified');
+  fs.rmSync(work, { recursive: true, force: true });
+
+  const def = buildStoryboardDefinition({
+    topic: '高血压用药三大误区',
+    audience: 'patient',
+    template: 'science',
+    style: 'clean-medical',
+    facts: [
+      { claim: '高血压需长期规范服药', source: '中国高血压防治指南', _checked: true },
+      { claim: '擅自停药可致血压反弹', source: '中国高血压防治指南', _checked: true },
+      { claim: '生活方式干预是基础', source: '中国高血压防治指南', _checked: true }
+    ]
+  });
+
+  const res = writeAndCompileGeneratedProject(work, def);
+  assert.equal(res.ok, true, '全核实后应放行: ' + (res.compile.errors || []).join('|'));
+  assert.ok(fs.existsSync(path.join(work, 'scene.html')), '放行时应写 scene.html');
 });
 
 test('REST API: 选题检索、一键创建与分镜增删改闭环测试', async () => {
@@ -135,7 +155,10 @@ test('REST API: 选题检索、一键创建与分镜增删改闭环测试', asyn
     });
     assert.equal(resCreate.status, 200);
     const createData = await resCreate.json();
-    assert.equal(createData.ok, true);
+    // 第六轮修复后：检索抽取的 facts 未经创作者核实（无 _checked）→ 医学门阻断编译，
+    // 但 API 仍 200 返回生成定义（前端展示"待核实"状态引导人工核实）。
+    assert.equal(createData.ok, false, '未核实的患者向初稿应被医学门阻断');
+    assert.ok(createData.compile.errors.some(e => e.includes('MED_FACT_UNVERIFIED')), '应命中未核实诊断');
     assert.equal(createData.story.meta.title, '经导管主动脉瓣置换 (TAVR)');
 
     // 4. POST /api/beat/add (动态插入新分镜)

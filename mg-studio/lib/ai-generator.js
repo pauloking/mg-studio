@@ -24,10 +24,13 @@ function buildStoryboardDefinition({
   const cleanStyle = ir.STYLES.includes(style) ? style : 'clean-medical';
   const cleanDur = Number(durationTarget) > 0 ? Number(durationTarget) : 45;
 
-  // 保证至少有 2-3 条结构化事实，向导生成时默认由创作者确认核验为 true
+  // 医学事实核验门（设计文档 §6）：AI/检索初稿的 facts 一律标 verified:false（待核实），
+  // 由创作者在向导里逐条人工核实后显式置 true。curated 离线库同样如此——
+  // "来源权威"不等于"创作者已核实"，绕过该门曾导致未核实断言直接进患者向成片。
+  const markUnverified = (f) => Object.assign({}, f, { verified: f._checked === true ? true : false });
   const activeFacts = (facts && facts.length > 0)
-    ? facts.map(f => Object.assign({}, f, { verified: f.verified != null ? f.verified : true }))
-    : getFallbackFacts(cleanTopic).map(f => Object.assign({}, f, { verified: true }));
+    ? facts.map(markUnverified)
+    : getFallbackFacts(cleanTopic).map(markUnverified);
 
   const isCardiacOrSignal = /心|房颤|律|电|脉冲|电生理|脑|卒中|血压|波/.test(cleanTopic);
 
