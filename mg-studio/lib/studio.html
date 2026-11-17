@@ -730,6 +730,9 @@ textarea {
     <div class="logo-badge">MG STUDIO</div>
     <div class="project-title" id="topTitle">加载项目中...</div>
     <div class="project-meta" id="topMeta">M6 Web Workbench</div>
+    <button id="btnBackToHub" style="display:none; font-size:11px; padding:3px 8px; margin-left:6px; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:5px; color:var(--text-muted); cursor:pointer; align-items:center; gap:4px;" title="返回桌面项目中心">
+      🏠 项目中心
+    </button>
   </div>
 
   <div class="center-toolbar">
@@ -1859,6 +1862,9 @@ document.getElementById('btnExport').addEventListener('click', async () => {
           dom.exportProgressFill.style.width = '100%';
           dom.exportLogBox.textContent = (sData.log || '') + '\n🎉 出片流程圆满完成！';
           dom.exportLogBox.scrollTop = dom.exportLogBox.scrollHeight;
+          if (window.desktopAPI) {
+            window.desktopAPI.showNotification('出片完成', '1080p 视频渲染与质检已圆满完成！');
+          }
         } else {
           clearInterval(pollTimer);
           dom.exportProgressFill.style.background = 'var(--danger)';
@@ -2483,14 +2489,34 @@ dom.btnConfirmAddBeat.addEventListener('click', async () => {
 });
 
 // 初始化启动
-if (document.readyState === 'loading') {
-  window.addEventListener('DOMContentLoaded', () => {
-    autoScaleViewport();
-    loadProjectData();
-  });
-} else {
+function initApp() {
   autoScaleViewport();
   loadProjectData();
+
+  // Desktop 原生客户端增强
+  if (window.desktopAPI) {
+    const btnHub = document.getElementById('btnBackToHub');
+    if (btnHub) {
+      btnHub.style.display = 'inline-flex';
+      btnHub.addEventListener('click', () => {
+        window.desktopAPI.openProjectHub();
+      });
+    }
+  }
+
+  // 检查是否需要自动弹出 AI 创作工坊
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('action') === 'wizard') {
+    setTimeout(() => {
+      if (typeof openCreatorModal === 'function') openCreatorModal();
+    }, 400);
+  }
+}
+
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', initApp);
+} else {
+  initApp();
 }
 </script>
 </body>

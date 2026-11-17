@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MG Studio - 项目中心 (Project Hub)</title>
+  <style>
+    :root {
+      --bg-dark: #090a10;
+      --bg-card: rgba(18, 20, 32, 0.85);
+      --bg-card-hover: rgba(28, 32, 50, 0.95);
+      --border: rgba(255, 255, 255, 0.1);
+      --border-accent: rgba(99, 102, 241, 0.4);
+      --accent: #6366f1;
+      --accent-gradient: linear-gradient(135deg, #6366f1, #06b6d4);
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --success: #10b981;
+      --warning: #f59e0b;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", sans-serif;
+      background: radial-gradient(circle at 10% 20%, #111428 0%, #080911 90%);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      user-select: none;
+      -webkit-app-region: drag; /* 允许窗口顶部拖拽 */
+    }
+
+    .no-drag { -webkit-app-region: no-drag; }
+
+    /* 顶栏 */
+    header {
+      height: 54px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(10, 12, 20, 0.6);
+      backdrop-filter: blur(12px);
+    }
+    .logo-area {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .logo-badge {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: var(--accent-gradient);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 14px;
+      color: white;
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+    }
+    .app-title {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    .app-tag {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 12px;
+      background: rgba(99, 102, 241, 0.15);
+      color: #818cf8;
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      font-weight: 600;
+    }
+
+    /* 容器布局 */
+    .container {
+      max-width: 1040px;
+      margin: 32px auto;
+      padding: 0 24px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 28px;
+    }
+
+    /* 卡片通用 */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 22px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #e5e7eb;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* 快速操作按钮 */
+    .action-btn {
+      width: 100%;
+      padding: 14px 18px;
+      margin-bottom: 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-align: left;
+    }
+    .action-btn:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--accent);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(99, 102, 241, 0.2);
+    }
+    .action-btn.primary {
+      background: var(--accent-gradient);
+      border: none;
+      color: white;
+      box-shadow: 0 4px 18px rgba(99, 102, 241, 0.35);
+    }
+    .action-btn.primary:hover {
+      opacity: 0.95;
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px rgba(99, 102, 241, 0.5);
+    }
+    .btn-icon {
+      font-size: 20px;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .btn-text h4 { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+    .btn-text p { font-size: 11px; color: var(--text-muted); }
+    .action-btn.primary .btn-text p { color: rgba(255, 255, 255, 0.8); }
+
+    /* 模板专区 */
+    .template-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .template-item {
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .template-item:hover {
+      border-color: #38bdf8;
+      background: rgba(56, 189, 248, 0.08);
+    }
+    .tpl-title { font-size: 12px; font-weight: 600; color: #f3f4f6; margin-bottom: 4px; }
+    .tpl-desc { font-size: 10px; color: var(--text-muted); line-height: 1.3; }
+
+    /* 最近项目列表 */
+    .recent-list {
+      max-height: 290px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .recent-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .recent-item:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--border-accent);
+    }
+    .recent-info h4 { font-size: 12px; font-weight: 600; color: #e5e7eb; }
+    .recent-info p { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+    .recent-badge {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(16, 185, 129, 0.15);
+      color: #10b981;
+      font-weight: 600;
+    }
+
+    /* 环境诊断卡片 */
+    .env-diag {
+      margin-top: 20px;
+      padding: 12px 14px;
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+    }
+    .env-item { display: flex; align-items: center; gap: 6px; color: var(--text-muted); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: #10b981; }
+
+    /* 滚动条 */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+  <!-- 顶栏 -->
+  <header>
+    <div class="logo-area no-drag">
+      <div class="logo-badge">MG</div>
+      <div class="app-title">MG Studio</div>
+      <span class="app-tag">Standalone Desktop v0.1.0</span>
+    </div>
+    <div class="no-drag" style="font-size: 11px; color: var(--text-muted);">
+      纯帧号驱动 · 确定性 1080p · 全链路安全门禁
+    </div>
+  </header>
+
+  <!-- 主体区域 -->
+  <div class="container no-drag">
+    
+    <!-- 左栏：新建与模板 -->
+    <div>
+      <div class="card">
+        <div class="card-title">
+          <span>🎬</span> 开始创作
+        </div>
+
+        <button class="action-btn primary" id="btnNewProject">
+          <div class="btn-icon">⚡</div>
+          <div class="btn-text">
+            <h4>新建视频 (AI 视频策划工坊)</h4>
+            <p>输入自定义主题或上传文献，一键完成分镜与事实核查</p>
+          </div>
+        </button>
+
+        <button class="action-btn" id="btnOpenProject">
+          <div class="btn-icon">📁</div>
+          <div class="btn-text">
+            <h4>打开已有工程目录...</h4>
+            <p>选择包含 story.json 的本地分镜工程文件夹</p>
+          </div>
+        </button>
+
+        <button class="action-btn" id="btnOpenDemo">
+          <div class="btn-icon">🧪</div>
+          <div class="btn-text">
+            <h4>打开医学科普示例 (Demo)</h4>
+            <p>快速体验脉冲消融、ECG 生理波形与大数字滚动</p>
+          </div>
+        </button>
+
+        <div style="margin-top: 22px;">
+          <div class="card-title" style="margin-bottom: 8px;">
+            <span>📚</span> 快速模板库
+          </div>
+          <div class="template-grid">
+            <div class="template-item" data-template="pfa">
+              <div class="tpl-title">心房颤动 PFA 消融</div>
+              <div class="tpl-desc">脉冲电场隔离、细胞微孔电穿孔前沿机制</div>
+            </div>
+            <div class="template-item" data-template="ami">
+              <div class="tpl-title">心梗黄金救治 120</div>
+              <div class="tpl-desc">突发胸痛识别、急诊介入救治时间轴</div>
+            </div>
+            <div class="template-item" data-template="hypertension">
+              <div class="tpl-title">高血压长期用药误区</div>
+              <div class="tpl-desc">血压波动靶器官损害、长期平稳降压</div>
+            </div>
+            <div class="template-item" data-template="cpr">
+              <div class="tpl-title">徒手心肺复苏 (CPR)</div>
+              <div class="tpl-desc">教学拆解：按压频率、深度与通气比</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右栏：最近项目与环境自检 -->
+    <div>
+      <div class="card">
+        <div class="card-title" style="justify-content: space-between;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span>⏱️</span> 最近打开的项目
+          </div>
+          <span id="btnClearRecent" style="font-size: 11px; color: var(--text-muted); cursor: pointer;">清空</span>
+        </div>
+
+        <div class="recent-list" id="recentList">
+          <!-- 动态渲染最近工程 -->
+          <div style="padding: 30px 0; text-align: center; color: var(--text-muted); font-size: 12px;">
+            暂无历史项目，点击左侧按钮立即开始
+          </div>
+        </div>
+
+        <!-- 运行环境健康状态 -->
+        <div class="env-diag">
+          <div class="env-item"><div class="dot" id="dotNode"></div> Node.js</div>
+          <div class="env-item"><div class="dot" id="dotChrome"></div> Chrome / Playwright</div>
+          <div class="env-item"><div class="dot" id="dotFFmpeg"></div> FFmpeg</div>
+          <div class="env-item"><div class="dot" id="dotTTS"></div> 语音引擎</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="project-hub.js"></script>
+</body>
+</html>
