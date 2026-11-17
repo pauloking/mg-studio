@@ -51,7 +51,12 @@ test('Desktop: preload.js 安全隔离规范校验', () => {
   assert.ok(preloadSrc.includes('revealInFinder'), '必须提供 revealInFinder 原生定位方法');
 });
 
-test('Desktop: Electron 主进程冒烟启动 (Smoke Test)', () => {
+test('Desktop: Electron 主进程冒烟启动 (Smoke Test)', (t) => {
+  // Linux 无头 CI 环境（无 X11 / $DISPLAY）跳过 GUI 窗口渲染
+  if (process.platform === 'linux' && !process.env.DISPLAY) {
+    t.skip('Linux 环境未配置 X11 虚拟显示器 ($DISPLAY 为空)，跳过 GUI 冒烟启动');
+    return;
+  }
   const electronBin = require('electron');
   const { execFileSync } = require('child_process');
   const args = ['.'];
