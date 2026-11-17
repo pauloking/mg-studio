@@ -402,6 +402,7 @@ node scripts/studio.js ../my-film --port 3000 --open
 | `/api/export` | `POST` | 启动后台出片流水线，返回异步 `taskId` |
 | `/api/task-status` | `GET` | 轮询后台出片进度与日志（`?taskId=...`） |
 | `/api/topics` | `GET` | 获取医学/科学推荐权威选题与模板 |
+| `/api/parse-doc` | `POST` | 解析参考资料（支持 .pdf/.docx/.md/.txt/.json 拖拽与纯文本粘贴），提取核心事实、统计指标、建议受众与模板 |
 | `/api/research` | `POST` | 检索 Europe PMC / OpenAlex 权威文献并提炼结构化事实 |
 | `/api/create-project` | `POST` | 一键由选题+事实生成 IR v2 工程并自动完成全量编译 |
 | `/api/beat/add` | `POST` | 新增分镜（指定 ID、角色、排版组件与旁白） |
@@ -413,9 +414,15 @@ node scripts/studio.js ../my-film --port 3000 --open
 
 针对专业医学与硬核科学视频制作的高门槛痛点，`mg-studio` 内置了从选题、文献检索、事实链核查到分镜大纲自动编排的全流程策划工坊：
 
-1. **Step 1: 选题与受众定位**
-   * 支持快速选择推荐权威选题（如脉冲电场消融 PFA、急性心梗黄金救治、降压药规范等），或自定义输入专业主题。
-   * 指定受众层级（`patient` 患者向 / `professional` 专业学术向 / `general` 通用向）、叙事模板（`science` 5段式科普 / `teaching` 操作拆解 / `product` 器械演示 / `free` 自由）及目标时长（35s / 45s / 60s / 90s）与初始视觉风格。
+1. **Step 1: 选题与参考资料智能解析 (M8)**
+   * **100% 自主自定义选题**：输入框允许用户自由输入任意前沿技术、罕见病或专业器械选题，提供「↺ 清空输入」快捷重置；上方推荐热词仅作为创作灵感参考。
+   * **多格式参考资料上传与文本直接粘贴**：
+     * 支持 `.pdf`、`.docx`、`.md`、`.txt`、`.json` 文件的拖拽与本地选取。
+     * 支持直接粘贴长篇临床指南、最新发表论文 Abstract 或专家门诊笔记。
+   * **智能解析引擎 (`lib/doc-parser.js`)**：
+     * 自动从资料中提炼结构化事实候选集：包含统计指标（百分比、比值、置信区间）、核心论断、机理机制与禁忌警示。
+     * 智能推断建议受众分类（`patient` / `professional` / `general`）与建议叙事模板（`science` / `teaching` / `product`）。
+     * 提供「一键应用至当前向导」：自动回填主题与配置，并将抽取的事实注入事实库，打上高亮 `[用户资料]` 绿色专属徽标并默认勾选！
 2. **Step 2: 权威文献联网检索与事实证据库**
    * 直连 Europe PMC 与 OpenAlex 开放学术知识图谱，通过 MeSH 关键词自动扩展与检索。
    * 自动抽取论文核心论断、临床试验结论并生成结构化事实清单（Facts Checklist）。

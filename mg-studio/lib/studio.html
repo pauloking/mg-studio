@@ -701,6 +701,25 @@ textarea {
   color: white;
   background: var(--bg-hover);
 }
+.mini-tab-btn {
+  font-size: 11px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  padding: 3px 10px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.mini-tab-btn.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+.doc-drop-zone.dragover {
+  border-color: var(--accent) !important;
+  background: rgba(99, 102, 241, 0.1) !important;
+}
 </style>
 </head>
 <body>
@@ -900,17 +919,73 @@ textarea {
       <div class="wz-step-pill" id="pillStep3">3. 故事线与分镜</div>
     </div>
 
-    <!-- Step 1 内容: 选题设定 -->
+    <!-- Step 1 内容: 选题设定与参考资料上传 -->
     <div class="wz-step-content" id="step1Content" style="flex:1; overflow-y:auto; padding-right:4px;">
+      <!-- 自定义主题主输入框 -->
       <div class="form-group">
-        <label>推荐权威选题快速选择</label>
-        <div id="hotTopicChips" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+          <label style="margin:0; font-weight:700; color:white;">视频主题 (支持自定义任意专业/临床领域)</label>
+          <button type="button" id="btnClearTopic" style="padding:1px 6px; font-size:10px; background:transparent; border:1px solid var(--border); color:var(--text-muted); border-radius:3px; cursor:pointer;" title="清空主题自行输入">↺ 清空输入</button>
+        </div>
+        <input type="text" id="wzTopic" placeholder="可自由键入任何专业主题（例如：冠状动脉搭桥术后护理、脑卒中早期识别FAST口诀、高通量单细胞测序机制）..." style="font-size:14px; padding:10px;">
+      </div>
+
+      <!-- 预设灵感示例折叠区 -->
+      <div style="margin-bottom:12px;">
+        <div style="font-size:11px; color:var(--text-muted); margin-bottom:6px; display:flex; align-items:center; gap:4px;">
+          <span>💡 预设灵感示例 (点击可快速填入参考):</span>
+        </div>
+        <div id="hotTopicChips" style="display:flex; flex-wrap:wrap; gap:6px;">
           <!-- 动态注入选题 chips -->
         </div>
       </div>
-      <div class="form-group">
-        <label>视频主题 (Topic / 关键词)</label>
-        <input type="text" id="wzTopic" placeholder="例如：心房颤动脉冲电场消融术、冠状动脉支架术后注意事项..." style="font-size:14px; padding:10px;">
+
+      <!-- 用户参考资料上传与智能解析卡片 -->
+      <div style="margin-bottom: 14px; background: rgba(99, 102, 241, 0.05); border: 1px dashed rgba(99, 102, 241, 0.4); border-radius: 8px; padding: 12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span style="font-size:14px;">📄</span>
+            <strong style="font-size:12px; color:white;">自定义参考资料上传与智能解析 (支持 PDF / Word / MD / 纯文本)</strong>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button type="button" id="btnTabUploadFile" class="mini-tab-btn active">📁 文件上传</button>
+            <button type="button" id="btnTabPasteText" class="mini-tab-btn">📝 粘贴资料</button>
+          </div>
+        </div>
+
+        <!-- 文件上传模式 -->
+        <div id="paneUploadFile">
+          <div id="docDropZone" class="doc-drop-zone" style="border:1px dashed var(--border); border-radius:6px; padding:14px; text-align:center; cursor:pointer; background:var(--bg-input); transition:all 0.2s;">
+            <input type="file" id="fileDocInput" accept=".pdf,.doc,.docx,.md,.txt,.json" style="display:none;">
+            <div style="font-size:12px; color:var(--accent-light); margin-bottom:2px;">点击选择本地文件 或 将资料文件拖拽到此处</div>
+            <div style="font-size:11px; color:var(--text-muted);">支持临床指南、论文全文或摘要、患者宣教单 (.pdf, .docx, .md, .txt)</div>
+            <div id="selectedFileName" style="font-size:12px; font-weight:700; color:#10b981; margin-top:6px; display:none;"></div>
+          </div>
+        </div>
+
+        <!-- 粘贴长文本模式 -->
+        <div id="panePasteText" style="display:none;">
+          <textarea id="txtDocPaste" rows="4" placeholder="在此直接粘贴临床指南段落、论文 Abstract、医学教科书或专业笔记资料..." style="font-size:12px; width:100%; box-sizing:border-box;"></textarea>
+        </div>
+
+        <!-- 操作栏 -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
+          <button type="button" id="btnParseDoc" class="primary" style="font-size:11px; padding:4px 12px; background:linear-gradient(135deg, #0ea5e9, #6366f1); border:none; box-shadow:0 2px 8px rgba(14,165,233,0.3);">
+            ⚡ 智能解析并提取知识
+          </button>
+          <div id="docParseStatus" style="font-size:11px; color:var(--text-muted);"></div>
+        </div>
+
+        <!-- 解析结果卡片 -->
+        <div id="docParseResultCard" style="display:none; margin-top:8px; padding:10px; background:rgba(16, 185, 129, 0.08); border:1px solid rgba(16, 185, 129, 0.3); border-radius:6px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:12px; font-weight:700; color:#10b981;" id="docParseResultSummary">✓ 资料解析成功</span>
+            <button type="button" id="btnApplyParsedDoc" style="font-size:11px; padding:3px 10px; background:#10b981; color:white; font-weight:700; border:none; border-radius:4px; cursor:pointer;">
+              一键应用至当前向导 ➔
+            </button>
+          </div>
+          <div id="docParseResultDetails" style="font-size:11px; color:var(--text-muted); margin-top:4px; line-height:1.4;"></div>
+        </div>
       </div>
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
         <div class="form-group">
@@ -1151,14 +1226,32 @@ const dom = {
   newBeatRole: document.getElementById('newBeatRole'),
   newBeatLayout: document.getElementById('newBeatLayout'),
   newBeatNarration: document.getElementById('newBeatNarration'),
-  btnConfirmAddBeat: document.getElementById('btnConfirmAddBeat')
+  btnConfirmAddBeat: document.getElementById('btnConfirmAddBeat'),
+  // M8: 自定义资料上传与解析
+  btnClearTopic: document.getElementById('btnClearTopic'),
+  btnTabUploadFile: document.getElementById('btnTabUploadFile'),
+  btnTabPasteText: document.getElementById('btnTabPasteText'),
+  paneUploadFile: document.getElementById('paneUploadFile'),
+  panePasteText: document.getElementById('panePasteText'),
+  docDropZone: document.getElementById('docDropZone'),
+  fileDocInput: document.getElementById('fileDocInput'),
+  selectedFileName: document.getElementById('selectedFileName'),
+  txtDocPaste: document.getElementById('txtDocPaste'),
+  btnParseDoc: document.getElementById('btnParseDoc'),
+  docParseStatus: document.getElementById('docParseStatus'),
+  docParseResultCard: document.getElementById('docParseResultCard'),
+  docParseResultSummary: document.getElementById('docParseResultSummary'),
+  docParseResultDetails: document.getElementById('docParseResultDetails'),
+  btnApplyParsedDoc: document.getElementById('btnApplyParsedDoc')
 };
 
 // 向导状态
 const wizardState = {
   currentStep: 1,
   articles: [],
-  facts: []
+  facts: [],
+  selectedFile: null,
+  parsedDoc: null
 };
 
 function showToast(msg) {
@@ -1934,6 +2027,9 @@ function setWizardStep(step) {
     dom.btnWzNext.style.display = 'none';
     dom.btnWzCreate.style.display = 'inline-block';
   }
+  if (step === 2) {
+    renderWizardFacts();
+  }
 }
 
 // 检索学术文献
@@ -2002,13 +2098,23 @@ function renderWizardFacts() {
     item.style.padding = '6px 8px';
     item.style.background = 'var(--bg-card)';
     item.style.borderRadius = '4px';
-    item.style.border = '1px solid var(--border)';
+    item.style.border = fact.isUserDoc ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid var(--border)';
+
+    let badgeHtml = '';
+    if (fact.isUserDoc) {
+      badgeHtml = `<span style="font-size:10px; color:#10b981; background:rgba(16,185,129,0.15); padding:1px 6px; border-radius:3px; font-weight:600; margin-left:6px;">[用户资料]</span>`;
+    } else {
+      badgeHtml = `<span style="font-size:10px; color:var(--accent-light); background:var(--bg-hover); padding:1px 6px; border-radius:3px; font-weight:600; margin-left:6px;">[文献检索库]</span>`;
+    }
 
     item.innerHTML = `
       <input type="checkbox" id="wzFactChk_${idx}" checked style="margin-top:3px;">
       <div style="flex:1;">
-        <div style="font-size:12px; color:white; line-height:1.4;">${fact.statement || fact.claim}</div>
-        ${fact.evidence ? `<div style="font-size:10px; color:var(--accent-light); margin-top:2px;">证据: ${fact.evidence}</div>` : ''}
+        <div style="font-size:12px; color:white; line-height:1.4;">
+          ${fact.statement || fact.claim}
+          ${badgeHtml}
+        </div>
+        ${fact.evidence ? `<div style="font-size:10px; color:var(--text-muted); margin-top:2px;">出处: ${fact.evidence}</div>` : ''}
       </div>
     `;
 
@@ -2083,6 +2189,157 @@ function prepareStep3Preview() {
 dom.btnNewProject.addEventListener('click', openCreatorModal);
 dom.btnCloseCreatorModal.addEventListener('click', () => {
   dom.creatorModal.classList.remove('show');
+});
+
+// M8: 自定义选题清空
+dom.btnClearTopic.addEventListener('click', () => {
+  dom.wzTopic.value = '';
+  dom.wzTopic.focus();
+  showToast('已清空主题输入框，请输入您专属的自定义选题');
+});
+
+// M8: 资料上传模式切换 (文件上传 vs 粘贴文本)
+dom.btnTabUploadFile.addEventListener('click', () => {
+  dom.btnTabUploadFile.classList.add('active');
+  dom.btnTabPasteText.classList.remove('active');
+  dom.paneUploadFile.style.display = 'block';
+  dom.panePasteText.style.display = 'none';
+});
+
+dom.btnTabPasteText.addEventListener('click', () => {
+  dom.btnTabPasteText.classList.add('active');
+  dom.btnTabUploadFile.classList.remove('active');
+  dom.panePasteText.style.display = 'block';
+  dom.paneUploadFile.style.display = 'none';
+});
+
+// M8: 拖拽与文件选择
+dom.docDropZone.addEventListener('click', () => {
+  dom.fileDocInput.click();
+});
+
+dom.fileDocInput.addEventListener('change', (e) => {
+  if (e.target.files && e.target.files[0]) {
+    handleSelectedDocFile(e.target.files[0]);
+  }
+});
+
+dom.docDropZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  dom.docDropZone.classList.add('dragover');
+});
+
+dom.docDropZone.addEventListener('dragleave', (e) => {
+  e.preventDefault();
+  dom.docDropZone.classList.remove('dragover');
+});
+
+dom.docDropZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dom.docDropZone.classList.remove('dragover');
+  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+    handleSelectedDocFile(e.dataTransfer.files[0]);
+  }
+});
+
+function handleSelectedDocFile(file) {
+  wizardState.selectedFile = file;
+  dom.selectedFileName.style.display = 'block';
+  dom.selectedFileName.textContent = `📄 已选择文件: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+  dom.docParseStatus.textContent = '文件已就绪，点击「智能解析」开始提炼';
+}
+
+// M8: 智能解析参考资料
+dom.btnParseDoc.addEventListener('click', async () => {
+  const isUploadMode = dom.paneUploadFile.style.display !== 'none';
+  dom.docParseStatus.textContent = '正在解析资料正文并提取核心事实...';
+  dom.btnParseDoc.disabled = true;
+
+  try {
+    let payload = {};
+    if (isUploadMode) {
+      if (!wizardState.selectedFile) {
+        showToast('请先选择或拖拽上传资料文件！');
+        dom.docParseStatus.textContent = '请先选择文件';
+        dom.btnParseDoc.disabled = false;
+        return;
+      }
+      const file = wizardState.selectedFile;
+      const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+      if (['.txt', '.md', '.markdown', '.json'].includes(ext)) {
+        const text = await file.text();
+        payload = { filename: file.name, textContent: text };
+      } else {
+        // PDF / DOCX 走 base64 传输
+        const b64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const res = String(reader.result || '');
+            const commaIdx = res.indexOf(',');
+            resolve(commaIdx !== -1 ? res.slice(commaIdx + 1) : res);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        payload = { filename: file.name, contentBase64: b64 };
+      }
+    } else {
+      const pasteText = dom.txtDocPaste.value.trim();
+      if (!pasteText) {
+        showToast('请先在文本框中粘贴参考资料段落！');
+        dom.docParseStatus.textContent = '请输入或粘贴文本资料';
+        dom.btnParseDoc.disabled = false;
+        return;
+      }
+      payload = { filename: '粘贴的参考资料.txt', textContent: pasteText };
+    }
+
+    const res = await fetch('/api/parse-doc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      dom.docParseStatus.textContent = '解析失败: ' + (data.error || '未知错误');
+      dom.btnParseDoc.disabled = false;
+      return;
+    }
+
+    wizardState.parsedDoc = data;
+    dom.docParseStatus.textContent = '✓ 解析完成！';
+    dom.btnParseDoc.disabled = false;
+
+    // 显示解析抽取卡片
+    dom.docParseResultSummary.textContent = `✓ 资料《${data.filename}》解析成功（提取 ${data.textLength} 字，提炼出 ${data.facts.length} 条事实）`;
+    dom.docParseResultDetails.innerHTML = `
+      <div><strong>建议主题:</strong> ${data.suggestedTopic} | <strong>建议受众:</strong> ${data.suggestedAudience === 'patient' ? '患者科普' : data.suggestedAudience === 'professional' ? '专业学术' : '大众通用'} | <strong>模板:</strong> ${data.suggestedTemplate}</div>
+      ${data.keywords && data.keywords.length ? `<div style="margin-top:2px; color:var(--accent-light);"><strong>核心词:</strong> ${data.keywords.join('、')}</div>` : ''}
+    `;
+    dom.docParseResultCard.style.display = 'block';
+    showToast('资料解析成功，可点击「一键应用」填入向导！');
+  } catch (err) {
+    dom.docParseStatus.textContent = '解析异常: ' + err.message;
+    dom.btnParseDoc.disabled = false;
+  }
+});
+
+// M8: 一键应用解析结果至向导
+dom.btnApplyParsedDoc.addEventListener('click', () => {
+  if (!wizardState.parsedDoc) return;
+  const p = wizardState.parsedDoc;
+  if (p.suggestedTopic) dom.wzTopic.value = p.suggestedTopic;
+  if (p.suggestedAudience) dom.wzAudience.value = p.suggestedAudience;
+  if (p.suggestedTemplate) dom.wzTemplate.value = p.suggestedTemplate;
+
+  // 将解析出的事实合入事实库列表前面
+  if (Array.isArray(p.facts) && p.facts.length > 0) {
+    const existing = wizardState.facts || [];
+    const newFacts = p.facts.map(f => Object.assign({}, f, { _checked: true, isUserDoc: true, verified: true }));
+    wizardState.facts = newFacts.concat(existing.filter(e => !newFacts.some(n => n.claim === e.claim)));
+  }
+
+  showToast('✓ 已将资料提炼的主题、受众与核心事实应用至向导！');
 });
 
 dom.btnWzPrev.addEventListener('click', () => {
