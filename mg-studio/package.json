@@ -23,6 +23,7 @@
     "desktop:dev": "electron .",
     "desktop:dist": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac",
     "desktop:dir": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --dir",
+    "desktop:win": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win --x64",
     "test": "node --test --test-concurrency=1 tests/*.test.js",
     "test:ci": "node scripts/test_ci.js"
   },
@@ -54,6 +55,21 @@
         "width": 540,
         "height": 380
       }
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable",
+        "zip"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-Portable-${version}.${ext}"
     }
   },
   "dependencies": {
