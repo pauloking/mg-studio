@@ -2108,7 +2108,7 @@ function renderWizardFacts() {
     }
 
     item.innerHTML = `
-      <input type="checkbox" id="wzFactChk_${idx}" checked style="margin-top:3px;">
+      <input type="checkbox" id="wzFactChk_${idx}" ${fact._checked ? 'checked' : ''} style="margin-top:3px;">
       <div style="flex:1;">
         <div style="font-size:12px; color:white; line-height:1.4;">
           ${fact.statement || fact.claim}
@@ -2121,8 +2121,12 @@ function renderWizardFacts() {
     const chk = item.querySelector('input');
     chk.addEventListener('change', (e) => {
       fact._checked = e.target.checked;
+      fact.verified = e.target.checked;
     });
-    fact._checked = true;
+    // 默认不勾选：verified 只能来自创作者显式核实（医学门 MED_FACT_UNVERIFIED）
+    fact._checked = fact._checked === true;
+    fact.verified = fact.verified === true;
+    chk.checked = fact._checked;
 
     dom.wzFactsList.appendChild(item);
   });
@@ -2335,7 +2339,8 @@ dom.btnApplyParsedDoc.addEventListener('click', () => {
   // 将解析出的事实合入事实库列表前面
   if (Array.isArray(p.facts) && p.facts.length > 0) {
     const existing = wizardState.facts || [];
-    const newFacts = p.facts.map(f => Object.assign({}, f, { _checked: true, isUserDoc: true, verified: true }));
+    // 上传文档提炼的事实默认待核实：文档内容 ≠ 创作者核实，医学门不允许批量放行
+  const newFacts = p.facts.map(f => Object.assign({}, f, { _checked: false, isUserDoc: true, verified: false }));
     wizardState.facts = newFacts.concat(existing.filter(e => !newFacts.some(n => n.claim === e.claim)));
   }
 
@@ -2377,12 +2382,13 @@ dom.btnAddCustomFact.addEventListener('click', () => {
   const claim = prompt('请输入新的医学/科学事实断言:');
   if (claim && claim.trim()) {
     const evidence = prompt('请输入该事实的参考文献或证据出处 (可选):') || '专家临床共识';
+    // 自定义事实默认待核实；verified/_checked 由创作者在事实列表里勾选驱动
     wizardState.facts.push({
       claim: claim.trim(),
       statement: claim.trim(),
       evidence: evidence.trim(),
-      verified: true,
-      _checked: true
+      verified: false,
+      _checked: false
     });
     renderWizardFacts();
     showToast('自定义事实已添加');

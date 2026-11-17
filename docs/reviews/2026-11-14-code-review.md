@@ -236,6 +236,25 @@ to:   winFrom + span * (k + 1) / arr.length
 全量（含旧片像素回归）：189 tests / 189 pass / 0 fail / 0 skipped（修复后重跑见 PR）。
 
 ---
+---
+
+## 2.8 第六轮复检（2026-11-17，M6 Studio UI / M7 AI 策划 / M8 文档解析 合并后）
+
+M6~M8 把项目从本地 CLI 变成了 Web 工作台（+6247 行），架构性质变，新攻击面与旧门的相互作用是本轮重点。
+
+**做得对的（点名）**：服务器只绑 127.0.0.1、静态伺服双重路径穿越防护（`..` 检查 + resolve 前缀校验）、上传走 base64 JSON 不落盘、body 5MB 上限、子进程全参数数组、PDF/DOCX 解析库可选降级、错误不吐栈只回 msg。
+
+| # | 发现 | 级别 | 状态 |
+| --- | --- | --- | --- |
+| R6-1 | **AI 生成器批量伪造 `verified:true`，系统性绕过医学门**：`ai-generator.js` 把所有 facts（含检索/curated/自定义/上传文档提取）默认 `verified:true`，注释称"创作者确认采纳"但 UI 从未询问；`create-project` 服务端还无条件再置一遍 true。设计文档 §6 原意"AI 初稿标待核实 → 人工核实勾选"完全失效——第四轮修的 `MED_FACT_UNVERIFIED` 门被 M7 从上游架空。实测：AI 患者向初稿 5 条未核实断言直接过编译 | **P0** | 已修：初稿一律 `verified:false`，仅创作者显式勾选（`_checked`）才 true；上传文档提取的 facts 同样待核实；实测 AI 初稿现被 5 条 B 级阻断、不写产物 |
+| R6-2 | `/api/tts` spawn 参数错位：传 `[tts.js, backend]`，但 `tts.js` 的 parseArgs 把裸位置参数当**项目目录**（只认 `--backend`）→ 选 bailian 时实际仍跑 local 或直接报错 | P1 | 已修：`['--backend', String(backend)]` |
+| R6-3 | beat 增删改的 `ok` 直接取 `compile.errors.length === 0`：项目含待核实 facts 时（医学门 B 级），"插入一个普通分镜"这类纯结构操作也报失败——内容级阻断不该让结构操作 500 | P2 | 已修：结构操作 ok 只看非医学诊断，MED_* 透传 `compile` 字段给前端展示"待核实"状态 |
+
+另录（未修，低危）：CORS `Access-Control-Allow-Origin:*` 与注释"仅限本地回环"不符——本回环绑定下风险有限，但恶意网页可借本机 Studio 作代理写项目文件；建议校验 `Origin`/`Host` 头或收紧 CORS。DNS rebinding 同理（无 Host 检查），本机工具可接受，对外部署前必修。
+
+全量（含旧片像素回归）：204 tests / 204 pass / 0 fail / 0 skipped。
+
+---
 ## 3. 修复优先级（本次 PR 覆盖 1～5）
 
 | # | 动作 | 对应问题 | 量级 |

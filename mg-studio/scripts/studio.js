@@ -292,9 +292,10 @@ function createStudioServer(options = {}) {
         // POST /api/create-project (一键创建/重构新项目并编译)
         if (pathname === '/api/create-project' && req.method === 'POST') {
           const body = await parseJsonBody(req);
-          // 创作者在向导中确认采纳的事实默认置为 verified: true
+          // 医学门：verified 只能来自创作者逐条核实（_checked），服务端不再批量置 true。
+          // 患者向项目存在 verified:false 的 fact 会被 lintMedical(MED_FACT_UNVERIFIED) B 级阻断。
           if (Array.isArray(body.facts)) {
-            body.facts = body.facts.map(f => Object.assign({}, f, { verified: true }));
+            body.facts = body.facts.map(f => Object.assign({}, f, { verified: f._checked === true ? true : false }));
           }
           const generated = buildStoryboardDefinition(body);
           const result = writeAndCompileGeneratedProject(projectDir, generated);
@@ -370,7 +371,10 @@ function createStudioServer(options = {}) {
 
           const comp = compileProject(projectDir);
           const updated = ir.loadProject(projectDir, LAYOUT_NAMES);
-          sendJson(res, 200, { ok: comp.errors.length === 0, compile: comp, project: updated });
+          // 结构写入成功即 ok；医学门诊断（如 MED_FACT_UNVERIFIED，源于项目里待核实的 facts）
+          // 属于内容级阻断，不该让"插入普通分镜"这个结构操作报失败——compile 诊断透传给前端展示。
+          const structuralErrors = (comp.errors || []).filter(e => !e.includes('MED_'));
+          sendJson(res, 200, { ok: structuralErrors.length === 0, compile: comp, project: updated });
           return;
         }
 
@@ -400,7 +404,9 @@ function createStudioServer(options = {}) {
 
           const comp = compileProject(projectDir);
           const updated = ir.loadProject(projectDir, LAYOUT_NAMES);
-          sendJson(res, 200, { ok: comp.errors.length === 0, compile: comp, project: updated });
+          // 结构写入成功即 ok；医学门诊断（内容级阻断）透传 compile 字段给前端展示
+          const structuralErrors = (comp.errors || []).filter(e => !e.includes('MED_'));
+          sendJson(res, 200, { ok: structuralErrors.length === 0, compile: comp, project: updated });
           return;
         }
 
@@ -424,7 +430,9 @@ function createStudioServer(options = {}) {
 
           const comp = compileProject(projectDir);
           const updated = ir.loadProject(projectDir, LAYOUT_NAMES);
-          sendJson(res, 200, { ok: comp.errors.length === 0, compile: comp, project: updated });
+          // 结构写入成功即 ok；医学门诊断（内容级阻断）透传 compile 字段给前端展示
+          const structuralErrors = (comp.errors || []).filter(e => !e.includes('MED_'));
+          sendJson(res, 200, { ok: structuralErrors.length === 0, compile: comp, project: updated });
           return;
         }
 
@@ -432,7 +440,7 @@ function createStudioServer(options = {}) {
         if (pathname === '/api/compile' && req.method === 'POST') {
           const comp = compileProject(projectDir);
           sendJson(res, 200, {
-            ok: comp.errors.length === 0,
+            ok: (comp.errors || []).filter(e => !e.includes('MED_')).length === 0,
             compile: comp
           });
           return;
@@ -468,7 +476,7 @@ function createStudioServer(options = {}) {
           const updated = ir.loadProject(projectDir, LAYOUT_NAMES);
 
           sendJson(res, 200, {
-            ok: comp.errors.length === 0,
+            ok: (comp.errors || []).filter(e => !e.includes('MED_')).length === 0,
             style,
             tokens: updated.tokens,
             compile: comp
@@ -491,7 +499,7 @@ function createStudioServer(options = {}) {
 
           const comp = compileProject(projectDir);
           sendJson(res, 200, {
-            ok: comp.errors.length === 0,
+            ok: (comp.errors || []).filter(e => !e.includes('MED_')).length === 0,
             compile: comp
           });
           return;
@@ -511,7 +519,7 @@ function createStudioServer(options = {}) {
 
           const comp = compileProject(projectDir);
           sendJson(res, 200, {
-            ok: comp.errors.length === 0,
+            ok: (comp.errors || []).filter(e => !e.includes('MED_')).length === 0,
             compile: comp
           });
           return;
@@ -531,7 +539,7 @@ function createStudioServer(options = {}) {
           const ttsScript = path.join(__dirname, 'tts.js');
           const buildTlScript = path.join(__dirname, 'build_timeline.js');
 
-          const proc = spawn(process.execPath, [ttsScript, backend], {
+          const proc = spawn(process.execPath, [ttsScript, '--backend', String(backend)], {
             cwd: projectDir,
             env: process.env
           });
