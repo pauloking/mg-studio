@@ -98,6 +98,18 @@ function validateTokens(tk) {
   if (!tk.subtitle || !Number.isFinite(tk.subtitle.maxW) || tk.subtitle.maxW <= 0) errors.push('subtitle.maxW 须为正数');
   if (tk.style != null && !STYLES.includes(tk.style)) errors.push('tokens.style 未知: ' + tk.style);
   if (tk.bgType != null && !BG_TYPES.includes(tk.bgType)) errors.push('tokens.bgType 未知: ' + tk.bgType);
+  // M5 新面：card/titleBar 的数值与 CSS 值直接进 <style>，与 font.family 同类注入面。
+  // shadow 只允许 CSS box-shadow 安全字符（字母数字空格逗号括号点#%负号/none），拒绝 ; } < > 等。
+  const SHADOW_RE = /^[\w\s,.()#%\/-]+$/;
+  if (tk.card != null && typeof tk.card !== 'object') errors.push('tokens.card 须为对象');
+  if (tk.card && typeof tk.card === 'object') {
+    for (const k of ['radius', 'borderWidth']) if (tk.card[k] != null && !Number.isFinite(tk.card[k])) errors.push('tokens.card.' + k + ' 须为有限数: ' + JSON.stringify(tk.card[k]));
+    if (tk.card.shadow != null) {
+      if (typeof tk.card.shadow !== 'string') errors.push('tokens.card.shadow 须为字符串');
+      else if (!SHADOW_RE.test(tk.card.shadow)) errors.push('tokens.card.shadow 含非法字符（只允许 box-shadow 值字符集）: ' + JSON.stringify(tk.card.shadow.slice(0, 40)));
+    }
+  }
+  if (tk.titleBar != null && typeof tk.titleBar !== 'object') errors.push('tokens.titleBar 须为对象');
   return { ok: errors.length === 0, errors };
 }
 

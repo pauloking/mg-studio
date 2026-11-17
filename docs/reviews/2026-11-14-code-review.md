@@ -218,6 +218,24 @@ to:   winFrom + span * (k + 1) / arr.length
 | R3-4 | `test:ci` 硬编码 12 个测试文件名：新增测试文件必须手动加进 package.json，否则 CI 静默漏跑（本次 `measure.test.js` 就差点漏掉）；改为 glob + 排除 e2e 更稳 | P2 | 已修：`scripts/test_ci.js` 动态自动扫描 `tests/*.test.js` 并排除 `e2e.*`，彻底防漏跑 |
 
 ---
+---
+
+## 2.7 第五轮复检（2026-11-17，M2/M3/M4/M5 大版本合并后的重评估）
+
+项目在 PR #4~#20 期间交付了 M2（叙事/脚本 lint + 校准）、M3（帧缓存 + 增量渲染 + auto_qa）、M4（免责声明注入/渲染门 + three3d）、M5（视觉主题 + 背景解耦 + spring easing），共 80 文件 +5760 行，并补齐了 LICENSE、R3-4（test:ci 硬编码清单改自动搜集）、README/docs 全面更新。**健康度显著上升**，但大版本合入也引入了两个新问题（均实测复现后修复）：
+
+| # | 发现 | 级别 | 状态 |
+| --- | --- | --- | --- |
+| R5-1 | M5 新增 `tokens.card.shadow/radius/borderWidth` 直接进 `<style>`，`ir.js` 无校验：`shadow:'none; } body{display:none}'` 编译通过且打进 scene.html —— 与 font.family/色键名同类注入面，**每逢新增 CSS 落地点就复发**，说明缺系统性防御 | P0 | 已修：数值键 `Number.isFinite` + shadow 白名单（box-shadow 字符集）+ emit 落地二次剥离；fixture/合法值零误伤 |
+| R5-2 | `fcache.visualHash` 只哈希 `colors/font/subtitle`，M5 的 `bgType/card/titleBar/style` 全部漏掉：**切换整套视觉主题后增量渲染仍报"缓存命中"，出片用旧样式帧** —— 增量渲染的正确性根子是缓存键，漏一个视觉面就是一个静默错片 | P0 | 已修：四个新面纳入哈希；同 tokens 哈希稳定、任一变化换哈希（测试锁定） |
+
+结构性观察（未修，属架构建议）：
+- **注入面复发模式**：四轮修了 5 个注入点（props 坐标、shell、font.family、色键名、card.*），每次都是"新增一个 `<style>`/JS 落地点 → 忘了白名单"。建议后续把"所有作者可控字符串进 CSS/JS 的落地点"收敛到单一 escape 层（lib/escape.js 统一承担），新组件只能经它落地——这比逐点打补丁更能止住复发。
+- **免责声明双门现状**：`MED_DISCLAIMER`（作者文本须含声明，B 阻断）+ M4 注入叠层 `#disclaimer`（emit 层兜底）+ `QA_DISCLAIMER`（渲染产物检查）三层并存，语义一致（作者侧更严），无冲突，但文档未说明三层关系，建议 M4 文档补一段。
+
+全量（含旧片像素回归）：189 tests / 189 pass / 0 fail / 0 skipped（修复后重跑见 PR）。
+
+---
 ## 3. 修复优先级（本次 PR 覆盖 1～5）
 
 | # | 动作 | 对应问题 | 量级 |

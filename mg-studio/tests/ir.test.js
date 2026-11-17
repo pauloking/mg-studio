@@ -165,6 +165,15 @@ test('validateScene：subsOverride 单行 ≤18 字（覆盖不得绕过自动�
   assert.ok(mk(['']).some(e => /非空/.test(e)), '空行应被拒');
 });
 
+test('validateTokens：M5 tokens.card 数值/shadow 白名单（防 CSS 注入）', () => {
+  const colors = { bg: '#070b16', ink: '#f5f7ff', accent: '#6a5cff', accent2: '#00c2ff', muted: '#c6cdf5' };
+  const mk = (card) => ir.validateTokens({ colors, font: { family: 'sans-serif' }, subtitle: { bottom: 64, fontSize: 40, maxW: 1560 }, card });
+  assert.deepEqual(mk({ radius: 26, borderWidth: 1, shadow: '0 18px 50px rgba(3,7,18,.55)' }).errors, [], '合法 card 值应通过');
+  assert.ok(mk({ shadow: 'none; } body { display:none } /*' }).errors.some(e => /card.shadow/.test(e)), 'shadow CSS 打断应被拒');
+  assert.ok(mk({ radius: '26px; } .x{position:fixed' }).errors.some(e => /card.radius/.test(e)), 'radius 非数字应被拒');
+  assert.ok(mk({ borderWidth: 'thick' }).errors.some(e => /card.borderWidth/.test(e)), 'borderWidth 非数字应被拒');
+});
+
 test('validateTokens：色键名只允许字母数字与连字符（防 CSS 变量名注入）', () => {
   const colors = { bg: '#070b16', ink: '#f5f7ff', accent: '#6a5cff', accent2: '#00c2ff', muted: '#c6cdf5' };
   const mk = (extra) => ir.validateTokens({ colors: Object.assign({}, colors, extra), font: { family: 'sans-serif' }, subtitle: { bottom: 64, fontSize: 40, maxW: 1560 } });
