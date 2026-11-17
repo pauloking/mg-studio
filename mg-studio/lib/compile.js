@@ -47,6 +47,7 @@ function buildScriptJson(project) {
   const v = m.video || {};
   return {
     schema: 2,
+    renderContext: { tokens: project.tokens, disclaimer: m.audience === 'patient' ? DISCLAIMER : null },
     fps: v.fps || 30, width: v.width || 1920, height: v.height || 1080,
     options: Object.assign({ pad: 1.1, leadIn: .45, introLeadIn: .7, introMinSec: 6.5, outroMinSec: 8.5 }, m.options || {}),
     tts: m.tts || { backend: 'local' },

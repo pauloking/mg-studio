@@ -164,4 +164,4 @@ function loadProject(dir, layoutNames) {
   return { mode: 'v2', story, tokens, scenes };
 }
 
-module.exports = { ROLES, AUDIENCES, TEMPLATES, STYLES, BG_TYPES, validateStory, validateScene, validateTokens, loadProject, deepMerge };
+module.exports = { isSafeId, ROLES, AUDIENCES, TEMPLATES, STYLES, BG_TYPES, validateStory, validateScene, validateTokens, loadProject, deepMerge };

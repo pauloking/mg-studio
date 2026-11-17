@@ -157,46 +157,17 @@ async function searchLiterature(query, options = {}) {
     ok: true,
     query: cleanQuery,
     articles,
-    extractedFacts
+    extractedFacts,
+    mode: 'bibliography-only',
+    message: articles.length ? '已检索到文献目录；尚未读取摘要或正文，请阅读原文后手动添加并核实事实。' : '文献检索暂无结果；未生成证据事实，请上传资料或手动添加。'
   };
 }
 
 function extractEvidenceClaims(query, articles = []) {
-  const facts = [];
-
-  if (articles && articles.length > 0) {
-    articles.slice(0, 3).forEach((art, idx) => {
-      let claimText = '';
-      if (idx === 0) {
-        claimText = `临床前瞻性循证研究证实，针对【${query}】的规范化诊疗可显著降低不良心脑血管事件发生率。`;
-      } else if (idx === 1) {
-        claimText = `根据最新多中心试验，采用标准化评估路径与微创干预后，患者术后生活质量与生存率获得明确改善。`;
-      } else {
-        claimText = `权威文献指出，早识别、早诊断与规范长期随访是改善【${query}】远期预后的核心基石。`;
-      }
-
-      facts.push({
-        claim: claimText,
-        source: art.source || `${art.journal} (${art.year})`,
-        year: art.year,
-        doi: art.doi || '',
-        verified: false
-      });
-    });
-  }
-
-  // 若文章过少，用专家共识库补齐至至少 3 条
-  if (facts.length < 3) {
-    const fallbacks = getFallbackFacts(query);
-    for (const fb of fallbacks) {
-      if (facts.length >= 3) break;
-      if (!facts.some(f => f.claim === fb.claim)) {
-        facts.push(fb);
-      }
-    }
-  }
-
-  return facts;
+  // Search APIs currently return bibliographic metadata only. A title, journal
+  // and DOI do not support an evidence claim. Return no claims until grounded
+  // extraction from an abstract/full text with a supporting passage is available.
+  return [];
 }
 
 function getCuratedTopics() {

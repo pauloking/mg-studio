@@ -1003,8 +1003,8 @@ textarea {
           <label>叙事模板 (Narrative Template)</label>
           <select id="wzTemplate">
             <option value="science">科普模板 (Hook-Conflict-Mechanism-Evidence-Takeaway)</option>
-            <option value="teaching">教学拆解 (Hook-Steps-Summary)</option>
-            <option value="product">产品/器械发布 (Hook-Demo-Takeaway)</option>
+            <option value="teaching">教学拆解 (Objective-Steps-Summary)</option>
+            <option value="product">产品/器械发布 (Hook-Demo-Evidence-CTA)</option>
             <option value="free">自由模式 (Free)</option>
           </select>
         </div>
@@ -1137,6 +1137,16 @@ textarea {
 
 <script>
 'use strict';
+
+const STUDIO_TOKEN = '__STUDIO_TOKEN__';
+function escHtml(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+function apiFetch(url, options = {}) {
+  const headers = new Headers(options.headers);
+  headers.set('X-Studio-Token', STUDIO_TOKEN);
+  return fetch(url, { ...options, headers });
+}
 
 // 全局工作台状态
 const state = {
@@ -1376,7 +1386,7 @@ function pause() {
 // 加载项目数据
 async function loadProjectData() {
   try {
-    const res = await fetch('/api/project');
+    const res = await apiFetch('/api/project');
     const data = await res.json();
     if (!data.ok && data.error) {
       showToast('加载失败: ' + data.error);
@@ -1480,7 +1490,7 @@ function renderBeatList(project) {
         <span class="emotion-badge">情绪: ${b.emotion ? '★'.repeat(b.emotion) : '-'}</span>
         ${factsHtml}
       </div>
-      <div class="beat-narration">${sc.narration || '(无旁白)'}</div>
+      <div class="beat-narration">${escHtml(sc.narration || '(无旁白)')}</div>
     `;
 
     // 绑定分镜操作事件
@@ -1522,7 +1532,7 @@ function renderBeatList(project) {
 async function reorderBeat(beatId, direction) {
   try {
     showToast(`正在${direction === 'up' ? '上移' : '下移'}分镜 ${beatId}...`);
-    const res = await fetch('/api/beat/reorder', {
+    const res = await apiFetch('/api/beat/reorder', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ beatId, direction })
@@ -1544,7 +1554,7 @@ async function reorderBeat(beatId, direction) {
 async function deleteBeat(beatId) {
   try {
     showToast(`正在删除分镜 ${beatId}...`);
-    const res = await fetch('/api/beat/delete', {
+    const res = await apiFetch('/api/beat/delete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ beatId })
@@ -1608,14 +1618,14 @@ function populateInspector(sc) {
       field.style.background = 'rgba(0,0,0,0.2)';
       field.style.borderRadius = '6px';
 
-      let inner = `<div style="font-size:11px; font-weight:700; color:var(--accent-light); margin-bottom:4px;">图元: ${el.id} (${el.type})</div>`;
+      let inner = `<div style="font-size:11px; font-weight:700; color:var(--accent-light); margin-bottom:4px;">图元: ${el.id} (${escHtml(el.type)})</div>`;
       if (el.props) {
         for (const [k, v] of Object.entries(el.props)) {
           if (typeof v === 'string' || typeof v === 'number') {
             inner += `
               <div style="display:flex; align-items:center; gap:6px; margin-top:4px;">
-                <span style="font-size:11px; color:var(--text-muted); width:60px;">${k}:</span>
-                <input type="text" data-el="${el.id}" data-prop="${k}" value="${v}" style="padding:4px 6px; font-size:12px;">
+                <span style="font-size:11px; color:var(--text-muted); width:60px;">${escHtml(k)}:</span>
+                <input type="text" data-el="${el.id}" data-prop="${escHtml(k)}" value="${escHtml(v)}" style="padding:4px 6px; font-size:12px;">
               </div>
             `;
           }
@@ -1639,9 +1649,9 @@ function populateInspector(sc) {
       item.innerHTML = `
         <div class="fact-row">
           <input type="checkbox" id="chkFact_${fIdx}" ${f.verified ? 'checked' : ''}>
-          <label for="chkFact_${fIdx}" class="fact-text">${f.statement || f.claim || f.text || '事实描述'}</label>
+          <label for="chkFact_${fIdx}" class="fact-text">${escHtml(f.statement || f.claim || f.text || '事实描述')}</label>
         </div>
-        ${f.evidence ? `<div class="fact-evidence">证据来源: ${f.evidence}</div>` : ''}
+        ${f.evidence ? `<div class="fact-evidence">证据来源: ${escHtml(f.evidence)}</div>` : ''}
       `;
       const chk = item.querySelector('input[type="checkbox"]');
       chk.addEventListener('change', (e) => {
@@ -1683,7 +1693,7 @@ dom.btnSaveScene.addEventListener('click', async () => {
   });
 
   try {
-    const res = await fetch('/api/scene', {
+    const res = await apiFetch('/api/scene', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ scene: sc })
@@ -1704,7 +1714,7 @@ dom.btnSaveScene.addEventListener('click', async () => {
 dom.btnSaveFacts.addEventListener('click', async () => {
   if (!state.project || !state.project.story) return;
   try {
-    const res = await fetch('/api/story', {
+    const res = await apiFetch('/api/story', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ story: state.project.story })
@@ -1737,7 +1747,7 @@ dom.styleSelect.addEventListener('change', async (e) => {
   const chosenStyle = e.target.value;
   try {
     showToast(`正在切换至风格: ${chosenStyle}...`);
-    const res = await fetch('/api/style', {
+    const res = await apiFetch('/api/style', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ style: chosenStyle })
@@ -1759,10 +1769,10 @@ dom.styleSelect.addEventListener('change', async (e) => {
 async function runLintCheck() {
   dom.lintSummary.textContent = '正在检测三大门禁指标...';
   try {
-    const res = await fetch('/api/lint');
+    const res = await apiFetch('/api/lint');
     const data = await res.json();
     if (!data.ok && data.error) {
-      dom.lintSummary.innerHTML = `<span style="color:var(--danger)">门禁异常: ${data.error}</span>`;
+      dom.lintSummary.innerHTML = `<span style="color:var(--danger)">门禁异常: ${escHtml(data.error)}</span>`;
       return;
     }
     const diags = data.diagnostics || [];
@@ -1782,9 +1792,9 @@ async function runLintCheck() {
       card.innerHTML = `
         <div class="diag-header">
           <span class="diag-code">[${d.level}] ${d.code}</span>
-          <span style="color:var(--text-muted); font-size:10px;">${d.scene || '全局'}</span>
+          <span style="color:var(--text-muted); font-size:10px;">${escHtml(d.scene || '全局')}</span>
         </div>
-        <div class="diag-msg">${d.msg}</div>
+        <div class="diag-msg">${escHtml(d.msg)}</div>
       `;
       dom.lintDetails.appendChild(card);
     });
@@ -1798,7 +1808,7 @@ dom.btnRefreshLint.addEventListener('click', runLintCheck);
 document.getElementById('btnCompile').addEventListener('click', async () => {
   showToast('正在编译工程...');
   try {
-    const res = await fetch('/api/compile', { method: 'POST' });
+    const res = await apiFetch('/api/compile', { method: 'POST' });
     const r = await res.json();
     if (r.ok) {
       showToast('全量编译完成！');
@@ -1816,7 +1826,7 @@ document.getElementById('btnCompile').addEventListener('click', async () => {
 document.getElementById('btnTts').addEventListener('click', async () => {
   showToast('正在调用配音引擎...');
   try {
-    const res = await fetch('/api/tts', {
+    const res = await apiFetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ backend: 'local' })
@@ -1841,7 +1851,7 @@ document.getElementById('btnExport').addEventListener('click', async () => {
   dom.exportLogBox.textContent = '正在启动导出任务...\n';
 
   try {
-    const res = await fetch('/api/export', { method: 'POST' });
+    const res = await apiFetch('/api/export', { method: 'POST' });
     const r = await res.json();
     if (!r.ok || !r.taskId) {
       dom.exportLogBox.textContent += '无法创建导出任务: ' + (r.error || '未知错误');
@@ -1851,7 +1861,7 @@ document.getElementById('btnExport').addEventListener('click', async () => {
     const taskId = r.taskId;
     const pollTimer = setInterval(async () => {
       try {
-        const sRes = await fetch(`/api/task-status?taskId=${taskId}`);
+        const sRes = await apiFetch(`/api/task-status?taskId=${taskId}`);
         const sData = await sRes.json();
         if (sData.status === 'running') {
           dom.exportProgressFill.style.width = (sData.progress || 20) + '%';
@@ -1980,7 +1990,7 @@ async function openCreatorModal() {
   // 加载推荐选题 chips
   if (dom.hotTopicChips.children.length === 0) {
     try {
-      const res = await fetch('/api/topics');
+      const res = await apiFetch('/api/topics');
       const data = await res.json();
       if (data.ok && data.topics) {
         data.topics.forEach(t => {
@@ -2044,7 +2054,7 @@ async function runLiteratureSearch(query) {
   dom.wzArticleList.innerHTML = '<div style="color:var(--text-muted); font-size:11px;">🔍 检索中，请稍候...</div>';
 
   try {
-    const res = await fetch('/api/research', {
+    const res = await apiFetch('/api/research', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query, limit: 5 })
@@ -2056,9 +2066,9 @@ async function runLiteratureSearch(query) {
     }
 
     wizardState.articles = data.articles || [];
-    wizardState.facts = data.facts || [];
+    wizardState.facts = data.extractedFacts || [];
 
-    dom.searchStatus.textContent = `检索完成：找到 ${wizardState.articles.length} 篇权威文献，提炼出 ${wizardState.facts.length} 条结构化证据事实。`;
+    dom.searchStatus.textContent = data.message || `找到 ${wizardState.articles.length} 篇文献目录，请阅读原文后添加并核实事实。`;
 
     // 渲染文献列表
     dom.wzArticleList.innerHTML = '';
@@ -2072,10 +2082,10 @@ async function runLiteratureSearch(query) {
         item.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
         item.innerHTML = `
           <div style="font-size:12px; font-weight:600; color:white;">
-            <a href="${art.url || '#'}" target="_blank" style="color:var(--accent-light); text-decoration:none;">📄 ${art.title}</a>
+            <a href="${escHtml(/^https?:\/\//.test(art.url || '') ? art.url : '#')}" target="_blank" style="color:var(--accent-light); text-decoration:none;">📄 ${escHtml(art.title)}</a>
           </div>
           <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">
-            ${Array.isArray(art.authors) ? art.authors.slice(0, 3).join(', ') : (art.authors || '')} ${art.journal ? '· ' + art.journal : ''} (${art.year || ''}) [来源: ${art.source || 'Pub'}]
+            ${escHtml(Array.isArray(art.authors) ? art.authors.slice(0, 3).join(', ') : (art.authors || ''))} ${escHtml(art.journal ? '· ' + art.journal : '')} (${escHtml(art.year || '')}) [来源: ${escHtml(art.source || 'Pub')}]
           </div>
         `;
         dom.wzArticleList.appendChild(item);
@@ -2117,10 +2127,10 @@ function renderWizardFacts() {
       <input type="checkbox" id="wzFactChk_${idx}" ${fact._checked ? 'checked' : ''} style="margin-top:3px;">
       <div style="flex:1;">
         <div style="font-size:12px; color:white; line-height:1.4;">
-          ${fact.statement || fact.claim}
+          ${escHtml(fact.statement || fact.claim)}
           ${badgeHtml}
         </div>
-        ${fact.evidence ? `<div style="font-size:10px; color:var(--text-muted); margin-top:2px;">出处: ${fact.evidence}</div>` : ''}
+        ${fact.evidence ? `<div style="font-size:10px; color:var(--text-muted); margin-top:2px;">出处: ${escHtml(fact.evidence)}</div>` : ''}
       </div>
     `;
 
@@ -2151,20 +2161,24 @@ function prepareStep3Preview() {
 
   let roles = ['hook', 'conflict', 'mechanism', 'evidence', 'takeaway'];
   if (template === 'teaching') {
-    roles = ['hook', 'steps', 'summary'];
+    roles = ['objective', 'prerequisite', 'steps', 'evidence', 'summary'];
   } else if (template === 'product') {
-    roles = ['hook', 'demo', 'takeaway'];
+    roles = ['hook', 'context', 'demo', 'evidence', 'cta'];
   }
 
   const roleLayoutMap = {
-    hook: { layout: 'title-card', title: '悬念与临床痛点引出', desc: '开门见山提出核心痛点与关注要点' },
-    conflict: { layout: 'points', title: '认知冲突与传统局限', desc: '剖析传统方案弊端或大众常见认知盲区' },
-    mechanism: { layout: 'waveform', title: '核心机理/电生理脉冲', desc: '生动呈现组织选择性电穿孔或治疗机制' },
-    evidence: { layout: 'stat', title: '权威临床试验与统计数据', desc: '呈现多中心临床有效率、安全性指标' },
-    takeaway: { layout: 'points', title: '专家行动建议与就医免责', desc: '明确遵医嘱提示与就诊规范须知' },
-    steps: { layout: 'points', title: '操作规范步骤拆解', desc: '标准作业流程分步呈现' },
-    demo: { layout: 'waveform', title: '技术特性与实测参数', desc: '产品核心参数与指标对比' },
-    summary: { layout: 'points', title: '重点回顾与总结', desc: '提炼操作要领与核心结论' }
+    hook: { layout: 'title-card', title: '主题介绍', desc: '明确主题与阅读范围' },
+    objective: { layout: 'title-card', title: '学习目标', desc: '明确主题与阅读范围' },
+    conflict: { layout: 'points', title: '资料要点', desc: '呈现作者选用的原文事实' },
+    context: { layout: 'points', title: '资料要点', desc: '呈现作者选用的原文事实' },
+    prerequisite: { layout: 'points', title: '资料要点', desc: '呈现作者选用的原文事实' },
+    mechanism: { layout: 'points', title: '进一步了解', desc: '呈现原文内容，不推断医学机制' },
+    steps: { layout: 'points', title: '进一步了解', desc: '呈现原文内容，不补写操作指令' },
+    demo: { layout: 'points', title: '进一步了解', desc: '呈现原文内容，不推断产品效果' },
+    evidence: { layout: 'points', title: '证据与结论', desc: '呈现原文内容，不生成示例疗效数字' },
+    takeaway: { layout: 'points', title: '回顾与核实', desc: '提示核对来源与适用条件' },
+    cta: { layout: 'points', title: '回顾与核实', desc: '提示核对来源与适用条件' },
+    summary: { layout: 'points', title: '回顾与核实', desc: '提示核对来源与适用条件' }
   };
 
   dom.wzBeatsPreviewFlow.innerHTML = '';
@@ -2304,7 +2318,7 @@ dom.btnParseDoc.addEventListener('click', async () => {
       payload = { filename: '粘贴的参考资料.txt', textContent: pasteText };
     }
 
-    const res = await fetch('/api/parse-doc', {
+    const res = await apiFetch('/api/parse-doc', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -2323,8 +2337,8 @@ dom.btnParseDoc.addEventListener('click', async () => {
     // 显示解析抽取卡片
     dom.docParseResultSummary.textContent = `✓ 资料《${data.filename}》解析成功（提取 ${data.textLength} 字，提炼出 ${data.facts.length} 条事实）`;
     dom.docParseResultDetails.innerHTML = `
-      <div><strong>建议主题:</strong> ${data.suggestedTopic} | <strong>建议受众:</strong> ${data.suggestedAudience === 'patient' ? '患者科普' : data.suggestedAudience === 'professional' ? '专业学术' : '大众通用'} | <strong>模板:</strong> ${data.suggestedTemplate}</div>
-      ${data.keywords && data.keywords.length ? `<div style="margin-top:2px; color:var(--accent-light);"><strong>核心词:</strong> ${data.keywords.join('、')}</div>` : ''}
+      <div><strong>建议主题:</strong> ${escHtml(data.suggestedTopic)} | <strong>建议受众:</strong> ${data.suggestedAudience === 'patient' ? '患者科普' : data.suggestedAudience === 'professional' ? '专业学术' : '大众通用'} | <strong>模板:</strong> ${data.suggestedTemplate}</div>
+      ${data.keywords && data.keywords.length ? `<div style="margin-top:2px; color:var(--accent-light);"><strong>核心词:</strong> ${escHtml(data.keywords.join('、'))}</div>` : ''}
     `;
     dom.docParseResultCard.style.display = 'block';
     showToast('资料解析成功，可点击「一键应用」填入向导！');
@@ -2415,14 +2429,14 @@ dom.btnWzCreate.addEventListener('click', async () => {
     dom.btnWzCreate.textContent = '正在全自动生成分镜与代码...';
     showToast('AI 正在构建分镜骨架、编写排版组件并全量编译...');
 
-    const res = await fetch('/api/create-project', {
+    const res = await apiFetch('/api/create-project', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         topic,
         audience,
         template,
-        targetDuration,
+        durationTarget: targetDuration,
         style,
         facts
       })
@@ -2441,6 +2455,10 @@ dom.btnWzCreate.addEventListener('click', async () => {
     dom.btnWzCreate.disabled = false;
     dom.btnWzCreate.textContent = '🚀 载入工作台并开始演播';
 
+    if (window.desktopAPI) {
+      await window.desktopAPI.switchProject(data.projectDir);
+      return;
+    }
     await loadProjectData();
     reloadIframe();
     seekFrame(0);
@@ -2475,7 +2493,7 @@ dom.btnConfirmAddBeat.addEventListener('click', async () => {
 
   try {
     showToast('正在添加新分镜...');
-    const res = await fetch('/api/beat/add', {
+    const res = await apiFetch('/api/beat/add', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, role, layout, narration })

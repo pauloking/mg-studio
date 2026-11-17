@@ -7,6 +7,8 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+const { projectFilePath, sceneFilePath, validateSceneUpdate } = require('../lib/project-files');
 const { spawn, execFileSync } = require('child_process');
 
 const ir = require('../lib/ir');
@@ -183,17 +185,23 @@ function collectAllDiagnostics(projectDir) {
 }
 
 function createStudioServer(options = {}) {
-  const projectDir = resolveProjectDir(options.projectDir);
+  let projectDir = resolveProjectDir(options.projectDir);
+  const projectsDir = options.projectsDir || path.join(path.dirname(projectDir), 'mg-projects');
+  const csrfToken = crypto.randomBytes(32).toString('hex');
   const host = options.host || '127.0.0.1';
+  if (host !== '127.0.0.1') throw new Error('Studio must listen on 127.0.0.1');
   const port = typeof options.port === 'number' ? options.port : 3000;
   const studioHtmlPath = path.join(__dirname, '..', 'lib', 'studio.html');
 
   const server = http.createServer(async (req, res) => {
-    // 强制 CORS 仅限本地回环
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
+    const expectedHost = `127.0.0.1:${server.address().port}`;
+    const origin = req.headers.origin;
+    if (req.headers.host !== expectedHost ||
+        (origin && origin !== `http://${expectedHost}`) ||
+        req.headers['sec-fetch-site'] === 'cross-site') {
+      sendJson(res, 403, { ok: false, error: 'Untrusted request origin or host' });
+      return;
+    }
     if (req.method === 'OPTIONS') {
       res.writeHead(204);
       res.end();
@@ -206,6 +214,11 @@ function createStudioServer(options = {}) {
     const searchParams = new URLSearchParams(qIdx !== -1 ? reqUrl.slice(qIdx + 1) : '');
     const pathname = rawPathname;
 
+    if (pathname.startsWith('/api/') && req.headers['x-studio-token'] !== csrfToken) {
+      sendJson(res, 403, { ok: false, error: 'Invalid Studio session token' });
+      return;
+    }
+
     // 1. Studio 主页
     if (pathname === '/' || pathname === '/index.html') {
       if (!fs.existsSync(studioHtmlPath)) {
@@ -213,8 +226,8 @@ function createStudioServer(options = {}) {
         res.end('Studio UI template not found at ' + studioHtmlPath);
         return;
       }
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      fs.createReadStream(studioHtmlPath).pipe(res);
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' });
+      res.end(fs.readFileSync(studioHtmlPath, 'utf8').replace('__STUDIO_TOKEN__', csrfToken));
       return;
     }
 
@@ -298,7 +311,9 @@ function createStudioServer(options = {}) {
             body.facts = body.facts.map(f => Object.assign({}, f, { verified: f._checked === true ? true : false }));
           }
           const generated = buildStoryboardDefinition(body);
-          const result = writeAndCompileGeneratedProject(projectDir, generated);
+          const targetDir = path.join(projectsDir, 'project-' + crypto.randomUUID());
+          const result = writeAndCompileGeneratedProject(targetDir, generated);
+          if (result.ok) projectDir = targetDir;
           sendJson(res, 200, result);
           return;
         }
@@ -311,7 +326,8 @@ function createStudioServer(options = {}) {
             sendJson(res, 400, { ok: false, error: 'beat with id is required' });
             return;
           }
-          const storyPath = path.join(projectDir, 'story.json');
+          const scPath = sceneFilePath(projectDir, beat.id);
+          const storyPath = projectFilePath(projectDir, 'story.json');
           if (!fs.existsSync(storyPath)) {
             sendJson(res, 400, { ok: false, error: 'story.json not found' });
             return;
@@ -332,10 +348,10 @@ function createStudioServer(options = {}) {
             facts: beat.facts || []
           };
           story.beats.splice(Math.max(0, afterIndex + 1), 0, newBeat);
-          fs.writeFileSync(storyPath, JSON.stringify(story, null, 2));
+          const storyValidation = ir.validateStory(story);
+          if (!storyValidation.ok) throw Object.assign(new Error(storyValidation.errors.join('; ')), { statusCode: 400 });
 
           // 自动创建对应的 scenes/<id>.json
-          const scPath = path.join(projectDir, 'scenes', beat.id + '.json');
           const layout = body.layout || 'title-card';
           let defaultElements = [];
           if (layout === 'title-card') {
@@ -367,7 +383,10 @@ function createStudioServer(options = {}) {
             layout,
             elements: body.elements || defaultElements
           };
+          validateSceneUpdate(newScene, story);
+          fs.mkdirSync(path.dirname(scPath), { recursive: true });
           fs.writeFileSync(scPath, JSON.stringify(newScene, null, 2));
+          fs.writeFileSync(storyPath, JSON.stringify(story, null, 2));
 
           const comp = compileProject(projectDir);
           const updated = ir.loadProject(projectDir, LAYOUT_NAMES);
@@ -386,7 +405,7 @@ function createStudioServer(options = {}) {
             sendJson(res, 400, { ok: false, error: 'beatId is required' });
             return;
           }
-          const storyPath = path.join(projectDir, 'story.json');
+          const storyPath = projectFilePath(projectDir, 'story.json');
           if (!fs.existsSync(storyPath)) {
             sendJson(res, 400, { ok: false, error: 'story.json not found' });
             return;
@@ -396,10 +415,14 @@ function createStudioServer(options = {}) {
             sendJson(res, 400, { ok: false, error: 'Cannot delete the only remaining beat' });
             return;
           }
+          const scPath = sceneFilePath(projectDir, beatId);
+          if (!story.beats.some(b => b.id === beatId)) {
+            sendJson(res, 400, { ok: false, error: 'Unknown beat ID' });
+            return;
+          }
           story.beats = story.beats.filter(b => b.id !== beatId);
           fs.writeFileSync(storyPath, JSON.stringify(story, null, 2));
 
-          const scPath = path.join(projectDir, 'scenes', beatId + '.json');
           if (fs.existsSync(scPath)) fs.unlinkSync(scPath);
 
           const comp = compileProject(projectDir);
@@ -418,9 +441,13 @@ function createStudioServer(options = {}) {
             sendJson(res, 400, { ok: false, error: 'order array of beatIds is required' });
             return;
           }
-          const storyPath = path.join(projectDir, 'story.json');
+          const storyPath = projectFilePath(projectDir, 'story.json');
           const story = JSON.parse(fs.readFileSync(storyPath, 'utf8'));
           const beatMap = new Map((story.beats || []).map(b => [b.id, b]));
+          if (order.length !== beatMap.size || new Set(order).size !== beatMap.size || order.some(id => !beatMap.has(id))) {
+            sendJson(res, 400, { ok: false, error: 'order must be a permutation of all beat IDs' });
+            return;
+          }
           const newBeats = [];
           for (const id of order) {
             if (beatMap.has(id)) newBeats.push(beatMap.get(id));
@@ -455,7 +482,7 @@ function createStudioServer(options = {}) {
             return;
           }
 
-          const storyPath = path.join(projectDir, 'story.json');
+          const storyPath = projectFilePath(projectDir, 'story.json');
           if (fs.existsSync(storyPath)) {
             const story = JSON.parse(fs.readFileSync(storyPath, 'utf8'));
             story.meta = story.meta || {};
@@ -463,7 +490,7 @@ function createStudioServer(options = {}) {
             fs.writeFileSync(storyPath, JSON.stringify(story, null, 2));
           }
 
-          const tokensPath = path.join(projectDir, 'tokens.json');
+          const tokensPath = projectFilePath(projectDir, 'tokens.json');
           if (fs.existsSync(tokensPath)) {
             const tokens = JSON.parse(fs.readFileSync(tokensPath, 'utf8'));
             if (tokens.style) {
@@ -493,7 +520,9 @@ function createStudioServer(options = {}) {
             return;
           }
 
-          const scPath = path.join(projectDir, 'scenes', sc.id + '.json');
+          const scPath = sceneFilePath(projectDir, sc.id);
+          const story = JSON.parse(fs.readFileSync(projectFilePath(projectDir, 'story.json'), 'utf8'));
+          validateSceneUpdate(sc, story);
           fs.mkdirSync(path.dirname(scPath), { recursive: true });
           fs.writeFileSync(scPath, JSON.stringify(sc, null, 2));
 
@@ -514,7 +543,13 @@ function createStudioServer(options = {}) {
             return;
           }
 
-          const storyPath = path.join(projectDir, 'story.json');
+          const validation = ir.validateStory(story);
+          if (!validation.ok) throw Object.assign(new Error(validation.errors.join('; ')), { statusCode: 400 });
+          const current = JSON.parse(fs.readFileSync(projectFilePath(projectDir, 'story.json'), 'utf8'));
+          if (story.beats.length !== current.beats.length || story.beats.some(b => !current.beats.some(c => c.id === b.id))) {
+            throw Object.assign(new Error('Use beat endpoints to change the scene list'), { statusCode: 400 });
+          }
+          const storyPath = projectFilePath(projectDir, 'story.json');
           fs.writeFileSync(storyPath, JSON.stringify(story, null, 2));
 
           const comp = compileProject(projectDir);
@@ -577,12 +612,13 @@ function createStudioServer(options = {}) {
           };
           tasks.set(taskId, taskRecord);
 
+          const exportProjectDir = projectDir;
           // 异步执行编译与导出
           setTimeout(() => {
             try {
               taskRecord.log += 'Step 1/3: Compiling project...\n';
-              const comp = compileProject(projectDir);
-              if (comp.errors.length) {
+              const comp = compileProject(exportProjectDir);
+              if ((comp.errors || []).length) {
                 taskRecord.status = 'error';
                 taskRecord.log += 'Compilation failed:\n' + comp.errors.join('\n');
                 return;
@@ -593,7 +629,11 @@ function createStudioServer(options = {}) {
               const makeSh = path.join(__dirname, 'make.sh');
               if (fs.existsSync(makeSh)) {
                 taskRecord.log += 'Step 3/3: Running make.sh...\n';
-                const sub = spawn('bash', [makeSh], { cwd: projectDir, env: process.env });
+                const sub = (options.spawnProcess || spawn)('bash', [makeSh, path.resolve(__dirname, '..'), 'local', 'output'], { cwd: exportProjectDir, env: process.env });
+                sub.on('error', err => {
+                  taskRecord.status = 'error';
+                  taskRecord.log += '\nFailed to start export: ' + err.message;
+                });
                 sub.stdout.on('data', d => {
                   taskRecord.log += d.toString();
                   if (taskRecord.progress < 90) taskRecord.progress += 5;
@@ -605,9 +645,8 @@ function createStudioServer(options = {}) {
                   taskRecord.log += `\nExport finished with exit code ${code}.\n`;
                 });
               } else {
-                taskRecord.status = 'done';
-                taskRecord.progress = 100;
-                taskRecord.log += 'Compiled script.json and scene.html successfully.\n';
+                taskRecord.status = 'error';
+                taskRecord.log += 'Export pipeline make.sh is missing.\n';
               }
             } catch (e) {
               taskRecord.status = 'error';
@@ -633,7 +672,7 @@ function createStudioServer(options = {}) {
         sendJson(res, 404, { ok: false, error: 'Unknown API endpoint: ' + pathname });
         return;
       } catch (err) {
-        sendJson(res, 500, { ok: false, error: err.message });
+        sendJson(res, err.statusCode || 500, { ok: false, error: err.message });
         return;
       }
     }
@@ -677,6 +716,12 @@ function createStudioServer(options = {}) {
         return;
       }
 
+      const realRoot = fs.realpathSync(projectDir);
+      const realFile = fs.realpathSync(safePath);
+      if (!realFile.startsWith(realRoot + path.sep)) {
+        sendJson(res, 403, { ok: false, error: 'File is outside the project' });
+        return;
+      }
       const ext = path.extname(safePath).toLowerCase();
       const contentType = MIME_TYPES[ext] || 'application/octet-stream';
       res.writeHead(200, {
@@ -690,7 +735,8 @@ function createStudioServer(options = {}) {
 
   return {
     server,
-    projectDir,
+    get projectDir() { return projectDir; },
+    csrfToken,
     port,
     host,
     start: () => new Promise((resolve, reject) => {

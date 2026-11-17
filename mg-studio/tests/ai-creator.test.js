@@ -1,3 +1,4 @@
+const studioFetch = require('./helpers/studio-fetch');
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
@@ -20,15 +21,16 @@ function copyFixture(name, fixture) {
   return work;
 }
 
-test('research: searchLiterature 与 extractEvidenceClaims 提供权威文献与结构化事实', async () => {
+test('research: searchLiterature 与 extractEvidenceClaims 仅返回书目信息，不伪造事实', async (t) => {
+  t.mock.method(require('axios'), 'get', async () => ({ data: { resultList: { result: [{ id: '123', title: 'Unrelated paper', pubYear: '2024' }] } } }));
   const res = await searchLiterature('心房颤动脉冲消融', { maxResults: 3 });
   assert.equal(res.ok, true);
   assert.equal(res.query, '心房颤动脉冲消融');
   assert.ok(Array.isArray(res.articles));
   assert.ok(Array.isArray(res.extractedFacts));
-  assert.ok(res.extractedFacts.length >= 3, '应提取至少 3 条事实候选');
-  assert.ok(res.extractedFacts[0].claim);
-  assert.ok(res.extractedFacts[0].source);
+  assert.equal(res.articles.length, 1);
+  assert.deepEqual(res.extractedFacts, []);
+  assert.equal(res.mode, 'bibliography-only');
 
   const topics = getCuratedTopics();
   assert.ok(Array.isArray(topics));
@@ -82,7 +84,8 @@ test('ai-generator: writeAndCompileGeneratedProject 患者向初稿被医学门�
     topic: '高血压用药三大误区',
     audience: 'patient',
     template: 'science',
-    style: 'clean-medical'
+    style: 'clean-medical',
+    facts: [{ claim: '参考资料尚未核实', _checked: false }]
   });
 
   const res = writeAndCompileGeneratedProject(work, def);
@@ -114,11 +117,14 @@ test('ai-generator: 全部核实后（_checked）患者向项目放行', () => {
   assert.ok(fs.existsSync(path.join(work, 'scene.html')), '放行时应写 scene.html');
 });
 
-test('REST API: 选题检索、一键创建与分镜增删改闭环测试', async () => {
-  const work = copyFixture('ai-creator-server-test', 'mini-style-medical');
+test('REST API: 选题检索、一键创建与分镜增删改闭环测试', async (t) => {
+  t.mock.method(require('axios'), 'get', async () => ({ data: { resultList: { result: [] } } }));
+  let work = copyFixture('ai-creator-server-test', 'mini-style-medical');
   const port = 3980 + Math.floor(Math.random() * 50);
-  const app = createStudioServer({ projectDir: work, port });
+  const projectsDir = path.join(work, 'new-projects');
+  const app = createStudioServer({ projectDir: work, port, projectsDir });
   await app.start();
+  const fetch = studioFetch(app);
   const baseUrl = `http://127.0.0.1:${port}`;
 
   try {
@@ -138,7 +144,7 @@ test('REST API: 选题检索、一键创建与分镜增删改闭环测试', asyn
     assert.equal(resResearch.status, 200);
     const researchData = await resResearch.json();
     assert.equal(researchData.ok, true);
-    assert.ok(researchData.extractedFacts.length >= 3);
+    assert.deepEqual(researchData.extractedFacts, []);
 
     // 3. POST /api/create-project (一键生成全新工程)
     const resCreate = await fetch(baseUrl + '/api/create-project', {
@@ -150,7 +156,7 @@ test('REST API: 选题检索、一键创建与分镜增删改闭环测试', asyn
         template: 'science',
         durationTarget: 45,
         style: 'clean-medical',
-        facts: researchData.extractedFacts
+        facts: [{ claim: '资料待核实', _checked: false }]
       })
     });
     assert.equal(resCreate.status, 200);
@@ -160,6 +166,17 @@ test('REST API: 选题检索、一键创建与分镜增删改闭环测试', asyn
     assert.equal(createData.ok, false, '未核实的患者向初稿应被医学门阻断');
     assert.ok(createData.compile.errors.some(e => e.includes('MED_FACT_UNVERIFIED')), '应命中未核实诊断');
     assert.equal(createData.story.meta.title, '经导管主动脉瓣置换 (TAVR)');
+    assert.equal(JSON.parse(fs.readFileSync(path.join(work, 'story.json'))).meta.title, '心律科普');
+    assert.equal(app.projectDir, work, '创建失败必须保留当前项目');
+    const created = await (await fetch(baseUrl + '/api/create-project', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic: '新工程', facts: [{ claim: '请结合原始资料理解适用条件', _checked: true }] })
+    })).json();
+    assert.equal(created.ok, true, JSON.stringify(created));
+    assert.notEqual(created.projectDir, work);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(work, 'story.json'))).meta.title, '心律科普');
+    work = created.projectDir;
+
 
     // 4. POST /api/beat/add (动态插入新分镜)
     const resAddBeat = await fetch(baseUrl + '/api/beat/add', {

@@ -74,6 +74,9 @@ const server = http.createServer((req, res) => {
     let tokens = {}; try { tokens = JSON.parse(fs.readFileSync(path.join(ROOT, 'tokens.json'), 'utf8')); } catch (e) {}
     let script = {}; try { script = JSON.parse(fs.readFileSync(path.join(ROOT, 'script.json'), 'utf8')); } catch (e) {}
     const scenesById = {}; for (const sc of (script.scenes || [])) scenesById[sc.id] = sc;
+    // Use the resolved compile-time tokens, never just the optional user overrides.
+    if (script.renderContext) tokens = script.renderContext.tokens;
+    const context = script.renderContext || { legacyHtmlHash: fc.hashFile(path.join(ROOT, 'scene.html')) };
     const prev = fc.loadIndex(ROOT); const next = Object.assign({}, prev);
     const targets = SCENE ? tl.scenes.filter(s => s.id === SCENE) : tl.scenes;
     if (SCENE && !targets.length) { console.error('未知 scene:', SCENE); process.exit(1); }
@@ -82,7 +85,7 @@ const server = http.createServer((req, res) => {
       if ((scenesById[sc.id] || {}).layout === 'three3d') { skipped++; console.log('  skip', sc.id, '(3D 段，由 render_three 提供帧)'); continue; }
       const nFrames = sc.end - sc.start;
       const dir = path.join(ROOT, 'frames', sc.id);
-      const vis = fc.visualHash({ scene: scenesById[sc.id] || { id: sc.id }, tokens, compVersion: process.env.MG_COMP_VERSION || '1', compilerVersion: process.env.MG_COMPILER_VERSION || '1' });
+      const vis = fc.visualHash({ scene: { definition: scenesById[sc.id] || { id: sc.id }, timeline: sc }, tokens, context, compVersion: process.env.MG_COMP_VERSION || '1', compilerVersion: process.env.MG_COMPILER_VERSION || '1' });
       const aud = fc.hashFile(path.join(ROOT, 'vo', sc.id + '.wav'));
       const dec = fc.decide({ visualHash: vis, audioHash: aud, frameCount: nFrames, cached: prev[sc.id] });
       const have = fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => f.endsWith('.png')).length : 0;

@@ -1,3 +1,4 @@
+const studioFetch = require('./helpers/studio-fetch');
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
@@ -66,9 +67,17 @@ test('collectAllDiagnostics 整合三大门禁输出', () => {
 test('Studio HTTP 服务端生命周期与核心路由集成测试', async () => {
   const work = copyFixture('studio-server-e2e', 'mini-style-medical');
   const port = 3888 + Math.floor(Math.random() * 500);
-  const app = createStudioServer({ projectDir: work, port });
+  const calls = [];
+  const app = createStudioServer({ projectDir: work, port, spawnProcess: (...args) => {
+    calls.push(args);
+    const { EventEmitter } = require('events');
+    const sub = new EventEmitter(); sub.stdout = new EventEmitter(); sub.stderr = new EventEmitter();
+    setTimeout(() => sub.emit('close', 0), 10);
+    return sub;
+  } });
 
   const info = await app.start();
+  const fetch = studioFetch(app);
   assert.equal(info.port, port);
   assert.equal(info.host, '127.0.0.1');
 
@@ -196,7 +205,10 @@ test('Studio HTTP 服务端生命周期与核心路由集成测试', async () =>
     assert.equal(resTask.status, 200);
     const taskData = await resTask.json();
     assert.equal(taskData.id, exportData.taskId);
-    assert.ok(['running', 'done', 'error'].includes(taskData.status));
+    assert.equal(taskData.status, 'done', taskData.log);
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0].slice(0, 2), ['bash', [path.join(ROOT, 'scripts', 'make.sh'), ROOT, 'local', 'output']]);
+    assert.equal(calls[0][2].cwd, work);
     assert.ok(taskData.log.length > 0);
 
   } finally {
