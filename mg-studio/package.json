@@ -17,6 +17,7 @@
   },
   "scripts": {
     "doctor": "node scripts/doctor.js",
+    "studio": "node scripts/studio.js",
     "test": "node --test --test-concurrency=1 tests/*.test.js",
     "test:ci": "node scripts/test_ci.js"
   }
