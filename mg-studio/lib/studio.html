@@ -1,0 +1,1547 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>mg-studio Web 工作台</title>
+<link rel="icon" href="data:,">
+<style>
+:root {
+  --bg-dark: #0f1117;
+  --bg-panel: #181b24;
+  --bg-card: #202431;
+  --bg-hover: #2a2f3f;
+  --border: #2e3446;
+  --border-light: #3e465e;
+  --text-main: #f1f5f9;
+  --text-muted: #94a3b8;
+  --accent: #6366f1;
+  --accent-hover: #4f46e5;
+  --accent-light: #818cf8;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --info: #06b6d4;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg-dark);
+  color: var(--text-main);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* 顶栏 */
+header {
+  height: 54px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  z-index: 10;
+}
+.brand-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.logo-badge {
+  background: linear-gradient(135deg, #4f46e5, #06b6d4);
+  color: white;
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.4);
+}
+.project-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+.project-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+.center-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.style-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+.style-picker label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.style-picker select {
+  background: transparent;
+  color: var(--text-main);
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+}
+.style-picker select option {
+  background: var(--bg-card);
+  color: var(--text-main);
+}
+
+.action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+button {
+  background: var(--bg-card);
+  color: var(--text-main);
+  border: 1px solid var(--border-light);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+button:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-light);
+}
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+button.primary:hover {
+  background: var(--accent-hover);
+}
+
+/* 主内容三栏布局 */
+.workbench {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 320px 1fr 380px;
+  height: calc(100vh - 54px);
+  overflow: hidden;
+}
+
+/* 左栏：分镜大纲 */
+.sidebar-left {
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.sidebar-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.sidebar-title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+.beat-count {
+  font-size: 11px;
+  background: var(--bg-card);
+  padding: 2px 6px;
+  border-radius: 10px;
+  color: var(--accent-light);
+}
+.beat-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.beat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+}
+.beat-card:hover {
+  border-color: var(--border-light);
+  transform: translateY(-1px);
+}
+.beat-card.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+  background: rgba(99, 102, 241, 0.08);
+}
+.beat-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.beat-id {
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+.role-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+.role-hook { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+.role-conflict { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+.role-mechanism { background: rgba(6, 182, 212, 0.2); color: #22d3ee; }
+.role-evidence { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+.role-takeaway { background: rgba(168, 85, 247, 0.2); color: #c084fc; }
+.role-other { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; }
+
+.beat-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 11px;
+}
+.emotion-badge {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--text-muted);
+}
+.facts-badge {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+.facts-badge.unverified {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+}
+.beat-narration {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* 中央主舞台：1080p 画布 + 时间轴 */
+.stage-center {
+  display: flex;
+  flex-direction: column;
+  background: #090b10;
+  position: relative;
+  overflow: hidden;
+}
+.viewport-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  overflow: hidden;
+  position: relative;
+}
+.screen-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 1280px;
+  aspect-ratio: 16 / 9;
+  background: black;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.8), 0 0 0 1px var(--border);
+}
+.screen-wrapper iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1920px;
+  height: 1080px;
+  border: none;
+  transform-origin: top left;
+}
+
+/* 浮动辅助遮罩 (Safe Area & Rects) */
+.stage-overlays {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  gap: 6px;
+  z-index: 5;
+}
+.overlay-toggle {
+  background: rgba(24, 27, 36, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.overlay-toggle.active {
+  color: white;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* 底部时间轴控制台 */
+.timeline-console {
+  height: 110px;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 10px 16px;
+  gap: 8px;
+}
+.timeline-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.transport-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.play-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  border: none;
+  color: white;
+}
+.play-btn:hover {
+  background: var(--accent-hover);
+}
+.speed-selector {
+  display: flex;
+  background: var(--bg-card);
+  border-radius: 4px;
+  padding: 2px;
+}
+.speed-btn {
+  border: none;
+  background: transparent;
+  padding: 3px 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  border-radius: 3px;
+}
+.speed-btn.active {
+  background: var(--accent);
+  color: white;
+}
+.time-readout {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.current-time {
+  color: var(--accent-light);
+}
+.total-time {
+  color: var(--text-muted);
+}
+.current-subtitle-bubble {
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  padding: 3px 10px;
+  border-radius: 12px;
+  max-width: 400px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 时间滑块区 */
+.timeline-track-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+}
+.timeline-scrubber {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--bg-card);
+  outline: none;
+  cursor: pointer;
+}
+.timeline-scrubber::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent-light);
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 0 6px rgba(0,0,0,0.5);
+}
+.timeline-scenes-bar {
+  display: flex;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  gap: 2px;
+}
+.scene-segment {
+  height: 100%;
+  background: var(--border-light);
+  opacity: 0.6;
+  transition: opacity 0.15s ease;
+}
+.scene-segment.active {
+  background: var(--accent-light);
+  opacity: 1;
+}
+
+/* 右栏：属性检视器与安全门禁 */
+.sidebar-right {
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.tab-header {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+}
+.tab-btn {
+  flex: 1;
+  padding: 10px 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  border-bottom: 2px solid transparent;
+  justify-content: center;
+}
+.tab-btn.active {
+  color: white;
+  border-bottom-color: var(--accent);
+  background: var(--bg-panel);
+}
+.tab-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: none;
+}
+.tab-content.active {
+  display: block;
+}
+
+/* 表单组件 */
+.form-group {
+  margin-bottom: 14px;
+}
+.form-group label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  letter-spacing: 0.5px;
+}
+input[type="text"], input[type="number"], select, textarea {
+  width: 100%;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--accent);
+}
+textarea {
+  resize: vertical;
+  min-height: 60px;
+  font-family: inherit;
+}
+
+/* 诊断门禁卡片 */
+.diag-card {
+  background: var(--bg-card);
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 8px;
+  border-left: 3px solid var(--border);
+  font-size: 12px;
+}
+.diag-card.level-B {
+  border-left-color: var(--danger);
+  background: rgba(239, 68, 68, 0.08);
+}
+.diag-card.level-W {
+  border-left-color: var(--warning);
+  background: rgba(245, 158, 11, 0.08);
+}
+.diag-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.diag-code {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 11px;
+}
+.diag-msg {
+  color: var(--text-main);
+  line-height: 1.4;
+}
+
+/* 事实核查列表 */
+.fact-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.fact-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.fact-row input[type="checkbox"] {
+  margin-top: 3px;
+  accent-color: var(--success);
+}
+.fact-text {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-main);
+}
+.fact-evidence {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding-left: 22px;
+}
+
+/* Toast 提示 */
+#toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--bg-card);
+  color: white;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  font-size: 13px;
+  transform: translateY(100px);
+  opacity: 0;
+  transition: all 0.2s ease;
+  z-index: 100;
+}
+#toast.show {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+/* 进度弹窗 */
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(4px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+.modal-mask.show {
+  display: flex;
+}
+.modal-box {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 480px;
+  max-width: 90vw;
+  padding: 20px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+}
+.progress-bar {
+  height: 8px;
+  background: var(--bg-card);
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 16px 0;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--info));
+  width: 0%;
+  transition: width 0.3s ease;
+}
+.log-box {
+  background: #000;
+  border-radius: 6px;
+  padding: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #a5f3fc;
+  height: 140px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+</style>
+</head>
+<body>
+
+<!-- 顶栏 -->
+<header>
+  <div class="brand-group">
+    <div class="logo-badge">MG STUDIO</div>
+    <div class="project-title" id="topTitle">加载项目中...</div>
+    <div class="project-meta" id="topMeta">M6 Web Workbench</div>
+  </div>
+
+  <div class="center-toolbar">
+    <div class="style-picker">
+      <label for="styleSelect">视觉风格:</label>
+      <select id="styleSelect">
+        <option value="deep-tech">深邃科技 (deep-tech)</option>
+        <option value="clean-medical">清爽医疗 (clean-medical)</option>
+        <option value="warm-editorial">人文典雅 (warm-editorial)</option>
+        <option value="swiss-modern">瑞士现代 (swiss-modern)</option>
+        <option value="vital-energy">活力暖橙 (vital-energy)</option>
+        <option value="cyber-neon">赛博霓虹 (cyber-neon)</option>
+        <option value="ink-zen">极简水墨 (ink-zen)</option>
+        <option value="aurora-glass">极光微观 (aurora-glass)</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="action-buttons">
+    <button id="btnCompile" title="重新编译 script.json 与 scene.html">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+      编译
+    </button>
+    <button id="btnLint" title="运行医学/排版/叙事门禁">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      门禁质检
+    </button>
+    <button id="btnTts" title="合成场景配音与对齐字幕">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      配音
+    </button>
+    <button id="btnExport" class="primary" title="渲染并出片 1080p MP4">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      导出视频
+    </button>
+  </div>
+</header>
+
+<!-- 工作台主界面 -->
+<main class="workbench">
+  <!-- 左栏：故事大纲与分镜导航 -->
+  <aside class="sidebar-left">
+    <div class="sidebar-header">
+      <span class="sidebar-title">分镜大纲 (Storyboard)</span>
+      <span class="beat-count" id="beatCount">0 BEATS</span>
+    </div>
+    <div class="beat-list" id="beatList">
+      <!-- 动态插入 Beat 卡片 -->
+    </div>
+  </aside>
+
+  <!-- 中央主舞台：1080p 画布 + 帧控制器 -->
+  <section class="stage-center">
+    <div class="stage-overlays">
+      <button class="overlay-toggle" id="toggleGrid">辅助网格</button>
+      <button class="overlay-toggle" id="toggleSubtitleSafe">字幕盲区</button>
+      <button class="overlay-toggle" id="toggleRects">实测盒 (Rects)</button>
+    </div>
+
+    <div class="viewport-container" id="viewportContainer">
+      <div class="screen-wrapper" id="screenWrapper">
+        <iframe id="sceneIframe" src="scene.html"></iframe>
+      </div>
+    </div>
+
+    <!-- 底部时间轴控制台 -->
+    <div class="timeline-console">
+      <div class="timeline-top-row">
+        <div class="transport-controls">
+          <button class="play-btn" id="btnPlay" title="播放 / 暂停 (空格键)">
+            <svg id="playIcon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          </button>
+          <button id="btnPrevFrame" title="上一帧 (←)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <button id="btnNextFrame" title="下一帧 (→)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+          <div class="speed-selector">
+            <button class="speed-btn" data-speed="0.25">0.25x</button>
+            <button class="speed-btn" data-speed="0.5">0.5x</button>
+            <button class="speed-btn active" data-speed="1.0">1.0x</button>
+          </div>
+        </div>
+
+        <div class="current-subtitle-bubble" id="curSubBubble">
+          台词字幕: 准备就绪
+        </div>
+
+        <div class="time-readout">
+          <span class="current-time" id="curTimeText">00:00.00 (F: 0)</span>
+          <span class="total-time" id="totalTimeText">/ 00:00.00</span>
+        </div>
+      </div>
+
+      <div class="timeline-track-container">
+        <input type="range" class="timeline-scrubber" id="timelineScrubber" min="0" max="300" value="0">
+        <div class="timeline-scenes-bar" id="timelineScenesBar"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 右栏：属性检视器与安全门禁 -->
+  <aside class="sidebar-right">
+    <div class="tab-header">
+      <button class="tab-btn active" data-tab="tabElements">图元与动效</button>
+      <button class="tab-btn" data-tab="tabMedical">医学核查</button>
+      <button class="tab-btn" data-tab="tabGuardrails">门禁诊断</button>
+    </div>
+
+    <!-- Tab 1: 图元属性编辑 -->
+    <div class="tab-content active" id="tabElements">
+      <div class="form-group">
+        <label>当前分镜 ID</label>
+        <input type="text" id="inpSceneId" readonly>
+      </div>
+      <div class="form-group">
+        <label>布局模板 (Layout)</label>
+        <input type="text" id="inpSceneLayout" readonly>
+      </div>
+      <div class="form-group">
+        <label>旁白台词 (Narration)</label>
+        <textarea id="inpSceneNarration" rows="3"></textarea>
+      </div>
+      <div class="form-group">
+        <label>缓动预设 (Easing Preset)</label>
+        <select id="selEnterEasing">
+          <option value="eo">三次减速平滑 (eo)</option>
+          <option value="overshoot">弹簧超调回弹 (overshoot / spring)</option>
+          <option value="eio">平滑慢进慢出 (eio)</option>
+        </select>
+      </div>
+      <div class="form-group" id="dynamicPropsContainer">
+        <!-- 动态注入属性输入框 -->
+      </div>
+      <button id="btnSaveScene" class="primary" style="width: 100%; margin-top: 10px;">保存分镜修改</button>
+    </div>
+
+    <!-- Tab 2: 医学核查与免责 -->
+    <div class="tab-content" id="tabMedical">
+      <div class="form-group">
+        <label>受众对象 (Audience)</label>
+        <input type="text" id="inpStoryAudience" readonly>
+      </div>
+      <div class="form-group">
+        <label>分镜核心医学断言 (Facts)</label>
+        <div id="factsList">暂无关联事实</div>
+      </div>
+      <button id="btnSaveFacts" class="primary" style="width: 100%; margin-top: 10px;">同步核查状态</button>
+    </div>
+
+    <!-- Tab 3: 质量门诊断 -->
+    <div class="tab-content" id="tabGuardrails">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <span style="font-size:12px; font-weight:600; color:var(--text-muted);">门禁体检看板</span>
+        <button id="btnRefreshLint" style="padding:4px 8px; font-size:11px;">刷新检测</button>
+      </div>
+      <div id="lintSummary" style="font-size:12px; margin-bottom:12px;">正在分析项目合规性...</div>
+      <div id="lintDetails"></div>
+    </div>
+  </aside>
+</main>
+
+<!-- 模态框：出片任务进度 -->
+<div class="modal-mask" id="exportModal">
+  <div class="modal-box">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h3 style="font-size:15px; font-weight:600;">视频渲染流水线</h3>
+      <button id="btnCloseModal" style="padding:2px 8px; font-size:11px;">关闭</button>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="exportProgressFill"></div>
+    </div>
+    <div class="log-box" id="exportLogBox">等待出片指令...</div>
+  </div>
+</div>
+
+<div id="toast">消息提示</div>
+
+<script>
+'use strict';
+
+// 全局工作台状态
+const state = {
+  project: null,
+  activeSceneIndex: 0,
+  activeSceneId: null,
+  timeline: null,
+  currentFrame: 0,
+  totalFrames: 300,
+  fps: 30,
+  isPlaying: false,
+  playbackSpeed: 1.0,
+  playTimer: null,
+  overlays: {
+    grid: false,
+    subtitleSafe: false,
+    rects: false
+  }
+};
+
+const dom = {
+  topTitle: document.getElementById('topTitle'),
+  topMeta: document.getElementById('topMeta'),
+  styleSelect: document.getElementById('styleSelect'),
+  beatCount: document.getElementById('beatCount'),
+  beatList: document.getElementById('beatList'),
+  viewportContainer: document.getElementById('viewportContainer'),
+  screenWrapper: document.getElementById('screenWrapper'),
+  sceneIframe: document.getElementById('sceneIframe'),
+  btnPlay: document.getElementById('btnPlay'),
+  playIcon: document.getElementById('playIcon'),
+  btnPrevFrame: document.getElementById('btnPrevFrame'),
+  btnNextFrame: document.getElementById('btnNextFrame'),
+  curTimeText: document.getElementById('curTimeText'),
+  totalTimeText: document.getElementById('totalTimeText'),
+  curSubBubble: document.getElementById('curSubBubble'),
+  timelineScrubber: document.getElementById('timelineScrubber'),
+  timelineScenesBar: document.getElementById('timelineScenesBar'),
+  toast: document.getElementById('toast'),
+  exportModal: document.getElementById('exportModal'),
+  exportProgressFill: document.getElementById('exportProgressFill'),
+  exportLogBox: document.getElementById('exportLogBox'),
+  btnCloseModal: document.getElementById('btnCloseModal'),
+  // 右侧检视器
+  inpSceneId: document.getElementById('inpSceneId'),
+  inpSceneLayout: document.getElementById('inpSceneLayout'),
+  inpSceneNarration: document.getElementById('inpSceneNarration'),
+  selEnterEasing: document.getElementById('selEnterEasing'),
+  dynamicPropsContainer: document.getElementById('dynamicPropsContainer'),
+  btnSaveScene: document.getElementById('btnSaveScene'),
+  inpStoryAudience: document.getElementById('inpStoryAudience'),
+  factsList: document.getElementById('factsList'),
+  btnSaveFacts: document.getElementById('btnSaveFacts'),
+  lintSummary: document.getElementById('lintSummary'),
+  lintDetails: document.getElementById('lintDetails'),
+  btnRefreshLint: document.getElementById('btnRefreshLint')
+};
+
+function showToast(msg) {
+  dom.toast.textContent = msg;
+  dom.toast.classList.add('show');
+  setTimeout(() => dom.toast.classList.remove('show'), 2500);
+}
+
+// 响应式画布缩放
+function autoScaleViewport() {
+  const container = dom.viewportContainer;
+  const wrapper = dom.screenWrapper;
+  const cw = container.clientWidth - 32;
+  const ch = container.clientHeight - 32;
+  const targetAspect = 16 / 9;
+  let w = cw;
+  let h = cw / targetAspect;
+  if (h > ch) {
+    h = ch;
+    w = ch * targetAspect;
+  }
+  wrapper.style.width = w + 'px';
+  wrapper.style.height = h + 'px';
+
+  const scale = w / 1920;
+  dom.sceneIframe.style.transform = `scale(${scale})`;
+}
+window.addEventListener('resize', autoScaleViewport);
+
+// 格式化时间
+function formatTime(frame, fps) {
+  const sec = frame / fps;
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  const ms = Math.floor((sec % 1) * 100);
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(ms).padStart(2, '0')}`;
+}
+
+// 刷新时间轴 UI
+function updateTimelineUI(f) {
+  state.currentFrame = f;
+  dom.timelineScrubber.value = f;
+  dom.curTimeText.textContent = `${formatTime(f, state.fps)} (F: ${f})`;
+
+  // 更新当前字幕台词
+  if (state.timeline && state.timeline.scenes) {
+    const t = f / state.fps;
+    let foundSub = null;
+    let foundScene = null;
+    for (const sc of state.timeline.scenes) {
+      if (f >= sc.start && f < sc.end) foundScene = sc;
+      if (sc.subs) {
+        for (const cu of sc.subs) {
+          if (t >= cu.from && t < cu.to) foundSub = cu;
+        }
+      }
+    }
+    if (foundSub) {
+      dom.curSubBubble.textContent = `[${foundScene ? foundScene.id : ''}] ${foundSub.text}`;
+    } else {
+      dom.curSubBubble.textContent = foundScene ? `[${foundScene.id}] (环境/无台词)` : '准备就绪';
+    }
+
+    // 更新分镜进度条的高亮段
+    const segments = dom.timelineScenesBar.children;
+    state.timeline.scenes.forEach((sc, idx) => {
+      if (segments[idx]) {
+        if (f >= sc.start && f < sc.end) segments[idx].classList.add('active');
+        else segments[idx].classList.remove('active');
+      }
+    });
+  }
+}
+
+// 驱动 iframe 逐帧绘制
+function seekFrame(f) {
+  f = Math.max(0, Math.min(state.totalFrames - 1, f));
+  updateTimelineUI(f);
+  try {
+    const win = dom.sceneIframe.contentWindow;
+    if (win && typeof win.__frame === 'function') {
+      win.__frame(f);
+    }
+  } catch (e) {
+    // iframe loading
+  }
+}
+
+// 播放 / 暂停
+function togglePlay() {
+  if (state.isPlaying) {
+    pause();
+  } else {
+    play();
+  }
+}
+
+function play() {
+  state.isPlaying = true;
+  dom.playIcon.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
+  const intervalMs = Math.round(1000 / (state.fps * state.playbackSpeed));
+  clearInterval(state.playTimer);
+  state.playTimer = setInterval(() => {
+    let nextF = state.currentFrame + 1;
+    if (nextF >= state.totalFrames) {
+      pause();
+      return;
+    }
+    seekFrame(nextF);
+  }, intervalMs);
+}
+
+function pause() {
+  state.isPlaying = false;
+  clearInterval(state.playTimer);
+  dom.playIcon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"/>';
+}
+
+// 加载项目数据
+async function loadProjectData() {
+  try {
+    const res = await fetch('/api/project');
+    const data = await res.json();
+    if (!data.ok && data.error) {
+      showToast('加载失败: ' + data.error);
+      return;
+    }
+    state.project = data.project;
+
+    // 顶栏更新
+    const story = data.project && data.project.story;
+    const tokens = data.project && data.project.tokens;
+    dom.topTitle.textContent = (story && story.meta && story.meta.title) || '未命名分镜工程';
+    const curStyle = (tokens && tokens.style) || (story && story.meta && story.meta.style) || 'deep-tech';
+    dom.styleSelect.value = curStyle;
+
+    // 渲染分镜列表
+    renderBeatList(data.project);
+
+    // 加载时间轴
+    await loadTimelineData();
+
+    // 渲染右侧检视器
+    if (data.project && data.project.scenes && data.project.scenes.length > 0) {
+      selectScene(0);
+    }
+
+    // 检查并运行质检
+    runLintCheck();
+  } catch (err) {
+    showToast('通信错误: ' + err.message);
+  }
+}
+
+// 加载时间轴
+async function loadTimelineData() {
+  try {
+    const res = await fetch('/timeline.json');
+    const tl = await res.json();
+    state.timeline = tl;
+    state.fps = tl.fps || 30;
+    state.totalFrames = tl.totalFrames || 300;
+
+    dom.timelineScrubber.max = state.totalFrames - 1;
+    dom.totalTimeText.textContent = `/ ${formatTime(state.totalFrames, state.fps)}`;
+
+    // 渲染时间轴上的场景分布条
+    dom.timelineScenesBar.innerHTML = '';
+    if (tl.scenes && tl.scenes.length) {
+      tl.scenes.forEach(sc => {
+        const seg = document.createElement('div');
+        seg.className = 'scene-segment';
+        const span = sc.end - sc.start;
+        const pct = (span / state.totalFrames) * 100;
+        seg.style.width = pct + '%';
+        seg.title = `${sc.id} (${(span / state.fps).toFixed(1)}s)`;
+        dom.timelineScenesBar.appendChild(seg);
+      });
+    }
+
+    seekFrame(0);
+  } catch (e) {
+    console.error('Failed to load timeline.json:', e);
+  }
+}
+
+// 渲染左侧 Beat 列表
+function renderBeatList(project) {
+  dom.beatList.innerHTML = '';
+  if (!project || !project.scenes) return;
+
+  dom.beatCount.textContent = `${project.scenes.length} BEATS`;
+
+  project.scenes.forEach((sc, idx) => {
+    const b = sc.beat || {};
+    const card = document.createElement('div');
+    card.className = 'beat-card' + (idx === state.activeSceneIndex ? ' active' : '');
+    card.dataset.index = idx;
+
+    const roleClass = 'role-' + (['hook','conflict','mechanism','evidence','takeaway'].includes(b.role) ? b.role : 'other');
+
+    let factsHtml = '';
+    if (b.facts && b.facts.length) {
+      const verified = b.facts.filter(f => f.verified).length;
+      const allDone = verified === b.facts.length;
+      factsHtml = `<div class="facts-badge ${allDone ? '' : 'unverified'}">${allDone ? '✓' : '⚠️'} ${verified}/${b.facts.length} 事实</div>`;
+    }
+
+    card.innerHTML = `
+      <div class="beat-card-header">
+        <span class="beat-id">${sc.id}</span>
+        <span class="role-badge ${roleClass}">${b.role || 'beat'}</span>
+      </div>
+      <div class="beat-meta-row">
+        <span class="emotion-badge">情绪: ${b.emotion ? '★'.repeat(b.emotion) : '-'}</span>
+        ${factsHtml}
+      </div>
+      <div class="beat-narration">${sc.narration || '(无旁白)'}</div>
+    `;
+
+    card.addEventListener('click', () => {
+      selectScene(idx);
+    });
+
+    dom.beatList.appendChild(card);
+  });
+}
+
+// 选中某个场景
+function selectScene(idx) {
+  state.activeSceneIndex = idx;
+  const cards = dom.beatList.querySelectorAll('.beat-card');
+  cards.forEach((c, i) => {
+    if (i === idx) c.classList.add('active');
+    else c.classList.remove('active');
+  });
+
+  const project = state.project;
+  if (!project || !project.scenes || !project.scenes[idx]) return;
+  const sc = project.scenes[idx];
+  state.activeSceneId = sc.id;
+
+  // 定位到该场景的时间起点
+  if (state.timeline && state.timeline.scenes) {
+    const scTl = state.timeline.scenes.find(s => s.id === sc.id);
+    if (scTl) {
+      seekFrame(scTl.start);
+    }
+  }
+
+  // 刷新右侧检视器
+  populateInspector(sc);
+}
+
+// 填充右侧检视器
+function populateInspector(sc) {
+  dom.inpSceneId.value = sc.id;
+  dom.inpSceneLayout.value = sc.layout || 'custom';
+  dom.inpSceneNarration.value = sc.narration || '';
+
+  // 缓动
+  const firstEl = (sc.elements && sc.elements[0]) || {};
+  dom.selEnterEasing.value = (firstEl.enter && firstEl.enter.easing) || 'eo';
+
+  // 动态属性输入
+  dom.dynamicPropsContainer.innerHTML = '';
+  if (sc.elements && sc.elements.length) {
+    sc.elements.forEach(el => {
+      const field = document.createElement('div');
+      field.style.marginBottom = '10px';
+      field.style.padding = '8px';
+      field.style.background = 'rgba(0,0,0,0.2)';
+      field.style.borderRadius = '6px';
+
+      let inner = `<div style="font-size:11px; font-weight:700; color:var(--accent-light); margin-bottom:4px;">图元: ${el.id} (${el.type})</div>`;
+      if (el.props) {
+        for (const [k, v] of Object.entries(el.props)) {
+          if (typeof v === 'string' || typeof v === 'number') {
+            inner += `
+              <div style="display:flex; align-items:center; gap:6px; margin-top:4px;">
+                <span style="font-size:11px; color:var(--text-muted); width:60px;">${k}:</span>
+                <input type="text" data-el="${el.id}" data-prop="${k}" value="${v}" style="padding:4px 6px; font-size:12px;">
+              </div>
+            `;
+          }
+        }
+      }
+      field.innerHTML = inner;
+      dom.dynamicPropsContainer.appendChild(field);
+    });
+  }
+
+  // 医学事实 Tab
+  const story = state.project && state.project.story;
+  dom.inpStoryAudience.value = (story && story.meta && story.meta.audience) || 'general';
+
+  const beat = sc.beat || {};
+  dom.factsList.innerHTML = '';
+  if (beat.facts && beat.facts.length) {
+    beat.facts.forEach((f, fIdx) => {
+      const item = document.createElement('div');
+      item.className = 'fact-item';
+      item.innerHTML = `
+        <div class="fact-row">
+          <input type="checkbox" id="chkFact_${fIdx}" ${f.verified ? 'checked' : ''}>
+          <label for="chkFact_${fIdx}" class="fact-text">${f.statement || f.claim || f.text || '事实描述'}</label>
+        </div>
+        ${f.evidence ? `<div class="fact-evidence">证据来源: ${f.evidence}</div>` : ''}
+      `;
+      const chk = item.querySelector('input[type="checkbox"]');
+      chk.addEventListener('change', (e) => {
+        f.verified = e.target.checked;
+      });
+      dom.factsList.appendChild(item);
+    });
+  } else {
+    dom.factsList.innerHTML = '<div style="color:var(--text-muted); font-size:12px;">该分镜无绑定医学事实断言。</div>';
+  }
+}
+
+// 保存场景图元修改
+dom.btnSaveScene.addEventListener('click', async () => {
+  if (!state.activeSceneId || !state.project) return;
+  const sc = state.project.scenes.find(s => s.id === state.activeSceneId);
+  if (!sc) return;
+
+  // 更新旁白
+  sc.narration = dom.inpSceneNarration.value;
+
+  // 更新缓动
+  const easing = dom.selEnterEasing.value;
+  if (sc.elements) {
+    sc.elements.forEach(el => {
+      if (el.enter) el.enter.easing = easing;
+    });
+  }
+
+  // 更新 props
+  const inputs = dom.dynamicPropsContainer.querySelectorAll('input[data-el]');
+  inputs.forEach(inp => {
+    const elId = inp.dataset.el;
+    const propKey = inp.dataset.prop;
+    const el = sc.elements && sc.elements.find(e => e.id === elId);
+    if (el && el.props) {
+      el.props[propKey] = inp.value;
+    }
+  });
+
+  try {
+    const res = await fetch('/api/scene', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scene: sc })
+    });
+    const r = await res.json();
+    if (r.ok) {
+      showToast('分镜保存并重新编译成功！');
+      reloadIframe();
+    } else {
+      showToast('保存出错: ' + (r.compile ? r.compile.errors.join('; ') : '未知错误'));
+    }
+  } catch (e) {
+    showToast('保存异常: ' + e.message);
+  }
+});
+
+// 同步医学事实核查状态
+dom.btnSaveFacts.addEventListener('click', async () => {
+  if (!state.project || !state.project.story) return;
+  try {
+    const res = await fetch('/api/story', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ story: state.project.story })
+    });
+    const r = await res.json();
+    if (r.ok) {
+      showToast('医学事实核查状态已同步保存！');
+      renderBeatList(state.project);
+      runLintCheck();
+    } else {
+      showToast('同步失败');
+    }
+  } catch (e) {
+    showToast('同步异常: ' + e.message);
+  }
+});
+
+// 重载 iframe
+function reloadIframe() {
+  const curF = state.currentFrame;
+  dom.sceneIframe.src = 'scene.html?t=' + Date.now();
+  dom.sceneIframe.onload = () => {
+    autoScaleViewport();
+    setTimeout(() => seekFrame(curF), 100);
+  };
+}
+
+// 风格切换
+dom.styleSelect.addEventListener('change', async (e) => {
+  const chosenStyle = e.target.value;
+  try {
+    showToast(`正在切换至风格: ${chosenStyle}...`);
+    const res = await fetch('/api/style', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ style: chosenStyle })
+    });
+    const r = await res.json();
+    if (r.ok) {
+      showToast(`视觉风格已成功切换至: ${chosenStyle}`);
+      reloadIframe();
+      runLintCheck();
+    } else {
+      showToast('切换风格失败: ' + (r.error || (r.compile && r.compile.errors.join('; '))));
+    }
+  } catch (err) {
+    showToast('通信错误: ' + err.message);
+  }
+});
+
+// 运行全量质检门禁
+async function runLintCheck() {
+  dom.lintSummary.textContent = '正在检测三大门禁指标...';
+  try {
+    const res = await fetch('/api/lint');
+    const data = await res.json();
+    if (!data.ok && data.error) {
+      dom.lintSummary.innerHTML = `<span style="color:var(--danger)">门禁异常: ${data.error}</span>`;
+      return;
+    }
+    const diags = data.diagnostics || [];
+    const B = data.blockingCount || 0;
+    const W = data.warningCount || 0;
+
+    if (B === 0 && W === 0) {
+      dom.lintSummary.innerHTML = `<span style="color:var(--success); font-weight:700;">✓ 全部通过！零阻断、零告警，符合高质量出片标准。</span>`;
+    } else {
+      dom.lintSummary.innerHTML = `检测到 <strong style="color:var(--danger)">${B}</strong> 个阻断项，<strong style="color:var(--warning)">${W}</strong> 个提示项`;
+    }
+
+    dom.lintDetails.innerHTML = '';
+    diags.forEach(d => {
+      const card = document.createElement('div');
+      card.className = `diag-card level-${d.level}`;
+      card.innerHTML = `
+        <div class="diag-header">
+          <span class="diag-code">[${d.level}] ${d.code}</span>
+          <span style="color:var(--text-muted); font-size:10px;">${d.scene || '全局'}</span>
+        </div>
+        <div class="diag-msg">${d.msg}</div>
+      `;
+      dom.lintDetails.appendChild(card);
+    });
+  } catch (e) {
+    dom.lintSummary.textContent = '门禁检测失败: ' + e.message;
+  }
+}
+dom.btnRefreshLint.addEventListener('click', runLintCheck);
+
+// 重新编译按钮
+document.getElementById('btnCompile').addEventListener('click', async () => {
+  showToast('正在编译工程...');
+  try {
+    const res = await fetch('/api/compile', { method: 'POST' });
+    const r = await res.json();
+    if (r.ok) {
+      showToast('全量编译完成！');
+      reloadIframe();
+      runLintCheck();
+    } else {
+      showToast('编译存在阻断项: ' + r.compile.errors.join('; '));
+    }
+  } catch (e) {
+    showToast('编译异常: ' + e.message);
+  }
+});
+
+// 配音合成
+document.getElementById('btnTts').addEventListener('click', async () => {
+  showToast('正在调用配音引擎...');
+  try {
+    const res = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ backend: 'local' })
+    });
+    const r = await res.json();
+    if (r.ok) {
+      showToast('配音合成及时间轴重建完成！');
+      await loadTimelineData();
+      reloadIframe();
+    } else {
+      showToast('配音失败: ' + r.logs);
+    }
+  } catch (e) {
+    showToast('配音异常: ' + e.message);
+  }
+});
+
+// 视频导出流水线
+document.getElementById('btnExport').addEventListener('click', async () => {
+  dom.exportModal.classList.add('show');
+  dom.exportProgressFill.style.width = '10%';
+  dom.exportLogBox.textContent = '正在启动导出任务...\n';
+
+  try {
+    const res = await fetch('/api/export', { method: 'POST' });
+    const r = await res.json();
+    if (!r.ok || !r.taskId) {
+      dom.exportLogBox.textContent += '无法创建导出任务: ' + (r.error || '未知错误');
+      return;
+    }
+
+    const taskId = r.taskId;
+    const pollTimer = setInterval(async () => {
+      try {
+        const sRes = await fetch(`/api/task-status?taskId=${taskId}`);
+        const sData = await sRes.json();
+        if (sData.status === 'running') {
+          dom.exportProgressFill.style.width = (sData.progress || 20) + '%';
+          dom.exportLogBox.textContent = sData.log || '';
+          dom.exportLogBox.scrollTop = dom.exportLogBox.scrollHeight;
+        } else if (sData.status === 'done') {
+          clearInterval(pollTimer);
+          dom.exportProgressFill.style.width = '100%';
+          dom.exportLogBox.textContent = (sData.log || '') + '\n🎉 出片流程圆满完成！';
+          dom.exportLogBox.scrollTop = dom.exportLogBox.scrollHeight;
+        } else {
+          clearInterval(pollTimer);
+          dom.exportProgressFill.style.background = 'var(--danger)';
+          dom.exportLogBox.textContent = (sData.log || '') + '\n❌ 导出任务异常中断。';
+          dom.exportLogBox.scrollTop = dom.exportLogBox.scrollHeight;
+        }
+      } catch (pollErr) {
+        clearInterval(pollTimer);
+        dom.exportLogBox.textContent += '\n轮询状态失败: ' + pollErr.message;
+      }
+    }, 1000);
+  } catch (e) {
+    dom.exportLogBox.textContent += '启动失败: ' + e.message;
+  }
+});
+dom.btnCloseModal.addEventListener('click', () => {
+  dom.exportModal.classList.remove('show');
+});
+
+// 质检快捷切换
+document.getElementById('btnLint').addEventListener('click', () => {
+  switchTab('tabGuardrails');
+  runLintCheck();
+});
+
+// 辅助遮罩切换
+dom.viewportContainer.querySelector('#toggleGrid').addEventListener('click', (e) => {
+  state.overlays.grid = !state.overlays.grid;
+  e.target.classList.toggle('active', state.overlays.grid);
+  showToast(state.overlays.grid ? '辅助网格已开启' : '辅助网格已关闭');
+});
+dom.viewportContainer.querySelector('#toggleSubtitleSafe').addEventListener('click', (e) => {
+  state.overlays.subtitleSafe = !state.overlays.subtitleSafe;
+  e.target.classList.toggle('active', state.overlays.subtitleSafe);
+  showToast(state.overlays.subtitleSafe ? '字幕盲区警戒线已开启 (y > 940)' : '字幕盲区警戒线已关闭');
+});
+dom.viewportContainer.querySelector('#toggleRects').addEventListener('click', (e) => {
+  state.overlays.rects = !state.overlays.rects;
+  e.target.classList.toggle('active', state.overlays.rects);
+  try {
+    const win = dom.sceneIframe.contentWindow;
+    if (win && typeof win.__rects === 'function') {
+      const rects = win.__rects();
+      console.log('DOM 实测排版盒:', rects);
+      showToast('DOM 实测盒已在 Console 打印');
+    }
+  } catch (err) {}
+});
+
+// 右栏 Tab 切换
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tabId);
+  });
+  document.querySelectorAll('.tab-content').forEach(content => {
+    content.classList.toggle('active', content.id === tabId);
+  });
+}
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
+
+// 时间滑块事件
+dom.timelineScrubber.addEventListener('input', (e) => {
+  pause();
+  seekFrame(parseInt(e.target.value, 10));
+});
+
+// 播放/单帧按钮
+dom.btnPlay.addEventListener('click', togglePlay);
+dom.btnPrevFrame.addEventListener('click', () => { pause(); seekFrame(state.currentFrame - 1); });
+dom.btnNextFrame.addEventListener('click', () => { pause(); seekFrame(state.currentFrame + 1); });
+
+// 慢放选择
+document.querySelectorAll('.speed-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.playbackSpeed = parseFloat(btn.dataset.speed);
+    if (state.isPlaying) {
+      play(); // 重置计时器
+    }
+  });
+});
+
+// 键盘快捷键（空格播放/暂停，左右键步进）
+window.addEventListener('keydown', (e) => {
+  if (['input', 'textarea'].includes(document.activeElement.tagName.toLowerCase())) return;
+  if (e.code === 'Space') {
+    e.preventDefault();
+    togglePlay();
+  } else if (e.code === 'ArrowLeft') {
+    e.preventDefault();
+    pause();
+    seekFrame(state.currentFrame - 1);
+  } else if (e.code === 'ArrowRight') {
+    e.preventDefault();
+    pause();
+    seekFrame(state.currentFrame + 1);
+  }
+});
+
+// 初始化启动
+window.addEventListener('DOMContentLoaded', () => {
+  autoScaleViewport();
+  loadProjectData();
+});
+</script>
+</body>
+</html>

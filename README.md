@@ -6,9 +6,9 @@
 
 渲染核继承自已验证的 motion-explainer-video 管线（字节级冻结），本项目新增 **IR v2 声明式编译层**、**增量渲染缓存**、**自动化质检体系**及 **3D 解剖/器械外部喂帧管道**。
 
-* **当前形态**：本地 CLI / Agent 工具包（纯 Node CommonJS，**零额外 npm 运行时依赖**，非网页/GUI）。
-* **交付状态**：**M1（编译核）+ M2（叙事与脚本门）+ M3（增量渲染与自动化 QA）+ M4（医学安全门与 3D 解剖渲染）+ M5（MG 视觉与动效风格系统）全量交付**。
-* **质量保证**：自动化测试套件共 **184 项（183 通过 / 1 跳过=旧片素材回归，0 失败）**，100% 持续集成（GitHub Actions CI）绿灯通过。
+* **当前形态**：本地 CLI / Agent 工具包 + **零额外 npm 依赖**的轻量本地 Web 工作台（Studio UI）。
+* **交付状态**：**M1（编译核）+ M2（叙事与脚本门）+ M3（增量渲染与自动化 QA）+ M4（医学安全门与 3D 解剖渲染）+ M5（MG 视觉与动效风格系统）+ M6（Web 工作台 Studio UI）全量交付**。
+* **质量保证**：自动化测试套件共 **188 项（187 通过 / 1 跳过=旧片素材回归，0 失败）**，100% 持续集成（GitHub Actions CI）绿灯通过。
 
 ---
 
@@ -39,8 +39,10 @@
 │   │   ├── fcache.js          #   增量渲染缓存（visualHash 视觉指纹 + 帧数核验）
 │   │   ├── calibrate.js       #   TTS 语速动态校准器（按实际配音时长反馈学习）
 │   │   ├── three3d.js         #   3D 外部工程接入适配器与喂帧契约核验
+│   │   ├── studio.html        #   Studio UI 本地工作台原生单页应用
 │   │   └── components/        #   5 布局组件（title-card / points / waveform / stat / three3d）
 │   ├── scripts/               # 全链路执行脚本 + CLI 工具
+│   │   ├── studio.js          #   Studio UI 本地服务器（原生 HTTP，零外部依赖，严格 127.0.0.1）
 │   │   ├── make.sh            #   一键出片管线：编译→脚本门→配音→时间轴→实测后门→音频→3D→增量渲染→拼接→编码混音→QA
 │   │   ├── doctor.js          #   环境诊断：Node/Chrome/ffmpeg/ffprobe/TTS 自检（支持 --json / --quiet）
 │   │   ├── test_ci.js         #   CI 运行器：自动动态搜集全量非 e2e 单元测试（防漏测）
@@ -61,7 +63,7 @@
 │   │   ├── styles/            #   MG 风格套件（deep-tech / clean-medical / warm-editorial / swiss-modern）
 │   │   ├── narratives/        #   叙事骨架模板（science.json / product.json / teaching.json / free.json）
 │   │   └── prompts/           #   AI Agent 生成 story.json 的提示词模板（story-draft.md）
-│   ├── tests/                 # 184 项 node:test 套件 + fixtures + 旧片像素回归
+│   ├── tests/                 # 188 项 node:test 套件 + fixtures + 旧片像素回归
 │   └── README.md              # ★ 详细开发者手册（项目规范 / 5 组件 Props / 进阶参数）
 ├── docs/                      # 架构设计与实现文档
 │   ├── superpowers/
@@ -81,6 +83,24 @@
 ---
 
 ## 快速开始
+
+### 0. 本地 Web 工作台（Studio UI，开箱即用）
+
+无需手写终端命令，一键启动本地轻量可视化演播室工作台（纯原生 Node 实现，**零额外 npm 运行时依赖**）：
+
+```bash
+cd mg-studio
+npm run studio
+# 或指定分镜项目路径与端口：
+# node scripts/studio.js ../my-project --port 3000 --open
+```
+
+浏览器访问 `http://127.0.0.1:3000` 即可进入演播室：
+* **8 大视觉风格一键实时热切换**：下拉即可切换 `deep-tech`、`clean-medical`、`warm-editorial`、`swiss-modern`、`vital-energy` 等，全片秒级重渲染。
+* **1080p 帧级演播画布**：自适应 16:9 画布，支持空格播放/暂停、0.25x/0.5x 慢放与时间轴精准逐帧拖拽（未配音时自动生成虚拟时间轴，无需配音即可秒级预览分镜！）。
+* **故事大纲与事实核查**：左侧可视化节奏树与情绪色标（1..5），支持一键勾选医学事实核查（`verified`）。
+* **门禁体检看板**：实时检测叙事门、动效门、医学安全门与 WCAG AA 文本对比度防线。
+* **全流程一键出片**：顶栏提供可视化的一键重新编译、合成配音与导出 MP4 视频。
 
 ### 1. 环境准备
 

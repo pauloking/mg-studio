@@ -305,6 +305,7 @@ node <threeProject>/render_frames.js \
 
 | 命令 | 默认作用 | 常用选项 |
 | :--- | :--- | :--- |
+| `scripts/studio.js` | 启动本地 Web 可视化工作台 | `npm run studio` 或 `node studio.js [项目目录] [--port 3000] [--open]` |
 | `scripts/make.sh` | 全链路一键成片 | `bash make.sh <toolkit> [local\|bailian] [outName]` |
 | `scripts/doctor.js` | 运行环境诊断 | `--json`（输出结构化 JSON），`--quiet`（静默模式） |
 | `scripts/lint_story.js` | 检查故事结构与语言 | `node lint_story.js [项目目录]`（生成 `reports/story-lint.md`） |
@@ -361,3 +362,44 @@ node <threeProject>/render_frames.js \
 * `QA_DISCLAIMER` (B)：患者向最终编译的 `scene.html` 缺失可见 `#disclaimer` 节点。
 * `QA_BLACK` (W)：视频中检出超过 0.5 秒的异常全黑段。
 * `QA_FREEZE` (W)：视频中检出超过 2.0 秒的完全静止无动效段。
+
+---
+
+## 7. Web 可视化工作台（Studio UI）
+
+`mg-studio` 提供了无需配置、**零额外 npm 运行时依赖**的本地单页可视化演播室工作台。
+
+### 7.1 启动方式
+
+```bash
+cd mg-studio
+npm run studio
+# 或显式指定分镜工程目录与端口：
+node scripts/studio.js ../my-film --port 3000 --open
+```
+
+### 7.2 核心特性与架构安全
+* **网络与路径安全**：服务严格绑定至本地回环地址 `127.0.0.1`，静态文件伺服采用严格的 `path.resolve` 边界核验，主动防御目录穿越探测（测试覆盖 403 阻断）。
+* **虚拟时间轴平滑回退**：工程初创或尚未调用配音生成时，Studio 服务端自动按文字长度与分镜时长预估生成虚拟时间轴（Synthesized Timeline），让创作者在撰写分镜时即可秒级预览画面与动效，无需等待语音合成。
+* **8 大视觉风格一键切换**：顶栏下拉即时切换 `deep-tech`、`clean-medical`、`warm-editorial`、`swiss-modern`、`vital-energy`、`cyber-neon`、`ink-zen`、`aurora-glass`，实时级联深合并与增量编译。
+* **快捷键操作**：
+  * `空格键 (Space)`：播放 / 暂停。
+  * `方向左键 (←)`：后退一帧。
+  * `方向右键 (→)`：前进一帧。
+* **门禁诊断抽屉**：实时呈现叙事门、动效门、医学安全门 B 级与 W 级告警及 WCAG AA 对比度诊断。
+
+### 7.3 REST API 字典一览
+
+| 接口 | 方法 | 说明 |
+| :--- | :--- | :--- |
+| `/api/project` | `GET` | 读取工程大纲、分镜、设计令牌、风格清单与文件状态 |
+| `/api/style` | `POST` | 热切换项目风格（深合并回写并触发增量编译） |
+| `/api/scene` | `POST` | 保存单分镜修改（旁白、入场缓动、组件参数）并触发编译 |
+| `/api/story` | `POST` | 保存叙事骨架与医学事实核查（`verified` 勾选同步） |
+| `/api/compile` | `POST` | 全量重新编译 `script.json` 与 `scene.html` |
+| `/api/lint` | `GET` | 聚合叙事、脚本、医学、动效三大门禁全量诊断 |
+| `/api/tts` | `POST` | 调用配音脚本与时间轴构建器 |
+| `/api/export` | `POST` | 启动后台出片流水线，返回异步 `taskId` |
+| `/api/task-status` | `GET` | 轮询后台出片进度与日志（`?taskId=...`） |
+| `GET /*` | `GET` | 静态文件伺服（`scene.html`、`timeline.json`、音频/视频），越界返回 403 |
+
