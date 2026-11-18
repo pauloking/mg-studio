@@ -74,3 +74,29 @@ test('Desktop: Electron 主进程冒烟启动 (Smoke Test)', (t) => {
   });
   assert.ok(out.includes('[SMOKE TEST]'), '应输出冒烟测试就绪标记');
 });
+
+test('Desktop: Windows 与 macOS 打包配置及纯 JS 依赖完整性校验', () => {
+  const pkgPath = path.join(__dirname, '..', 'package.json');
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+
+  // 1. 验证构建脚本
+  assert.ok(pkg.scripts['desktop:dist'], '应包含 macOS 打包脚本 desktop:dist');
+  assert.ok(pkg.scripts['desktop:win'], '应包含 Windows 打包脚本 desktop:win');
+
+  // 2. 验证 electron-builder 配置项
+  assert.ok(pkg.build, 'package.json 应配置 build 节点');
+  assert.equal(pkg.build.appId, 'com.pauloking.mgstudio');
+  assert.ok(Array.isArray(pkg.build.mac.target) && pkg.build.mac.target.includes('dmg'), 'mac 目标应包含 dmg');
+  assert.ok(Array.isArray(pkg.build.win.target) && pkg.build.win.target.includes('nsis') && pkg.build.win.target.includes('portable'), 'win 目标应包含 nsis 与 portable');
+  assert.equal(pkg.build.nsis.allowToChangeInstallationDirectory, true, 'NSIS 安装向导应允许用户选择安装路径');
+
+  // 3. 验证无污染跨平台原生二进制依赖（避免 Windows 缺少 MSVC 原生动态库导致启动崩溃）
+  const deps = Object.keys(pkg.dependencies || {});
+  assert.ok(!deps.includes('@napi-rs/canvas'), '生产依赖中不应引入原生 canvas 模块');
+
+  // 4. 验证 main.js 守护逻辑
+  const mainSrc = fs.readFileSync(path.join(__dirname, '..', 'desktop', 'main.js'), 'utf8');
+  assert.ok(mainSrc.includes('uncaughtException'), 'main.js 应具备全局未捕获异常监听');
+  assert.ok(mainSrc.includes('unhandledRejection'), 'main.js 应具备全局 Promise 拒绝监听');
+  assert.ok(mainSrc.includes('mg-studio-error.log'), 'main.js 应记录错误日志以备故障排查');
+});

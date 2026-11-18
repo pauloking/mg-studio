@@ -450,9 +450,31 @@ node scripts/studio.js ../my-film --port 3000 --open
 
 * **启动命令**：`npm run desktop`（或指定分镜目录 `npm run desktop ../my-project`）。
 * **核心组成**：
-  * **主进程托管 (`desktop/main.js`)**：自动启动并托管本地 Studio 服务（动态分配可用端口，严格本地回环），管理原生应用菜单与快捷键（`Cmd+N` 新建 / `Cmd+O` 打开 / `Cmd+B` 编译 / `Cmd+E` 导出）。
+  * **主进程托管 (`desktop/main.js`)**：自动启动并托管本地 Studio 服务（动态分配可用端口，严格本地回环），管理原生应用菜单与快捷键（`Cmd+N` 新建 / `Cmd+O` 打开 / `Cmd+B` 编译 / `Cmd+E` 导出）。内置全局异常弹窗守护与本地日志持久化（`mg-studio-error.log`）。
   * **项目中心 (`desktop/project-hub.html`)**：启动欢迎中心，展示快速创作入口、内置经典模板、最近项目记录与环境自检看板。
-  * **安全上下文隔离桥 (`desktop/preload.js`)**：通过 `contextBridge` 注入安全的原生对话框、文件定位（Finder）与系统通知能力。
+  * **安全上下文隔离桥 (`desktop/preload.js`)**：通过 `contextBridge` 注入安全的原生对话框、文件定位（Finder / 资源管理器）与系统通知能力。
+
+#### 7.5.1 跨平台打包与分发构建
+
+客户端支持在 macOS 及 Windows 系统上一键打包为原生安装包与便携版二进制：
+
+```bash
+# 构建 macOS 安装包 (DMG + ZIP)
+npm run desktop:dist
+
+# 构建 Windows 安装包 (NSIS 安装向导 + Portable 单文件便携版 + ZIP 绿色版)
+npm run desktop:win
+```
+
+产物生成于 `dist/` 目录下：
+* **Windows NSIS 安装程序**（`dist/MG Studio-Setup-*.exe`）：标准安装向导，支持自定义安装目录、桌面与开始菜单快捷方式、完整卸载能力。
+* **Windows 便携免安装版**（`dist/MG Studio-Portable-*.exe`）：单文件免安装可执行程序，双击即用，不修改注册表。
+* **macOS 磁盘镜像**（`dist/MG Studio-*.dmg`）：符合 macOS 规范的拖拽安装向导镜像。
+
+#### 7.5.2 Windows 常见运行说明
+
+* **跨平台纯 JS 依赖架构**：生产依赖不含任何宿主特定的原生 C++/Rust `.node` 模块（如去除了 `@napi-rs/canvas`），避免因目标机缺少特定 MSVC 运行时库而发生静默闪退。
+* **Windows Defender SmartScreen 提示**：作为独立开源分发的软件，若在未购买昂贵的商业代码签名证书环境下运行，Windows 10/11 可能会弹出浅蓝色的系统保护提示（*“Windows 已保护你的电脑”*）。此时只需点击 **「更多信息」** ➔ **「仍要运行」** 即可。
 
 
 
