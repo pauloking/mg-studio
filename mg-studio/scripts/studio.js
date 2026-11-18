@@ -270,13 +270,14 @@ function createStudioServer(options = {}) {
           return;
         }
 
-        // POST /api/research (文献检索与事实抽取)
+        // POST /api/research (文献书目检索)
         if (pathname === '/api/research' && req.method === 'POST') {
           const body = await parseJsonBody(req);
           const query = body.query || '';
           const maxResults = body.maxResults || 5;
           const result = await searchLiterature(query, { maxResults });
-          sendJson(res, 200, result);
+          const status = result.status === 'invalid' ? 400 : result.status === 'unavailable' ? 503 : 200;
+          sendJson(res, status, result);
           return;
         }
 

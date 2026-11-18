@@ -403,7 +403,7 @@ node scripts/studio.js ../my-film --port 3000 --open
 | `/api/task-status` | `GET` | 轮询后台出片进度与日志（`?taskId=...`） |
 | `/api/topics` | `GET` | 获取医学/科学推荐权威选题与模板 |
 | `/api/parse-doc` | `POST` | 解析参考资料（支持 .pdf/.docx/.md/.txt/.json 拖拽与纯文本粘贴），提取核心事实、统计指标、建议受众与模板 |
-| `/api/research` | `POST` | 检索 Europe PMC / OpenAlex 权威文献并提炼结构化事实 |
+| `/api/research` | `POST` | 检索 Europe PMC / PubMed / OpenAlex 书目，报告命中、无命中或服务不可用 |
 | `/api/create-project` | `POST` | 一键由选题+事实生成 IR v2 工程并自动完成全量编译 |
 | `/api/beat/add` | `POST` | 新增分镜（指定 ID、角色、排版组件与旁白） |
 | `/api/beat/delete` | `POST` | 删除指定分镜并自动重新编译 |
@@ -424,7 +424,7 @@ node scripts/studio.js ../my-film --port 3000 --open
      * 智能推断建议受众分类（`patient` / `professional` / `general`）与建议叙事模板（`science` / `teaching` / `product`）。
      * 提供「一键应用至当前向导」：自动回填主题与配置，并将抽取的事实注入事实库，打上高亮 `[用户资料]` 绿色专属徽标并默认勾选！
 2. **Step 2: 权威文献联网检索与事实证据库**
-   * 直连 Europe PMC 与 OpenAlex 开放学术知识图谱，通过 MeSH 关键词自动扩展与检索。
+   * 优先查询 Europe PMC，失败或无命中时依次试 PubMed、OpenAlex。内置常见中文术语映射，可直接输入英文检索式。OpenAlex 可选用 `OPENALEX_API_KEY` 提高可用额度。检索返回书目，可打开原文后录入和核实事实。
    * 自动抽取论文核心论断、临床试验结论并生成结构化事实清单（Facts Checklist）。
    * 创作者可直观勾选采纳事实，或手动追加临床共识事实。
 3. **Step 3: 故事线规划与分镜组件映射**

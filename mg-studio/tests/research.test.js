@@ -1,0 +1,79 @@
+'use strict';
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const axios = require('axios');
+const { searchLiterature, expandQuery } = require('../lib/research');
+const { createStudioServer } = require('../scripts/studio');
+const studioFetch = require('./helpers/studio-fetch');
+
+const topic = '心房颤动脉冲电场消融术';
+const searchQuery = '"atrial fibrillation" AND "pulsed field ablation"';
+
+test('中文预设使用完整术语，保留英文文献检索式', () => {
+  assert.equal(expandQuery(topic), searchQuery);
+  assert.equal(expandQuery('经导管主动脉瓣置换术 (TAVR)'), '"transcatheter aortic valve replacement" AND TAVR');
+  assert.equal(expandQuery('脑卒中早期识别与 FAST 口诀'), '"stroke" AND FAST');
+  assert.equal(expandQuery('"diabetes mellitus" OR asthma'), '"diabetes mellitus" OR asthma');
+});
+
+test('Europe PMC 无命中或请求失败时从 PubMed 获取书目', async (t) => {
+  for (const firstFails of [false, true]) {
+    await t.test(firstFails ? '上游失败' : '上游无命中', async (sub) => {
+      const calls = [];
+      sub.mock.method(axios, 'get', async (url, { params }) => {
+        calls.push(url);
+        if (url.includes('/europepmc/')) {
+          assert.equal(params.query, searchQuery);
+          if (firstFails) throw Object.assign(new Error('unavailable'), { response: { status: 503 } });
+          return { data: { hitCount: 0, resultList: { result: [] } } };
+        }
+        if (url.endsWith('esearch.fcgi')) {
+          assert.equal(params.term, searchQuery);
+          assert.equal(params.retmax, 3);
+          return { data: { esearchresult: { idlist: ['37634148'] } } };
+        }
+        if (url.endsWith('esummary.fcgi')) {
+          assert.equal(params.id, '37634148');
+          return { data: { result: { 37634148: { title: 'Pulsed Field or Conventional Thermal Ablation', pubdate: '2023 Nov 2', articleids: [{ idtype: 'doi', value: '10.1056/NEJMoa2307291' }] } } } };
+        }
+        throw new Error('Unexpected provider');
+      });
+      const result = await searchLiterature(topic, { maxResults: 3 });
+      assert.equal(calls.length, 3);
+      assert.equal(result.status, 'found');
+      assert.equal(result.provider, 'PubMed');
+      assert.equal(result.articles[0].url, 'https://pubmed.ncbi.nlm.nih.gov/37634148/');
+      assert.equal(result.articles[0].year, '2023');
+      assert.deepEqual(result.extractedFacts, []);
+      assert.equal(result.attempts[0].status, firstFails ? 'error' : 'empty');
+    });
+  }
+});
+
+test('HTTP API 区分上游全失败与正常无命中', async (t) => {
+  let allFail = true;
+  t.mock.method(axios, 'get', async (url) => {
+    if (url.includes('europepmc') && !allFail) return { data: { hitCount: 0, resultList: { result: [] } } };
+    if (url.includes('openalex')) throw Object.assign(new Error('rate limited'), { response: { status: 429 } });
+    if (url.includes('ncbi.nlm.nih.gov')) return { data: '<html>Bad gateway</html>' };
+    throw Object.assign(new Error('timed out'), { code: 'ETIMEDOUT' });
+  });
+  const app = createStudioServer({ port: 0 });
+  const { port } = await app.start();
+  t.after(() => app.close());
+  const post = query => studioFetch(app)(`http://127.0.0.1:${port}/api/research`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query })
+  });
+  assert.equal((await post('  ')).status, 400);
+  const failed = await post('example');
+  assert.equal(failed.status, 503);
+  const body = await failed.json();
+  assert.equal(body.status, 'unavailable');
+  assert.deepEqual(body.attempts.map(a => a.reason), ['超时', '返回格式异常', 'HTTP 429']);
+  allFail = false;
+  const empty = await post('example');
+  assert.equal(empty.status, 200);
+  const emptyBody = await empty.json();
+  assert.equal(emptyBody.status, 'empty');
+  assert.match(emptyBody.message, /Europe PMC（无命中）.*OpenAlex（HTTP 429）/);
+});
