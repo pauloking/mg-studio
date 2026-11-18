@@ -752,7 +752,7 @@ textarea {
   </div>
 
   <div class="action-buttons">
-    <button id="btnNewProject" class="primary" style="background: linear-gradient(135deg, #6366f1, #06b6d4); font-weight:700; border:none; box-shadow:0 2px 10px rgba(99,102,241,0.4);" title="开启 AI 视频策划与文献检索向导">
+    <button id="btnNewProject" type="button" aria-haspopup="dialog" aria-controls="creatorModal" class="primary" style="background: linear-gradient(135deg, #6366f1, #06b6d4); font-weight:700; border:none; box-shadow:0 2px 10px rgba(99,102,241,0.4);" title="开启 AI 视频策划与文献检索向导">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       新建视频 (AI 创作工坊)
     </button>
@@ -904,13 +904,13 @@ textarea {
 </main>
 
 <!-- 模态框：AI 视频策划工坊向导 -->
-<div class="modal-mask" id="creatorModal">
+<div class="modal-mask" id="creatorModal" role="dialog" aria-modal="true" aria-labelledby="creatorTitle">
   <div class="modal-box" style="width: 740px; max-width: 95vw; max-height: 90vh; display: flex; flex-direction: column;">
     <!-- 向导顶栏 -->
     <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 16px;">
       <div style="display:flex; align-items:center; gap:10px;">
         <div style="background: linear-gradient(135deg, #6366f1, #06b6d4); color:white; padding:4px 8px; border-radius:6px; font-size:12px; font-weight:700;">AI CREATOR</div>
-        <h3 style="font-size:16px; font-weight:700;">AI 视频策划工坊 (全流程向导)</h3>
+        <h3 id="creatorTitle" style="font-size:16px; font-weight:700;">AI 视频策划工坊 (全流程向导)</h3>
       </div>
       <button id="btnCloseCreatorModal" style="padding:3px 8px; font-size:11px;">关闭</button>
     </div>
@@ -1983,9 +1983,10 @@ window.addEventListener('keydown', (e) => {
 
 // 打开 AI 创作工坊
 async function openCreatorModal() {
-  wizardState.currentStep = 1;
+  if (dom.creatorModal.classList.contains('show')) return;
   setWizardStep(1);
   dom.creatorModal.classList.add('show');
+  dom.wzTopic.focus();
 
   // 加载推荐选题 chips
   if (dom.hotTopicChips.children.length === 0) {
@@ -2211,8 +2212,16 @@ function prepareStep3Preview() {
 
 // 绑定向导事件
 dom.btnNewProject.addEventListener('click', openCreatorModal);
-dom.btnCloseCreatorModal.addEventListener('click', () => {
+function closeCreatorModal() {
   dom.creatorModal.classList.remove('show');
+  dom.btnNewProject.focus();
+}
+dom.btnCloseCreatorModal.addEventListener('click', closeCreatorModal);
+dom.creatorModal.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeCreatorModal();
+  }
 });
 
 // M8: 自定义选题清空

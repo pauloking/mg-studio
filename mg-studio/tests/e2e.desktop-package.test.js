@@ -57,3 +57,61 @@ test('安装包：打开示例、编译、配音并导出 1080p MP4', { skip: !e
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('安装包：工作台按钮打开向导并创建独立工程', { skip: !executablePath && 'set MG_PACKAGED_EXE', timeout: 60000 }, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mg-wizard-'));
+  const documents = path.join(dir, 'Documents');
+  fs.mkdirSync(documents);
+  let app;
+  try {
+    app = await _electron.launch({ executablePath, args: [`--user-data-dir=${path.join(dir, 'profile')}`] });
+    await app.evaluate(({ app }, dir) => app.setPath('documents', dir), documents);
+    const page = await app.firstWindow();
+    await page.locator('#btnOpenDemo').click();
+    await page.waitForURL('http://127.0.0.1:*/');
+    await page.locator('.beat-card').nth(1).click();
+    const originalUrl = page.url();
+    const original = await page.evaluate(() => window.desktopAPI.getCurrentProject());
+    const originalStory = fs.readFileSync(path.join(original.path, 'story.json'), 'utf8');
+
+    if (process.platform === 'darwin') {
+      const titleBar = await app.evaluate(({ BrowserWindow }) => {
+        const window = BrowserWindow.getAllWindows()[0];
+        return window.getContentBounds().y - window.getBounds().y;
+      });
+      assert.ok(titleBar > 0, 'toolbar cannot overlap the macOS title bar');
+    }
+    await page.route('**/api/topics', route => route.abort());
+    await page.locator('#btnNewProject').click();
+    await page.getByRole('dialog', { name: 'AI 视频策划工坊 (全流程向导)' }).waitFor({ state: 'visible' });
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'wzTopic');
+    await page.keyboard.press('Escape');
+    await page.locator('#creatorModal').waitFor({ state: 'hidden' });
+
+    // Invoke the action bound to Cmd/Ctrl+N from the current workbench.
+    await app.evaluate(({ Menu, BrowserWindow }) => {
+      const file = Menu.getApplicationMenu().items.find(item => item.label === '文件');
+      const item = file.submenu.items.find(item => item.accelerator === 'CmdOrCtrl+N');
+      return item.click(item, BrowserWindow.getAllWindows()[0], {});
+    });
+    await page.locator('#creatorModal').waitFor({ state: 'visible' });
+    assert.equal(page.url(), originalUrl);
+    await page.locator('#btnTabPasteText').click();
+    await page.locator('#txtDocPaste').fill('# 分镜测试工程\n这份测试记录要求结合原始资料评估适用条件。');
+    await page.locator('#btnParseDoc').click();
+    await page.locator('#btnApplyParsedDoc').click();
+    await page.locator('#btnWzNext').click();
+    await page.locator('#wzFactChk_0').check();
+    await page.locator('#btnWzNext').click();
+    await page.locator('#btnWzCreate').click();
+    await page.waitForURL(url => url.protocol === 'http:' && url.href !== originalUrl);
+    await page.waitForFunction(() => document.querySelector('#topTitle')?.textContent === '分镜测试工程');
+    const created = await page.evaluate(() => window.desktopAPI.getCurrentProject());
+    assert.notEqual(created.path, original.path);
+    assert.ok(fs.existsSync(path.join(created.path, 'scene.html')));
+    assert.equal(fs.readFileSync(path.join(original.path, 'story.json'), 'utf8'), originalStory);
+  } finally {
+    if (app) await app.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

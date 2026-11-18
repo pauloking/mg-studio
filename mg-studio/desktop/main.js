@@ -131,8 +131,8 @@ function createMainWindow() {
     minHeight: 720,
     title: 'MG Studio 演播室',
     backgroundColor: '#090a10',
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
-    trafficLightPosition: { x: 16, y: 16 },
+    // Keep interactive web controls below the native title bar on macOS.
+    titleBarStyle: 'default',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -216,10 +216,17 @@ function buildAppMenu() {
           label: '✨ 新建视频 (AI 创作工坊)...',
           accelerator: 'CmdOrCtrl+N',
           click: async () => {
-            if (mainWindow) {
+            if (!mainWindow) return;
+            try {
+              if (currentProjectInfo && mainWindow.webContents.getURL() === `http://${currentProjectInfo.host}:${currentProjectInfo.port}/`) {
+                await mainWindow.webContents.executeJavaScript('document.getElementById("btnNewProject")?.click();');
+                return;
+              }
               const demoDir = openDemoProject(projectsDir());
               const info = await startStudioForProject(demoDir);
-              mainWindow.loadURL(`http://${info.host}:${info.port}/?action=wizard`);
+              await mainWindow.loadURL(`http://${info.host}:${info.port}/?action=wizard`);
+            } catch (error) {
+              dialog.showErrorBox('无法打开新建视频向导', error.message);
             }
           }
         },
