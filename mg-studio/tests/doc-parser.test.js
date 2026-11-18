@@ -42,7 +42,7 @@ test('doc-parser: analyzeDocumentText 提取主题、受众与结构化事实', 
   assert.ok(res.facts.length >= 2, '应提取出至少 2 条事实，实际提取: ' + res.facts.length);
   const statFact = res.facts.find(f => f.claim.includes('97.4%') || f.claim.includes('42%'));
   assert.ok(statFact, '应抽取包含百分比统计的事实');
-  assert.equal(statFact.verified, true);
+  assert.equal(statFact.verified, false);
   assert.equal(statFact.isUserDoc, true);
   assert.ok(statFact.evidence.includes('tavr-guideline.md'));
 
@@ -94,6 +94,7 @@ test('REST API: POST /api/parse-doc 闭环测试', async () => {
         path: '/api/parse-doc',
         method: 'POST',
         headers: {
+          'X-Studio-Token': app.csrfToken,
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(postData)
         }
@@ -128,6 +129,7 @@ test('REST API: POST /api/parse-doc 闭环测试', async () => {
         path: '/api/parse-doc',
         method: 'POST',
         headers: {
+          'X-Studio-Token': app.csrfToken,
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(postData2)
         }

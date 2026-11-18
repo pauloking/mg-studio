@@ -1,3 +1,4 @@
+const studioFetch = require('./helpers/studio-fetch');
 /**
  * desktop.test.js - MG Studio Desktop Shell 核心功能与生命周期测试
  */
@@ -29,6 +30,7 @@ test('Desktop: studio 本地服务端在桌面模式（动态端口 port: 0）�
   const serverInstance = createStudioServer({ projectDir: demoDir, port: 0 });
 
   const running = await serverInstance.start();
+  const fetch = studioFetch(serverInstance);
   assert.equal(running.host, '127.0.0.1');
   assert.ok(typeof running.port === 'number' && running.port > 0, '应成功分配非 0 随机空闲端口');
   assert.equal(running.projectDir, path.resolve(demoDir));

@@ -89,7 +89,7 @@ async function startStudioForProject(projectDir) {
   }
 
   const resolved = resolveProjectDir(projectDir);
-  currentServer = createStudioServer({ projectDir: resolved, port: 0 }); // port 0 动态获取空闲端口
+  currentServer = createStudioServer({ projectDir: resolved, port: 0, projectsDir: path.join(app.getPath('documents'), 'MG Studio Projects') }); // port 0 动态获取空闲端口
   const running = await currentServer.start();
 
   // 读取工程基本信息用于最近项目记录

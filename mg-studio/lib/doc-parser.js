@@ -188,7 +188,7 @@ function analyzeDocumentText(text, filename = '自定义参考资料') {
     claim: item.sentence,
     statement: item.sentence,
     evidence: `用户资料: ${filename}`,
-    verified: true, // 用户自主上传并选用的资料默认为已核验事实
+    verified: false, // 资料上传不等于创作者已核实
     isUserDoc: true
   }));
 
