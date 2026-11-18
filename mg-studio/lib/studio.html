@@ -1829,7 +1829,7 @@ document.getElementById('btnTts').addEventListener('click', async () => {
     const res = await apiFetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ backend: 'local' })
+      body: JSON.stringify({})
     });
     const r = await res.json();
     if (r.ok) {
@@ -1837,7 +1837,7 @@ document.getElementById('btnTts').addEventListener('click', async () => {
       await loadTimelineData();
       reloadIframe();
     } else {
-      showToast('配音失败: ' + r.logs);
+      showToast('配音失败: ' + (r.logs || r.error));
     }
   } catch (e) {
     showToast('配音异常: ' + e.message);

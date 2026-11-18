@@ -100,3 +100,18 @@ test('Desktop: Windows 与 macOS 打包配置及纯 JS 依赖完整性校验', (
   assert.ok(mainSrc.includes('unhandledRejection'), 'main.js 应具备全局 Promise 拒绝监听');
   assert.ok(mainSrc.includes('mg-studio-error.log'), 'main.js 应记录错误日志以备故障排查');
 });
+
+test('Desktop: 示例首次展开并编译，重新打开时保留用户编辑', (t) => {
+  const { openDemoProject } = require('../desktop/demo-project');
+  const dir = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'mg-demo-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const demo = openDemoProject(dir);
+  assert.equal(path.dirname(demo), dir);
+  assert.ok(fs.existsSync(path.join(demo, 'scene.html')));
+  const storyPath = path.join(demo, 'story.json');
+  const story = JSON.parse(fs.readFileSync(storyPath));
+  story.meta.title = '已编辑的示例';
+  fs.writeFileSync(storyPath, JSON.stringify(story));
+  assert.equal(openDemoProject(dir), demo);
+  assert.equal(JSON.parse(fs.readFileSync(storyPath)).meta.title, '已编辑的示例');
+});

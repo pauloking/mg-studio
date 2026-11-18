@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /* tts.js — 分场景生成配音并转为 44100 单声道 wav（对齐管线）
  * 用法:
- *   node tts.js                          # 本地 macOS say（免费，默认 Tingting）
+ *   node tts.js                          # 本地 macOS say / Windows System.Speech
  *   node tts.js --backend bailian        # 百炼 TTS（需 bl 已鉴权；可能计费）
  * 可选环境变量:
  *   TTS_VOICE   本地默认 Tingting；百炼默认 longanlingxin
@@ -66,7 +66,27 @@ function configFor(s, argBackend) {
 }
 
 /** 纯函数：返回 {cmd, args, env} 三元组（便于单测断言"文本是单个 argv 元素"） */
-function buildTtsCommand({ cfg, sc, raw }) {
+const WINDOWS_SPEECH = `
+$ErrorActionPreference = 'Stop'
+[Console]::InputEncoding = New-Object System.Text.UTF8Encoding($false)
+$request = [Console]::In.ReadToEnd() | ConvertFrom-Json
+Add-Type -AssemblyName System.Speech
+$synth = New-Object System.Speech.Synthesis.SpeechSynthesizer
+try {
+  if ($request.voice) {
+    $synth.SelectVoice([string]$request.voice)
+  } elseif ($request.chinese) {
+    $voice = $synth.GetInstalledVoices() | Where-Object { $_.Enabled -and $_.VoiceInfo.Culture.Name -like 'zh-*' } | Select-Object -First 1
+    if (!$voice) { throw 'Install a Chinese desktop speech voice in Windows, or configure TTS_VOICE.' }
+    $synth.SelectVoice($voice.VoiceInfo.Name)
+  }
+  $synth.SetOutputToWaveFile([string]$request.output)
+  $synth.Speak([string]$request.text)
+} finally {
+  $synth.Dispose()
+}`;
+
+function buildTtsCommand({ cfg, sc, raw, platform = process.platform }) {
   if (cfg.backend === 'bailian') {
     const voice = cfg.voice || 'longanlingxin';
     const model = cfg.model || 'qwen-audio-3.0-tts-plus';
@@ -76,6 +96,14 @@ function buildTtsCommand({ cfg, sc, raw }) {
       args: ['speech', 'synthesize', '--model', model, '--voice', voice, '--format', 'wav', '--seed', '42',
         '--instruction', instr, '--text', sc.narration, '--out', raw],
       env: Object.assign({}, process.env, bailianEnv())
+    };
+  }
+  if (platform === 'win32') {
+    return {
+      cmd: 'powershell.exe',
+      args: ['-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(WINDOWS_SPEECH, 'utf16le').toString('base64')],
+      input: Buffer.from(JSON.stringify({ text: sc.narration, output: raw, voice: cfg.voice, chinese: /\p{Script=Han}/u.test(sc.narration) }), 'utf8'),
+      env: { ...process.env }
     };
   }
   const args = ['-v', cfg.voice || 'Tingting'];
@@ -101,9 +129,9 @@ function run({ dir: argvDir, backend, only }) {
   for (const sc of scenes) {
     const wav = path.join(dir, 'vo', sc.id + '.wav');
     // 各后端原生产物：say 出 aiff、百炼出 wav，随后统一转 44100 单声道
-    const rawSrc = path.join(dir, 'vo', sc.id + (cfg.backend === 'bailian' ? '_raw.wav' : '_raw.aiff'));
-    const { cmd, args, env } = buildTtsCommand({ cfg, sc, raw: rawSrc });
-    execFileSync(cmd, args, { env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const rawSrc = path.join(dir, 'vo', sc.id + (cfg.backend === 'bailian' || process.platform === 'win32' ? '_raw.wav' : '_raw.aiff'));
+    const { cmd, args, env, input } = buildTtsCommand({ cfg, sc, raw: rawSrc });
+    execFileSync(cmd, args, { env, input, timeout: 120000, windowsHide: true, stdio: [input ? 'pipe' : 'ignore', 'pipe', 'pipe'] });
     execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', rawSrc, '-ar', '44100', '-ac', '1', wav], { stdio: ['ignore', 'pipe', 'pipe'] });
     fs.unlinkSync(rawSrc);
     console.log('ok', sc.id, probeDuration(wav).toFixed(2) + 's', '(' + cfg.backend + ')');

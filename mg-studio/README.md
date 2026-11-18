@@ -449,6 +449,8 @@ node scripts/studio.js ../my-film --port 3000 --open
 为了让临床医生、科研工作者及非技术背景创作者享受开箱即用的原生软件体验，`mg-studio` 现已提供原生窗口独立桌面客户端：
 
 * **启动命令**：`npm run desktop`（或指定分镜目录 `npm run desktop ../my-project`）。
+* **随包示例**：首次打开时复制到系统文档目录 `MG Studio Projects/mini-style-medical` 并编译预览。再次打开会继续使用这份可编辑工程。
+* **配音与导出环境**：安装包包含 JavaScript 运行时与 Playwright 驱动。请安装 Google Chrome，并让 `ffmpeg`（支持 `libx264`）和 `ffprobe` 能从 `PATH` 找到。macOS 使用系统 `say`，默认声音为 Tingting；Windows 使用 System.Speech，中文旁白需要已安装的中文桌面语音，可用 `TTS_VOICE` 选择已安装的声音。工程也可以通过 `meta.tts.backend` 选择已经配置好的 `bailian` 后端。
 * **核心组成**：
   * **主进程托管 (`desktop/main.js`)**：自动启动并托管本地 Studio 服务（动态分配可用端口，严格本地回环），管理原生应用菜单与快捷键（`Cmd+N` 新建 / `Cmd+O` 打开 / `Cmd+B` 编译 / `Cmd+E` 导出）。内置全局异常弹窗守护与本地日志持久化（`mg-studio-error.log`）。
   * **项目中心 (`desktop/project-hub.html`)**：启动欢迎中心，展示快速创作入口、内置经典模板、最近项目记录与环境自检看板。

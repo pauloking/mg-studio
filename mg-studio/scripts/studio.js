@@ -9,7 +9,8 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { projectFilePath, sceneFilePath, validateSceneUpdate } = require('../lib/project-files');
-const { spawn, execFileSync } = require('child_process');
+const { execFileSync } = require('child_process');
+const { runWorker } = require('../lib/worker');
 
 const ir = require('../lib/ir');
 const { LAYOUT_NAMES, COMPONENTS } = require('../lib/components');
@@ -39,7 +40,7 @@ const MIME_TYPES = {
   '.ico': 'image/x-icon'
 };
 
-const tasks = new Map();
+const activeProjects = new Set();
 
 function resolveProjectDir(target) {
   if (target) return path.resolve(target);
@@ -185,6 +186,7 @@ function collectAllDiagnostics(projectDir) {
 }
 
 function createStudioServer(options = {}) {
+  const tasks = new Map();
   let projectDir = resolveProjectDir(options.projectDir);
   const projectsDir = options.projectsDir || path.join(path.dirname(projectDir), 'mg-projects');
   const csrfToken = crypto.randomBytes(32).toString('hex');
@@ -567,93 +569,63 @@ function createStudioServer(options = {}) {
           return;
         }
 
-        // POST /api/tts
-        if (pathname === '/api/tts' && req.method === 'POST') {
+        // 配音和出片都会写同一工程的音轨与时间轴。
+        if ((pathname === '/api/tts' || pathname === '/api/export') && req.method === 'POST') {
+          const workDir = fs.realpathSync(projectDir);
           const body = await parseJsonBody(req);
-          const backend = body.backend || 'local';
-          const ttsScript = path.join(__dirname, 'tts.js');
-          const buildTlScript = path.join(__dirname, 'build_timeline.js');
-
-          const proc = spawn(process.execPath, [ttsScript, '--backend', String(backend)], {
-            cwd: projectDir,
-            env: process.env
-          });
-
-          let logs = '';
-          proc.stdout.on('data', d => { logs += d.toString(); });
-          proc.stderr.on('data', d => { logs += d.toString(); });
-
-          proc.on('close', code => {
-            if (code === 0 && fs.existsSync(buildTlScript)) {
-              try {
-                const tlLog = execFileSync(process.execPath, [buildTlScript], { cwd: projectDir }).toString();
-                logs += '\n' + tlLog;
-              } catch (e) {
-                logs += '\nbuild_timeline error: ' + e.message;
-              }
-            }
-            sendJson(res, 200, {
-              ok: code === 0,
-              code,
-              logs
+          const storyPath = path.join(workDir, 'story.json');
+          const scriptPath = path.join(workDir, 'script.json');
+          const backend = body.backend || (fs.existsSync(storyPath)
+            ? JSON.parse(fs.readFileSync(storyPath, 'utf8')).meta?.tts?.backend
+            : fs.existsSync(scriptPath) && JSON.parse(fs.readFileSync(scriptPath, 'utf8')).tts?.backend) || 'local';
+          if (!['local', 'bailian'].includes(backend)) {
+            sendJson(res, 400, { ok: false, error: '未知配音后端' });
+            return;
+          }
+          if (activeProjects.has(workDir)) {
+            sendJson(res, 409, { ok: false, error: '当前工程正在配音或导出' });
+            return;
+          }
+          activeProjects.add(workDir);
+          function run(name, args, onLog, timeout) {
+            return runWorker(path.join(__dirname, name), args, {
+              cwd: workDir, onLog, spawnProcess: options.spawnProcess, timeout
             });
-          });
-          return;
-        }
+          }
 
-        // POST /api/export
-        if (pathname === '/api/export' && req.method === 'POST') {
-          const taskId = 'task_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
-          const taskRecord = {
-            id: taskId,
-            status: 'running',
-            progress: 10,
-            log: 'Starting export pipeline...\n'
-          };
-          tasks.set(taskId, taskRecord);
-
-          const exportProjectDir = projectDir;
-          // 异步执行编译与导出
-          setTimeout(() => {
+          if (pathname === '/api/tts') {
+            let logs = '';
+            const log = chunk => { logs += chunk; };
             try {
-              taskRecord.log += 'Step 1/3: Compiling project...\n';
-              const comp = compileProject(exportProjectDir);
-              if ((comp.errors || []).length) {
-                taskRecord.status = 'error';
-                taskRecord.log += 'Compilation failed:\n' + comp.errors.join('\n');
-                return;
-              }
-              taskRecord.progress = 40;
-              taskRecord.log += 'Step 2/3: Checking audio & timeline...\n';
-
-              const makeSh = path.join(__dirname, 'make.sh');
-              if (fs.existsSync(makeSh)) {
-                taskRecord.log += 'Step 3/3: Running make.sh...\n';
-                const sub = (options.spawnProcess || spawn)('bash', [makeSh, path.resolve(__dirname, '..'), 'local', 'output'], { cwd: exportProjectDir, env: process.env });
-                sub.on('error', err => {
-                  taskRecord.status = 'error';
-                  taskRecord.log += '\nFailed to start export: ' + err.message;
-                });
-                sub.stdout.on('data', d => {
-                  taskRecord.log += d.toString();
-                  if (taskRecord.progress < 90) taskRecord.progress += 5;
-                });
-                sub.stderr.on('data', d => { taskRecord.log += d.toString(); });
-                sub.on('close', code => {
-                  taskRecord.status = code === 0 ? 'done' : 'error';
-                  taskRecord.progress = code === 0 ? 100 : taskRecord.progress;
-                  taskRecord.log += `\nExport finished with exit code ${code}.\n`;
-                });
-              } else {
-                taskRecord.status = 'error';
-                taskRecord.log += 'Export pipeline make.sh is missing.\n';
-              }
-            } catch (e) {
-              taskRecord.status = 'error';
-              taskRecord.log += 'Export error: ' + e.message;
+              await run('compile.js', [], log, 30000);
+              await run('tts.js', ['--backend', backend], log, 300000);
+              await run('build_timeline.js', [], log, 30000);
+              sendJson(res, 200, { ok: true, code: 0, logs });
+            } catch (error) {
+              sendJson(res, 200, { ok: false, code: 1, logs: logs + '\n' + error.message });
+            } finally {
+              activeProjects.delete(workDir);
             }
-          }, 50);
+            return;
+          }
 
+          const taskId = 'task_' + crypto.randomUUID();
+          const task = { id: taskId, status: 'running', progress: 10, log: 'Starting export pipeline...\n' };
+          tasks.set(taskId, task);
+          const log = chunk => {
+            task.log = (task.log + chunk).slice(-65536);
+            if (/==> [1-5]/.test(chunk)) task.progress = Math.min(task.progress + 10, 95);
+          };
+          run('export.js', [backend, 'output'], log)
+            .then(() => {
+              task.status = 'done';
+              task.progress = 100;
+            })
+            .catch(error => {
+              task.status = 'error';
+              log('\nExport failed: ' + error.message);
+            })
+            .finally(() => activeProjects.delete(workDir));
           sendJson(res, 200, { ok: true, taskId });
           return;
         }

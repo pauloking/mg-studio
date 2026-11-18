@@ -155,7 +155,7 @@ test('bibliographic metadata never becomes a clinical claim; uploads remain unve
 test('export reports process startup errors instead of leaving the task running', async t => {
   const f = await fixture(t, { spawnProcess: () => {
     const sub = new EventEmitter(); sub.stdout = new EventEmitter(); sub.stderr = new EventEmitter();
-    setImmediate(() => sub.emit('error', new Error('bash missing'))); return sub;
+    setImmediate(() => sub.emit('error', new Error('worker missing'))); return sub;
   } });
   const { taskId } = await (await post(f.fetch, f.base + '/api/export', {})).json();
   let task;
@@ -164,5 +164,5 @@ test('export reports process startup errors instead of leaving the task running'
     task = await (await f.fetch(f.base + '/api/task-status?taskId=' + taskId)).json();
     if (task.status !== 'running') break;
   }
-  assert.equal(task.status, 'error'); assert.ok(task.log.includes('bash missing'));
+  assert.equal(task.status, 'error'); assert.ok(task.log.includes('worker missing'));
 });

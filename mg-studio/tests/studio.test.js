@@ -207,7 +207,7 @@ test('Studio HTTP 服务端生命周期与核心路由集成测试', async () =>
     assert.equal(taskData.id, exportData.taskId);
     assert.equal(taskData.status, 'done', taskData.log);
     assert.equal(calls.length, 1);
-    assert.deepEqual(calls[0].slice(0, 2), ['bash', [path.join(ROOT, 'scripts', 'make.sh'), ROOT, 'local', 'output']]);
+    assert.deepEqual(calls[0].slice(0, 2), [process.execPath, [path.join(ROOT, 'scripts', 'export.js'), 'local', 'output']]);
     assert.equal(calls[0][2].cwd, work);
     assert.ok(taskData.log.length > 0);
 

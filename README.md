@@ -52,7 +52,7 @@
 │   │   ├── lint_story.js      #   G0 故事门 CLI：检查叙事结构与脚本质量（生成 reports/story-lint.md）
 │   │   ├── preview_script.js  #   配音前分镜人审 CLI（打印分镜；存在未核实 facts 阻断）
 │   │   ├── lint_scene.js      #   编译后门 CLI：实测 DOM 包围盒 + 实测音频时长重跑 lint
-│   │   ├── tts.js             #   配音生成（local say / 阿里云百炼 bailian，支持 --only 场景过滤）
+│   │   ├── tts.js             #   配音生成（本地系统语音 / 阿里云百炼，支持 --only 场景过滤）
 │   │   ├── build_timeline.js  #   按真实音频时长排定毫秒级时间轴
 │   │   ├── assemble_audio.js  #   旁白 + 可选 BGM 智能混音
 │   │   ├── render_three.js    #   为 timeline 中的 three3d 段调用外部工程确定性渲染
@@ -136,7 +136,7 @@ npm run doctor
   * `Chrome`（本机 Google Chrome 或通过 Playwright 安装的 Chromium）
   * `ffmpeg` 与 `ffprobe`（含 `libx264` 编码器）
 * **配音依赖**：
-  * 默认使用本地免费 `say`（macOS 自带，零外部调用开销）。
+  * 默认使用本地系统配音（macOS `say`，Windows System.Speech；中文旁白需要对应语音）。
   * 如需商业级中文配音，配置环境变量 `BL_API_KEY`（阿里云百炼）。
 * **可选依赖**：`python3` + `PIL`（用于旧片像素等价回归与 `contact_sheet` 关键帧拼图）。
 

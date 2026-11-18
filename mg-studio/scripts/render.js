@@ -15,6 +15,7 @@ const { pickSmokeFrames } = require('../lib/scene-map');
 function loadPW() {
   if (process.env.PW_PATH) return require(process.env.PW_PATH);
   try { return require('playwright'); } catch (e) {}
+  try { return require('playwright-core'); } catch (e) {}
   try {
     const root = require('child_process').execSync('npm root -g', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
     return require(path.join(root, 'playwright'));
