@@ -94,8 +94,19 @@ async function startStudioForProject(projectDir) {
   }
 
   const resolved = resolveProjectDir(projectDir);
-  currentServer = createStudioServer({ projectDir: resolved, port: 0, projectsDir: projectsDir() }); // port 0 动态获取空闲端口
-  const running = await currentServer.start();
+  const server = createStudioServer({
+    projectDir: resolved, port: 0, projectsDir: projectsDir(),
+    onProjectCreated(projectPath, meta) {
+      if (currentServer !== server || !currentProjectInfo) return;
+      currentProjectInfo = {
+        ...currentProjectInfo, title: meta.title, audience: meta.audience,
+        path: projectPath, lastOpened: new Date().toISOString()
+      };
+      saveRecentProject(currentProjectInfo);
+    }
+  });
+  currentServer = server;
+  const running = await server.start();
 
   // 读取工程基本信息用于最近项目记录
   let title = path.basename(resolved);

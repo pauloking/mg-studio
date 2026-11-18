@@ -77,3 +77,15 @@ test('HTTP API 区分上游全失败与正常无命中', async (t) => {
   assert.equal(emptyBody.status, 'empty');
   assert.match(emptyBody.message, /Europe PMC（无命中）.*OpenAlex（HTTP 429）/);
 });
+
+test('PubMed 摘要按选中的 ID 获取，拒绝非文献 URL', async t => {
+  const { fetchArticleAbstract } = require('../lib/research');
+  const get = t.mock.method(axios, 'get', async (url, { params }) => {
+    assert.equal(url, 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi');
+    assert.equal(params.id, '37634148');
+    return { data: '<PubmedArticleSet><PubmedArticle><MedlineCitation><Article><Abstract><AbstractText Label="METHODS">Trial with <i>two groups</i> &amp; follow-up.</AbstractText></Abstract></Article></MedlineCitation></PubmedArticle></PubmedArticleSet>' };
+  });
+  assert.equal(await fetchArticleAbstract('pmid_37634148'), 'METHODS: Trial with two groups & follow-up.');
+  await assert.rejects(() => fetchArticleAbstract('https://example.com/'), { statusCode: 400 });
+  assert.equal(get.mock.callCount(), 1);
+});

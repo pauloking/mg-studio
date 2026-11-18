@@ -21,7 +21,7 @@ const { lintMedical } = require('../lib/medical-lint');
 const { lintMotion } = require('../lib/motion-lint');
 const { loadTemplate } = require('../lib/narratives');
 const { splitSubs } = require('../lib/subs');
-const { searchLiterature, getCuratedTopics } = require('../lib/research');
+const { searchLiterature, fetchArticleAbstract, getCuratedTopics } = require('../lib/research');
 const { buildStoryboardDefinition, writeAndCompileGeneratedProject } = require('../lib/ai-generator');
 const { extractRawText, analyzeDocumentText } = require('../lib/doc-parser');
 
@@ -187,6 +187,7 @@ function collectAllDiagnostics(projectDir) {
 
 function createStudioServer(options = {}) {
   const tasks = new Map();
+  let storyboardPreview;
   let projectDir = resolveProjectDir(options.projectDir);
   const projectsDir = options.projectsDir || path.join(path.dirname(projectDir), 'mg-projects');
   const csrfToken = crypto.randomBytes(32).toString('hex');
@@ -281,6 +282,19 @@ function createStudioServer(options = {}) {
           return;
         }
 
+        if (pathname === '/api/article-abstract' && req.method === 'POST') {
+          const { id } = await parseJsonBody(req);
+          try {
+            const abstract = await fetchArticleAbstract(id);
+            sendJson(res, 200, { ok: true, abstract });
+          } catch (error) {
+            sendJson(res, error.statusCode || 502, {
+              ok: false, error: error.statusCode ? error.message : '暂时无法获取摘要。可打开原文并粘贴相关段落。'
+            });
+          }
+          return;
+        }
+
         // POST /api/parse-doc (用户自定义资料上传与知识抽取)
         if (pathname === '/api/parse-doc' && req.method === 'POST') {
           const body = await parseJsonBody(req);
@@ -305,18 +319,40 @@ function createStudioServer(options = {}) {
           return;
         }
 
-        // POST /api/create-project (一键创建/重构新项目并编译)
+        // 保存实际预览定义，导入时使用同一份分镜，重试不会重复写入。
+        if (pathname === '/api/preview-project' && req.method === 'POST') {
+          const body = await parseJsonBody(req);
+          const definition = buildStoryboardDefinition(body);
+          const facts = definition.story.beats.flatMap(beat => beat.facts);
+          if (!facts.length || facts.some(fact => !fact.verified || !(fact.evidence || fact.source || fact.citation?.title))) {
+            sendJson(res, 422, { ok: false, error: '请先添加一条有出处的事实，勾选核实后再生成分镜。' });
+            return;
+          }
+          const id = crypto.randomUUID();
+          storyboardPreview = { id, definition, result: null };
+          sendJson(res, 200, { ok: true, previewId: id, ...definition });
+          return;
+        }
+
         if (pathname === '/api/create-project' && req.method === 'POST') {
           const body = await parseJsonBody(req);
-          // 医学门：verified 只能来自创作者逐条核实（_checked），服务端不再批量置 true。
-          // 患者向项目存在 verified:false 的 fact 会被 lintMedical(MED_FACT_UNVERIFIED) B 级阻断。
-          if (Array.isArray(body.facts)) {
-            body.facts = body.facts.map(f => Object.assign({}, f, { verified: f._checked === true ? true : false }));
+          const preview = body.previewId ? storyboardPreview : null;
+          if (body.previewId && preview?.id !== body.previewId) {
+            sendJson(res, 409, { ok: false, error: '这份预览已失效，请返回上一步重新生成。' });
+            return;
           }
-          const generated = buildStoryboardDefinition(body);
+          if (preview?.result) {
+            sendJson(res, 200, preview.result);
+            return;
+          }
+          const definition = preview?.definition || buildStoryboardDefinition(body);
           const targetDir = path.join(projectsDir, 'project-' + crypto.randomUUID());
-          const result = writeAndCompileGeneratedProject(targetDir, generated);
-          if (result.ok) projectDir = targetDir;
+          const result = writeAndCompileGeneratedProject(targetDir, definition);
+          if (result.ok) {
+            projectDir = targetDir;
+            if (preview) preview.result = result;
+            options.onProjectCreated?.(targetDir, definition.story.meta);
+          }
           sendJson(res, 200, result);
           return;
         }

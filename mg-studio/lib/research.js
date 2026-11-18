@@ -154,6 +154,48 @@ async function searchOpenAlex(query, maxResults) {
   }));
 }
 
+async function fetchArticleAbstract(id) {
+  const { DOMParser } = require('@xmldom/xmldom');
+  const parser = new DOMParser({ errorHandler: { warning() {}, error() {}, fatalError() {} } });
+  const pmid = /^(?:pmid_|epmc_MED_)(\d{1,10})$/.exec(id)?.[1];
+  if (pmid) {
+    const xml = await getJson('https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi', {
+      db: 'pubmed', id: pmid, retmode: 'xml', tool: 'mg-studio'
+    });
+    const article = parser.parseFromString(xml, 'application/xml').getElementsByTagName('PubmedArticle')[0];
+    if (!article) throw new Error('PubMed 未返回这篇文献');
+    const abstract = article.getElementsByTagName('Abstract')[0];
+    if (!abstract) return '';
+    return Array.from(abstract.getElementsByTagName('AbstractText'), p => {
+      const label = p.getAttribute('Label');
+      return (label ? label + ': ' : '') + p.textContent.trim();
+    }).join('\n\n').trim();
+  }
+  const epmc = /^epmc_([A-Z]{2,5})_([A-Za-z0-9.-]{1,48})$/.exec(id);
+  if (epmc) {
+    const data = await getJson('https://www.ebi.ac.uk/europepmc/webservices/rest/search', {
+      query: `EXT_ID:"${epmc[2]}" AND SRC:${epmc[1]}`, resultType: 'core', pageSize: 1, format: 'json'
+    });
+    const item = data?.resultList?.result?.find(record => record.id === epmc[2] && record.source === epmc[1]);
+    if (!item) throw new Error('Europe PMC 未返回这篇文献');
+    const html = (item.abstractText || '').replace(/<\/?(?:p|div|br|h[1-6])(?:\s[^>]*)?\s*\/?>/gi, '\n');
+    return parser.parseFromString(`<body>${html}</body>`, 'text/html').documentElement.textContent.trim();
+  }
+  const work = /^oalex_(W\d{1,20})$/.exec(id)?.[1];
+  if (work) {
+    const key = process.env.OPENALEX_API_KEY;
+    const result = await getJson(`https://api.openalex.org/works/${work}`, { select: 'id,abstract_inverted_index' },
+      key ? { Authorization: `Bearer ${key}` } : undefined);
+    if (result?.id !== `https://openalex.org/${work}`) throw new Error('OpenAlex 未返回这篇文献');
+    const words = [];
+    for (const [word, positions] of Object.entries(result.abstract_inverted_index || {})) {
+      for (const position of positions) if (Number.isInteger(position) && position >= 0 && position < 10000) words[position] = word;
+    }
+    return words.join(' ').trim();
+  }
+  throw Object.assign(new Error('无法识别文献编号'), { statusCode: 400 });
+}
+
 function getFallbackFacts(query) {
   const qLower = (query || '').toLowerCase();
   for (const [k, facts] of Object.entries(CURATED_KNOWLEDGE)) {
@@ -227,6 +269,7 @@ function getCuratedTopics() {
 
 module.exports = {
   searchLiterature,
+  fetchArticleAbstract,
   extractEvidenceClaims,
   getFallbackFacts,
   getCuratedTopics,

@@ -135,14 +135,15 @@ test('generation copies supplied evidence into narration and visuals without inv
   const claim = '本资料仅报告骨折随访结果，未评估心脑血管结局';
   for (const template of ['science', 'product', 'teaching', 'free']) {
     const def = buildStoryboardDefinition({ topic: '骨折', template, facts: [{ claim, source: '用户原文', _checked: true }] });
-    const scene = def.scenes.find(s => s.id === 'conflict');
+    const scene = def.scenes.find(s => s.id === 'fact_1');
+    assert.equal(def.scenes.length, 3, 'one fact should yield one main scene and no placeholder');
     assert.ok(def.story.beats[1].narration.includes(claim));
     assert.equal(scene.elements[0].props.desc, claim);
     assert.equal(def.story.beats[1].facts[0].source, '用户原文');
     assert.ok(!JSON.stringify(def).includes('35.8'));
     assert.ok(!JSON.stringify(def).includes('降低了35%'));
     assert.ok(!def.scenes.some(s => s.layout === 'stat'));
-    assert.equal(lintStory({ story: def.story, template: loadTemplate(template) }).filter(d => d.level === 'B').length, 0);
+    assert.equal(lintStory({ story: def.story, template: loadTemplate(def.story.meta.template) }).filter(d => d.level === 'B').length, 0);
   }
 });
 

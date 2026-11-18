@@ -43,7 +43,11 @@ test('ai-generator: buildStoryboardDefinition 生成符合 IR v2 与门禁规范
     audience: 'patient',
     template: 'science',
     durationTarget: 50,
-    style: 'clean-medical'
+    style: 'clean-medical',
+    facts: [
+      { claim: '这份资料介绍了急诊心电图的用途', evidence: '资料甲', _checked: true },
+      { claim: '这份资料讨论了研究对象和适用范围', evidence: '资料乙', _checked: true }
+    ]
   });
 
   assert.equal(story.schema, 2);
@@ -51,10 +55,10 @@ test('ai-generator: buildStoryboardDefinition 生成符合 IR v2 与门禁规范
   assert.equal(story.meta.audience, 'patient');
   assert.equal(story.meta.template, 'science');
   assert.equal(story.meta.style, 'clean-medical');
-  assert.equal(story.beats.length, 5);
+  assert.equal(story.beats.length, 4);
 
   const roles = story.beats.map(b => b.role);
-  assert.deepEqual(roles, ['hook', 'conflict', 'mechanism', 'evidence', 'takeaway']);
+  assert.deepEqual(roles, ['hook', 'mechanism', 'evidence', 'takeaway']);
 
   // 情绪跨度验证 (>= 2)
   const emotions = story.beats.map(b => b.emotion);
@@ -66,7 +70,7 @@ test('ai-generator: buildStoryboardDefinition 生成符合 IR v2 与门禁规范
   assert.ok(outroNarration.includes('不构成诊疗建议'), '患者向 outro 必须包含免责声明');
 
   // 分镜与 beats 1:1 映射
-  assert.equal(scenes.length, 5);
+  assert.equal(scenes.length, 4);
   scenes.forEach((sc, idx) => {
     assert.equal(sc.id, story.beats[idx].id);
     assert.equal(sc.beat, story.beats[idx].id);
@@ -227,4 +231,29 @@ test('REST API: 选题检索、一键创建与分镜增删改闭环测试', asyn
   } finally {
     await app.close();
   }
+});
+
+test('同一份带来源的分镜预览用于导入，重试时复用已有工程', async t => {
+  const work = copyFixture('preview-source', 'mini-style-medical');
+  const root = path.join(work, 'generated');
+  const app = createStudioServer({ projectDir: work, projectsDir: root, port: 0 });
+  const { port } = await app.start();
+  t.after(() => app.close());
+  const post = (route, body) => studioFetch(app)(`http://127.0.0.1:${port}/api/${route}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  assert.equal((await post('preview-project', { topic: '演示' })).status, 422);
+  const claim = '这项研究比较了两种操作方式';
+  const source = { id: 'pmid_37634148', title: 'Trial title', url: 'https://pubmed.ncbi.nlm.nih.gov/37634148/' };
+  const facts = [{ claim, citation: source, excerpt: 'Original excerpt', _checked: true }];
+  const preview = await (await post('preview-project', { topic: '演示研究', facts })).json();
+  assert.equal(preview.ok, true);
+  assert.equal(preview.scenes.length, 3);
+  assert.equal(preview.scenes[1].elements[0].props.desc, claim);
+  assert.deepEqual(preview.story.beats[1].facts[0].citation, source);
+  assert.equal(fs.existsSync(root), false);
+  const create = await (await post('create-project', { previewId: preview.previewId, topic: 'should not replace preview' })).json();
+  assert.equal(create.ok, true);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(create.projectDir, 'story.json'))), preview.story);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(create.projectDir, 'scenes', 'fact_1.json'))).elements[0].props.desc, claim);
+  assert.deepEqual((await (await post('create-project', { previewId: preview.previewId })).json()).projectDir, create.projectDir);
+  assert.equal(fs.readdirSync(root).length, 1);
 });

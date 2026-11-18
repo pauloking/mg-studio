@@ -1002,10 +1002,10 @@ textarea {
         <div class="form-group">
           <label>叙事模板 (Narrative Template)</label>
           <select id="wzTemplate">
-            <option value="science">科普模板 (Hook-Conflict-Mechanism-Evidence-Takeaway)</option>
-            <option value="teaching">教学拆解 (Objective-Steps-Summary)</option>
-            <option value="product">产品/器械发布 (Hook-Demo-Evidence-CTA)</option>
-            <option value="free">自由模式 (Free)</option>
+            <option value="science">科普讲解</option>
+            <option value="teaching">分步教学</option>
+            <option value="product">产品介绍</option>
+            <option value="free">自由叙述</option>
           </select>
         </div>
       </div>
@@ -1044,14 +1044,37 @@ textarea {
       <div id="searchStatus" style="font-size:12px; color:var(--text-muted); margin-bottom:8px;"></div>
       
       <div style="font-size:12px; font-weight:700; color:var(--accent-light); margin-bottom:6px;">文献检索结果（Europe PMC / PubMed / OpenAlex）</div>
-      <div id="wzArticleList" style="max-height:140px; overflow-y:auto; background:var(--bg-card); border:1px solid var(--border); border-radius:6px; padding:8px; margin-bottom:12px;">
+      <div id="wzArticleList" style="max-height:210px; overflow-y:auto; background:var(--bg-card); border:1px solid var(--border); border-radius:6px; padding:8px; margin-bottom:12px;">
         <div style="color:var(--text-muted); font-size:11px;">点击【联网检索文献】后将在此呈现权威论文与指南出处。</div>
       </div>
 
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-        <div style="font-size:12px; font-weight:700; color:var(--accent-light);">核心医学与科学事实证据库 (Facts Checklist)</div>
+        <div style="font-size:12px; font-weight:700; color:var(--accent-light);">将进入分镜的事实</div>
         <button id="btnAddCustomFact" style="font-size:10px; padding:2px 6px;">+ 手动添加事实</button>
       </div>
+      <p style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">从上方文献添加事实，或填写自己的资料。核对原文后勾选，勾选的内容才会进入分镜。</p>
+      <form id="wzFactEditor" hidden style="padding:12px; background:var(--bg-card); border:1px solid var(--border); border-radius:8px; margin-bottom:12px;">
+        <p id="wzFactPaper" style="font-size:13px; margin-bottom:8px; overflow-wrap:anywhere;"></p>
+        <div id="wzAbstractPanel" hidden class="form-group">
+          <label for="wzAbstractText">原文摘要</label>
+          <div id="wzAbstractStatus" role="status" style="font-size:12px; color:var(--text-muted);"></div>
+          <textarea id="wzAbstractText" rows="4" readonly hidden></textarea>
+          <button id="btnUseAbstractSelection" type="button" hidden>把选中的原文放入摘录</button>
+          <label for="wzFactExcerpt">支持这条事实的原文摘录</label>
+          <textarea id="wzFactExcerpt" rows="2" maxlength="1600" placeholder="从摘要选择或从论文粘贴相关原文"></textarea>
+        </div>
+        <div id="wzFactSourceGroup" class="form-group">
+          <label for="wzFactSource">出处</label>
+          <input type="text" id="wzFactSource" maxlength="300" placeholder="如论文标题、DOI 或资料名称">
+        </div>
+        <div class="form-group">
+          <label for="wzFactText">用于画面和旁白的要点</label>
+          <textarea id="wzFactText" rows="2" maxlength="80" placeholder="用一句简明中文转述，保留研究对象和适用范围（最多 80 字）"></textarea>
+        </div>
+        <button id="btnSaveWizardFact" type="submit" class="primary">保存到事实清单</button>
+        <button id="btnCancelWizardFact" type="button">取消</button>
+        <p id="wzFactEditorStatus" role="status" style="font-size:12px; margin-top:6px;"></p>
+      </form>
       <div id="wzFactsList" style="max-height:160px; overflow-y:auto; display:flex; flex-direction:column; gap:6px;">
         <!-- 动态注入事实条目 -->
       </div>
@@ -1062,7 +1085,7 @@ textarea {
       <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:12px;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <h4 id="previewMetaTitle" style="font-size:15px; color:white;">分镜故事线规划</h4>
-          <span id="previewMetaBadges" style="font-size:11px; color:var(--accent-light);">5 BEATS</span>
+          <span id="previewMetaBadges" style="font-size:11px; color:var(--accent-light);"></span>
         </div>
       </div>
       <div id="wzBeatsPreviewFlow" style="display:flex; flex-direction:column; gap:8px;">
@@ -1070,12 +1093,14 @@ textarea {
       </div>
     </div>
 
+    <div id="wizardStatus" role="status" aria-live="polite" hidden style="font-size:13px; line-height:1.5; max-height:96px; overflow-y:auto; margin-top:10px; color:var(--text-main);"></div>
+
     <!-- 向导底栏操作 -->
     <div style="border-top:1px solid var(--border); padding-top:14px; margin-top:14px; display:flex; justify-content:space-between; align-items:center;">
       <button id="btnWzPrev" style="visibility:hidden;">上一步</button>
       <div style="display:flex; gap:8px;">
         <button id="btnWzNext" class="primary">下一步：文献检索</button>
-        <button id="btnWzCreate" class="primary" style="display:none; background:linear-gradient(135deg, #10b981, #06b6d4); border:none;">🚀 载入工作台并开始演播</button>
+        <button id="btnWzCreate" class="primary" style="display:none; background:linear-gradient(135deg, #10b981, #06b6d4); border:none;">载入工作台</button>
       </div>
     </div>
   </div>
@@ -1264,8 +1289,35 @@ const wizardState = {
   articles: [],
   facts: [],
   selectedFile: null,
-  parsedDoc: null
+  parsedDoc: null,
+  previewId: null,
+  busy: false
 };
+
+const wizardStatus = document.getElementById('wizardStatus');
+const factEditor = document.getElementById('wzFactEditor');
+const factText = document.getElementById('wzFactText');
+const factExcerpt = document.getElementById('wzFactExcerpt');
+const factSource = document.getElementById('wzFactSource');
+const factEditorStatus = document.getElementById('wzFactEditorStatus');
+const abstractText = document.getElementById('wzAbstractText');
+const copyExcerpt = document.getElementById('btnUseAbstractSelection');
+let editingFact;
+
+function setWizardStatus(message, isError = false) {
+  wizardStatus.textContent = message;
+  wizardStatus.hidden = !message;
+  wizardStatus.style.color = isError ? '#fda4af' : 'var(--text-main)';
+}
+
+async function wizardRequest(route, data) {
+  const res = await apiFetch(route, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+  });
+  const result = await res.json();
+  if (!res.ok || !result.ok) throw new Error(result.error || result.compile?.errors?.join('；') || '请求未完成，请重试。');
+  return result;
+}
 
 function showToast(msg) {
   dom.toast.textContent = msg;
@@ -1414,6 +1466,7 @@ async function loadProjectData() {
 
     // 检查并运行质检
     runLintCheck();
+    return data.projectDir;
   } catch (err) {
     showToast('通信错误: ' + err.message);
   }
@@ -1651,7 +1704,8 @@ function populateInspector(sc) {
           <input type="checkbox" id="chkFact_${fIdx}" ${f.verified ? 'checked' : ''}>
           <label for="chkFact_${fIdx}" class="fact-text">${escHtml(f.statement || f.claim || f.text || '事实描述')}</label>
         </div>
-        ${f.evidence ? `<div class="fact-evidence">证据来源: ${escHtml(f.evidence)}</div>` : ''}
+        ${f.evidence || f.citation ? `<div class="fact-evidence">出处　${factSourceMarkup(f)}</div>` : ''}
+        ${f.excerpt ? `<details class="fact-evidence"><summary>查看原文摘录</summary>${escHtml(f.excerpt)}</details>` : ''}
       `;
       const chk = item.querySelector('input[type="checkbox"]');
       chk.addEventListener('change', (e) => {
@@ -1985,6 +2039,7 @@ window.addEventListener('keydown', (e) => {
 async function openCreatorModal() {
   if (dom.creatorModal.classList.contains('show')) return;
   setWizardStep(1);
+  setWizardStatus('');
   dom.creatorModal.classList.add('show');
   dom.wzTopic.focus();
 
@@ -2071,7 +2126,8 @@ async function runLiteratureSearch(query) {
     }
 
     const translated = data.searchQuery && data.searchQuery !== query ? ` 检索式：${data.searchQuery}` : '';
-    dom.searchStatus.textContent = (data.message || `返回 ${wizardState.articles.length} 条文献。`) + translated;
+    const summary = wizardState.articles.length ? `返回 ${wizardState.articles.length} 条文献。点击「引用这篇」查看摘要并填写分镜要点。` : data.message;
+    dom.searchStatus.textContent = (summary || '') + translated;
 
     // 渲染文献列表
     dom.wzArticleList.innerHTML = '';
@@ -2091,6 +2147,11 @@ async function runLiteratureSearch(query) {
             ${escHtml(Array.isArray(art.authors) ? art.authors.slice(0, 3).join(', ') : (art.authors || ''))} ${escHtml(art.journal ? '· ' + art.journal : '')} (${escHtml(art.year || '')}) [来源: ${escHtml(art.source || 'Pub')}]
           </div>
         `;
+        const use = document.createElement('button');
+        use.type = 'button';
+        use.textContent = '引用这篇';
+        use.addEventListener('click', () => editWizardFact({ citation: art }));
+        item.appendChild(use);
         dom.wzArticleList.appendChild(item);
       });
     }
@@ -2105,120 +2166,139 @@ async function runLiteratureSearch(query) {
   }
 }
 
-// 渲染事实清单
-function renderWizardFacts() {
-  dom.wzFactsList.innerHTML = '';
-  if (!wizardState.facts || wizardState.facts.length === 0) {
-    dom.wzFactsList.innerHTML = '<div style="color:var(--text-muted); font-size:11px;">暂无医学事实条目，可点击上方按钮手动添加。</div>';
+function factSourceMarkup(fact) {
+  if (!fact?.citation) return escHtml(fact?.evidence || '');
+  const citation = fact.citation;
+  const title = escHtml(citation.title);
+  if (!/^https?:\/\//i.test(citation.url || '')) return title;
+  return `<a href="${escHtml(citation.url)}" target="_blank" rel="noopener noreferrer" style="color:var(--accent-light);">${title}</a>`;
+}
+
+async function editWizardFact({ citation, index = -1 } = {}) {
+  const fact = index >= 0 ? wizardState.facts[index] : null;
+  citation = fact?.citation || citation;
+  const edit = { index, citation };
+  editingFact = edit;
+  factEditor.hidden = false;
+  factEditorStatus.textContent = '';
+  document.getElementById('wzFactPaper').textContent = citation ? citation.title : '添加来源与事实';
+  document.getElementById('wzFactSourceGroup').hidden = Boolean(citation);
+  document.getElementById('wzAbstractPanel').hidden = !citation;
+  factSource.value = fact?.evidence || '';
+  factText.value = fact?.claim || fact?.statement || '';
+  factExcerpt.value = fact?.excerpt || '';
+  abstractText.value = '';
+  abstractText.hidden = copyExcerpt.hidden = true;
+  factEditor.scrollIntoView({ block: 'nearest' });
+  factText.focus({ preventScroll: true });
+  if (!citation) return;
+
+  const status = document.getElementById('wzAbstractStatus');
+  status.textContent = '正在获取摘要…也可以打开文献原文并粘贴摘录。';
+  try {
+    const data = await wizardRequest('/api/article-abstract', { id: citation.id });
+    if (editingFact !== edit) return;
+    if (!data.abstract) {
+      status.textContent = '来源未提供摘要。请打开文献原文，粘贴支持这条事实的段落。';
+      return;
+    }
+    abstractText.value = data.abstract;
+    abstractText.hidden = copyExcerpt.hidden = false;
+    status.textContent = '选中相关原文后可填入摘录，再写适合视频的表述。';
+  } catch (error) {
+    if (editingFact === edit) status.textContent = error.message;
+  }
+}
+
+function closeFactEditor() {
+  editingFact = null;
+  factEditor.hidden = true;
+}
+document.getElementById('btnCancelWizardFact').addEventListener('click', closeFactEditor);
+copyExcerpt.addEventListener('click', () => {
+  const selected = abstractText.value.slice(abstractText.selectionStart, abstractText.selectionEnd).trim();
+  if (!selected || selected.length > factExcerpt.maxLength) {
+    factEditorStatus.textContent = '请先在摘要中选中一段原文（最多 1600 字）。';
     return;
   }
+  factExcerpt.value = selected;
+  factEditorStatus.textContent = '';
+  factText.focus();
+});
+factEditor.addEventListener('submit', (event) => {
+  event.preventDefault();
+  if (!editingFact) return;
+  const { citation, index } = editingFact;
+  const claim = factText.value.trim();
+  const evidence = citation?.title || factSource.value.trim();
+  const excerpt = citation ? factExcerpt.value.trim() : '';
+  if (!claim || claim.length > Number(factText.maxLength) || !evidence || (citation && !excerpt)) {
+    factEditorStatus.textContent = '请填写出处和简明要点。引用文献时也请保留支持它的原文摘录。';
+    return;
+  }
+  const fact = { claim, statement: claim, evidence, citation, excerpt, _checked: false, verified: false };
+  if (index >= 0) wizardState.facts[index] = fact;
+  else wizardState.facts.push(fact);
+  closeFactEditor();
+  renderWizardFacts();
+  setWizardStatus('事实已保存。请核对原文及适用范围，再勾选使用。');
+});
 
+function renderWizardFacts() {
+  dom.wzFactsList.innerHTML = '';
+  if (!wizardState.facts.length) {
+    dom.wzFactsList.textContent = '暂无事实。可引用上方文献，或手动添加已有资料。';
+    return;
+  }
   wizardState.facts.forEach((fact, idx) => {
     const item = document.createElement('div');
-    item.style.display = 'flex';
-    item.style.alignItems = 'flex-start';
-    item.style.gap = '8px';
-    item.style.padding = '6px 8px';
-    item.style.background = 'var(--bg-card)';
-    item.style.borderRadius = '4px';
-    item.style.border = fact.isUserDoc ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid var(--border)';
-
-    let badgeHtml = '';
-    if (fact.isUserDoc) {
-      badgeHtml = `<span style="font-size:10px; color:#10b981; background:rgba(16,185,129,0.15); padding:1px 6px; border-radius:3px; font-weight:600; margin-left:6px;">[用户资料]</span>`;
-    } else {
-      badgeHtml = `<span style="font-size:10px; color:var(--accent-light); background:var(--bg-hover); padding:1px 6px; border-radius:3px; font-weight:600; margin-left:6px;">[文献检索库]</span>`;
-    }
-
+    item.style.cssText = 'padding:8px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;overflow-wrap:anywhere;';
     item.innerHTML = `
-      <input type="checkbox" id="wzFactChk_${idx}" ${fact._checked ? 'checked' : ''} style="margin-top:3px;">
-      <div style="flex:1;">
-        <div style="font-size:12px; color:white; line-height:1.4;">
-          ${escHtml(fact.statement || fact.claim)}
-          ${badgeHtml}
-        </div>
-        ${fact.evidence ? `<div style="font-size:10px; color:var(--text-muted); margin-top:2px;">出处: ${escHtml(fact.evidence)}</div>` : ''}
-      </div>
-    `;
-
-    const chk = item.querySelector('input');
-    chk.addEventListener('change', (e) => {
-      fact._checked = e.target.checked;
-      fact.verified = e.target.checked;
+      <div style="font-size:13px; margin-bottom:6px;">${escHtml(fact.claim || fact.statement)}</div>
+      <div style="font-size:12px;color:var(--text-muted);">${factSourceMarkup(fact)}</div>
+      ${fact.excerpt ? `<details style="font-size:12px;margin:4px 0;"><summary>查看原文摘录</summary>${escHtml(fact.excerpt)}</details>` : ''}
+      <label style="font-size:12px;"><input type="checkbox" id="wzFactChk_${idx}" ${fact._checked === true ? 'checked' : ''}> 已核对原文及适用范围，纳入分镜</label>
+      <button type="button" class="edit-fact" style="margin-left:8px;">编辑</button>`;
+    item.querySelector('input').addEventListener('change', e => {
+      fact._checked = fact.verified = e.target.checked;
+      setWizardStatus('');
     });
-    // 默认不勾选：verified 只能来自创作者显式核实（医学门 MED_FACT_UNVERIFIED）
-    fact._checked = fact._checked === true;
-    fact.verified = fact.verified === true;
-    chk.checked = fact._checked;
-
+    item.querySelector('.edit-fact').addEventListener('click', () => editWizardFact({ index: idx }));
     dom.wzFactsList.appendChild(item);
   });
 }
 
-// 准备 Step 3 故事线与分镜流预览
-function prepareStep3Preview() {
-  const topic = dom.wzTopic.value.trim();
-  const audience = dom.wzAudience.value;
-  const template = dom.wzTemplate.value;
-  const duration = parseInt(dom.wzDuration.value, 10);
-  const style = dom.wzStyle.value;
-
-  dom.previewMetaTitle.textContent = `${topic} · ${template.toUpperCase()} 分镜规划`;
-  dom.previewMetaBadges.textContent = `目标: ${duration}s | 受众: ${audience} | 风格: ${style}`;
-
-  let roles = ['hook', 'conflict', 'mechanism', 'evidence', 'takeaway'];
-  if (template === 'teaching') {
-    roles = ['objective', 'prerequisite', 'steps', 'evidence', 'summary'];
-  } else if (template === 'product') {
-    roles = ['hook', 'context', 'demo', 'evidence', 'cta'];
-  }
-
-  const roleLayoutMap = {
-    hook: { layout: 'title-card', title: '主题介绍', desc: '明确主题与阅读范围' },
-    objective: { layout: 'title-card', title: '学习目标', desc: '明确主题与阅读范围' },
-    conflict: { layout: 'points', title: '资料要点', desc: '呈现作者选用的原文事实' },
-    context: { layout: 'points', title: '资料要点', desc: '呈现作者选用的原文事实' },
-    prerequisite: { layout: 'points', title: '资料要点', desc: '呈现作者选用的原文事实' },
-    mechanism: { layout: 'points', title: '进一步了解', desc: '呈现原文内容，不推断医学机制' },
-    steps: { layout: 'points', title: '进一步了解', desc: '呈现原文内容，不补写操作指令' },
-    demo: { layout: 'points', title: '进一步了解', desc: '呈现原文内容，不推断产品效果' },
-    evidence: { layout: 'points', title: '证据与结论', desc: '呈现原文内容，不生成示例疗效数字' },
-    takeaway: { layout: 'points', title: '回顾与核实', desc: '提示核对来源与适用条件' },
-    cta: { layout: 'points', title: '回顾与核实', desc: '提示核对来源与适用条件' },
-    summary: { layout: 'points', title: '回顾与核实', desc: '提示核对来源与适用条件' }
-  };
-
+function renderStoryboardPreview({ story, scenes, templateAdjusted }) {
+  const count = story.beats.reduce((sum, beat) => sum + beat.facts.length, 0);
+  const audience = { patient: '患者科普', professional: '专业受众', general: '大众通用' };
+  dom.previewMetaTitle.textContent = story.meta.title;
+  dom.previewMetaBadges.textContent = `${scenes.length} 镜头 · ${count} 条已核实事实 · ${audience[story.meta.audience]} · 目标 ${story.meta.durationTarget} 秒`;
   dom.wzBeatsPreviewFlow.innerHTML = '';
-  roles.forEach((r, idx) => {
-    const info = roleLayoutMap[r] || { layout: 'points', title: r, desc: '内容阐述' };
-    const beatCard = document.createElement('div');
-    beatCard.style.padding = '10px 12px';
-    beatCard.style.background = 'var(--bg-card)';
-    beatCard.style.border = '1px solid var(--border)';
-    beatCard.style.borderRadius = '6px';
-    beatCard.style.display = 'flex';
-    beatCard.style.gap = '12px';
-    beatCard.style.alignItems = 'center';
-
-    beatCard.innerHTML = `
-      <div style="font-size:16px; font-weight:800; color:var(--accent); min-width:30px;">#${idx + 1}</div>
-      <div style="flex:1;">
-        <div style="display:flex; align-items:center; gap:8px;">
-          <strong style="font-size:13px; color:white;">分镜: ${r}</strong>
-          <span class="role-badge role-${['hook','conflict','mechanism','evidence','takeaway'].includes(r)?r:'other'}">${r}</span>
-          <span style="font-size:11px; color:var(--text-muted); background:var(--bg-input); padding:1px 6px; border-radius:4px;">组件: ${info.layout}</span>
-        </div>
-        <div style="font-size:12px; color:var(--text-muted); margin-top:4px;">${info.title} - ${info.desc}</div>
-      </div>
-      <div style="font-size:11px; color:var(--accent-light); font-weight:600;">约 ${Math.round(duration / roles.length)}s</div>
-    `;
-    dom.wzBeatsPreviewFlow.appendChild(beatCard);
+  if (templateAdjusted) {
+    const hint = document.createElement('p');
+    hint.style.cssText = 'font-size:12px;color:var(--text-muted);';
+    hint.textContent = '当前事实较少，按开场、资料要点和小结生成精简分镜。';
+    dom.wzBeatsPreviewFlow.appendChild(hint);
+  }
+  story.beats.forEach((beat, i) => {
+    const card = document.createElement('article');
+    card.style.cssText = 'padding:10px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;line-height:1.55;overflow-wrap:anywhere;';
+    const lines = scenes[i].elements.flatMap(({ props }) => [props.content, props.title, props.desc].filter(Boolean));
+    const refs = beat.facts.map(factSourceMarkup).filter(Boolean);
+    card.innerHTML = `
+      <strong>${escHtml(beat.intent)}</strong>
+      <span style="font-size:12px;color:var(--text-muted);"> · 建议至少 ${scenes[i].minSec} 秒</span>
+      <div style="font-size:13px; margin-top:4px;"><strong>画面</strong>　${lines.map(escHtml).join(' · ')}</div>
+      <div style="font-size:13px;"><strong>旁白</strong>　${escHtml(beat.narration)}</div>
+      ${refs.length ? `<div style="font-size:12px;color:var(--text-muted);">出处　${refs.join('；')}</div>` : ''}`;
+    dom.wzBeatsPreviewFlow.appendChild(card);
   });
 }
 
 // 绑定向导事件
 dom.btnNewProject.addEventListener('click', openCreatorModal);
 function closeCreatorModal() {
+  if (wizardState.busy) return;
   dom.creatorModal.classList.remove('show');
   dom.btnNewProject.focus();
 }
@@ -2383,104 +2463,85 @@ dom.btnApplyParsedDoc.addEventListener('click', () => {
 });
 
 dom.btnWzPrev.addEventListener('click', () => {
-  if (wizardState.currentStep > 1) {
+  if (!wizardState.busy && wizardState.currentStep > 1) {
+    setWizardStatus('');
     setWizardStep(wizardState.currentStep - 1);
   }
 });
 
-dom.btnWzNext.addEventListener('click', () => {
+dom.btnWzNext.addEventListener('click', async () => {
+  if (wizardState.busy) return;
   if (wizardState.currentStep === 1) {
     const topic = dom.wzTopic.value.trim();
     if (!topic) {
-      showToast('请先输入视频主题或点击上方推荐选题！');
+      setWizardStatus('请先填写视频主题。', true);
       return;
     }
     dom.wzSearchQuery.value = topic;
+    setWizardStatus('');
     setWizardStep(2);
-    if (wizardState.articles.length === 0 && wizardState.facts.length === 0) {
-      runLiteratureSearch(topic);
-    }
+    if (wizardState.articles.length === 0 && wizardState.facts.length === 0) runLiteratureSearch(topic);
   } else if (wizardState.currentStep === 2) {
-    prepareStep3Preview();
-    setWizardStep(3);
+    const facts = wizardState.facts.filter(fact => fact._checked === true);
+    if (!facts.length) {
+      setWizardStatus('请先引用一篇文献或手动添加事实，核对原文并勾选后再生成分镜。', true);
+      return;
+    }
+    if (editingFact) {
+      setWizardStatus('请先保存或取消正在编辑的事实。', true);
+      return;
+    }
+    wizardState.busy = dom.btnWzNext.disabled = dom.btnWzPrev.disabled = true;
+    setWizardStatus('正在生成分镜预览…');
+    try {
+      const data = await wizardRequest('/api/preview-project', {
+        topic: dom.wzTopic.value.trim(), audience: dom.wzAudience.value,
+        template: dom.wzTemplate.value, durationTarget: Number(dom.wzDuration.value),
+        style: dom.wzStyle.value, facts
+      });
+      wizardState.previewId = data.previewId;
+      renderStoryboardPreview(data);
+      setWizardStep(3);
+      dom.step3Content.scrollTop = 0;
+      setWizardStatus('');
+    } catch (error) {
+      setWizardStatus(error.message, true);
+    } finally {
+      wizardState.busy = dom.btnWzNext.disabled = dom.btnWzPrev.disabled = false;
+    }
   }
 });
 
 dom.btnRunSearch.addEventListener('click', () => {
   const q = dom.wzSearchQuery.value.trim() || dom.wzTopic.value.trim();
-  if (q) {
-    runLiteratureSearch(q);
-  }
+  if (q) runLiteratureSearch(q);
 });
+dom.btnAddCustomFact.addEventListener('click', () => editWizardFact());
 
-dom.btnAddCustomFact.addEventListener('click', () => {
-  const claim = prompt('请输入新的医学/科学事实断言:');
-  if (claim && claim.trim()) {
-    const evidence = prompt('请输入该事实的参考文献或证据出处 (可选):') || '专家临床共识';
-    // 自定义事实默认待核实；verified/_checked 由创作者在事实列表里勾选驱动
-    wizardState.facts.push({
-      claim: claim.trim(),
-      statement: claim.trim(),
-      evidence: evidence.trim(),
-      verified: false,
-      _checked: false
-    });
-    renderWizardFacts();
-    showToast('自定义事实已添加');
-  }
-});
-
-// 一键创建并载入工作台
 dom.btnWzCreate.addEventListener('click', async () => {
-  const topic = dom.wzTopic.value.trim();
-  const audience = dom.wzAudience.value;
-  const template = dom.wzTemplate.value;
-  const targetDuration = parseInt(dom.wzDuration.value, 10);
-  const style = dom.wzStyle.value;
-  const facts = wizardState.facts.filter(f => f._checked !== false);
-
+  if (wizardState.busy || !wizardState.previewId) return;
+  wizardState.busy = dom.btnWzCreate.disabled = dom.btnWzPrev.disabled = true;
+  dom.btnWzCreate.textContent = '正在载入…';
+  setWizardStatus('正在保存并编译分镜…');
+  let loaded = false;
   try {
-    dom.btnWzCreate.disabled = true;
-    dom.btnWzCreate.textContent = '正在全自动生成分镜与代码...';
-    showToast('AI 正在构建分镜骨架、编写排版组件并全量编译...');
-
-    const res = await apiFetch('/api/create-project', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        topic,
-        audience,
-        template,
-        durationTarget: targetDuration,
-        style,
-        facts
-      })
-    });
-
-    const data = await res.json();
-    if (!data.ok) {
-      showToast('创建失败: ' + (data.error || (data.compile && data.compile.errors.join('; '))));
-      dom.btnWzCreate.disabled = false;
-      dom.btnWzCreate.textContent = '🚀 载入工作台并开始演播';
-      return;
-    }
-
-    showToast('🎉 新工程创建并全量编译成功！正在载入工作台...');
-    dom.creatorModal.classList.remove('show');
-    dom.btnWzCreate.disabled = false;
-    dom.btnWzCreate.textContent = '🚀 载入工作台并开始演播';
-
-    if (window.desktopAPI) {
-      await window.desktopAPI.switchProject(data.projectDir);
-      return;
-    }
-    await loadProjectData();
+    const data = await wizardRequest('/api/create-project', { previewId: wizardState.previewId });
+    pause();
+    if (await loadProjectData() !== data.projectDir) throw new Error('工程已保存，但工作台载入失败。请再次点击载入工作台。');
+    seekFrame(Math.min(Math.round(state.fps * 1.2), state.totalFrames - 1));
     reloadIframe();
-    seekFrame(0);
-  } catch (err) {
-    showToast('创建异常: ' + err.message);
-    dom.btnWzCreate.disabled = false;
-    dom.btnWzCreate.textContent = '🚀 载入工作台并开始演播';
+    loaded = true;
+    wizardState.previewId = null;
+  } catch (error) {
+    setWizardStatus(`载入失败：${error.message}`, true);
+  } finally {
+    wizardState.busy = dom.btnWzCreate.disabled = dom.btnWzPrev.disabled = false;
+    dom.btnWzCreate.textContent = '载入工作台';
+  }
+  if (loaded) {
+    setWizardStatus('');
+    closeCreatorModal();
+    showToast('新工程已载入工作台。');
   }
 });
 
