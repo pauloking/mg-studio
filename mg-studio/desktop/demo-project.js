@@ -2,8 +2,23 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { compileProject } = require('../lib/compile');
+const { buildStoryboardDefinition, writeAndCompileGeneratedProject } = require('../lib/ai-generator');
+const topics = require('./demo-topics');
 
-function openDemoProject(projectsDir) {
+function openDemoProject(projectsDir, demoId) {
+  if (demoId !== undefined) {
+    if (typeof demoId !== 'string' || !Object.hasOwn(topics, demoId)) throw new Error('找不到此示例工程。');
+    const { claims, citation, ...topic } = topics[demoId];
+    const target = path.join(projectsDir, `sample-${demoId}`);
+    if (fs.existsSync(target)) return target;
+    const definition = buildStoryboardDefinition({
+      ...topic, durationTarget: 35,
+      facts: claims.map(claim => ({ claim, citation, evidence: citation.title, _checked: true }))
+    });
+    const result = writeAndCompileGeneratedProject(target, definition);
+    if (!result.ok) throw new Error(result.compile.errors.join('\n'));
+    return target;
+  }
   const fixture = path.join(__dirname, '..', 'tests', 'fixtures', 'mini-style-medical');
   const target = path.join(projectsDir, 'mini-style-medical');
   if (fs.existsSync(target)) return target;

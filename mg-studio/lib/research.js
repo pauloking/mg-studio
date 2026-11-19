@@ -3,6 +3,7 @@
  * 支持 Europe PMC、PubMed 与 OpenAlex 的书目检索及常见中文术语映射。
  */
 const axios = require('axios');
+const { DOMParser } = require('@xmldom/xmldom');
 
 // 常见医学与生命科学术语，优先匹配较长的中文短语。
 const TERM_MAP = {
@@ -29,6 +30,7 @@ const TERM_MAP = {
   '溶栓': 'thrombolytic therapy',
   '糖尿病': 'diabetes mellitus',
   '降压药': 'antihypertensive drugs',
+  '心肺复苏': 'cardiopulmonary resuscitation',
   '他汀': 'statin lipid lowering',
   '经导管主动脉瓣置换术': 'transcatheter aortic valve replacement',
   '经导管主动脉瓣置换': 'transcatheter aortic valve replacement',
@@ -67,16 +69,27 @@ const CURATED_KNOWLEDGE = {
 };
 
 const CHINESE_TERM = new RegExp(Object.keys(TERM_MAP).sort((a, b) => b.length - a.length).join('|'), 'g');
+const INFARCTION = /急性心肌梗死|心肌梗死|心梗|STEMI/i;
+const RESCUE_TIMING = /黄金(?:抢救|救治)|(?:抢救|救治|再灌注)(?:时间|时限)|时间窗|120\s*分钟/;
+const BLOOD_PRESSURE_ADHERENCE = /长期(?:用|服)药|用药误区|服药依从|停药/;
 
 function expandQuery(query) {
   const terms = new Set();
+  const infarctionTiming = INFARCTION.test(query) && RESCUE_TIMING.test(query);
   const remainder = query.replace(CHINESE_TERM, term => {
-    terms.add(`"${TERM_MAP[term]}"`);
+    if (!infarctionTiming || !INFARCTION.test(term)) terms.add(`"${TERM_MAP[term]}"`);
     return ' ';
   });
+  if (infarctionTiming) {
+    terms.add('("ST elevation myocardial infarction" OR "acute myocardial infarction" OR STEMI)');
+    terms.add('("time to reperfusion" OR "reperfusion delay" OR "door-to-balloon time" OR "first medical contact" OR "treatment delay")');
+  }
   if (!terms.size) return query;
+  if (query.includes('高血压') && BLOOD_PRESSURE_ADHERENCE.test(query)) {
+    terms.add('("medication adherence" OR "treatment persistence" OR "antihypertensive withdrawal")');
+  }
   // Retain typed acronyms and English phrases while dropping untranslated prose.
-  for (const word of remainder.match(/"[^"\r\n]+"|[a-z][a-z0-9-]*/gi) || []) {
+  for (const word of (infarctionTiming ? remainder.replace(/\bSTEMI\b/gi, '') : remainder).match(/"[^"\r\n]+"|[a-z][a-z0-9-]*/gi) || []) {
     if (!/^(AND|OR|NOT)$/i.test(word)) terms.add(word);
   }
   return [...terms].join(' AND ');
@@ -88,16 +101,26 @@ async function getJson(url, params, headers) {
   return data;
 }
 
-async function searchEuropePMC(query, maxResults) {
+function plainTitle(title) {
+  if (!title) return '（无标题）';
+  const tags = /<\/?(?:b|i|em|strong|sub|sup|span)(?:\s[^>]*)?>/gi;
+  const literal = title.replace(tags, '').replace(/</g, '&lt;');
+  const parser = new DOMParser({ errorHandler: { warning() {}, error() {}, fatalError() {} } });
+  const decoded = parser.parseFromString(`<body>${literal}</body>`, 'text/html').documentElement.textContent;
+  return decoded.replace(tags, '').trim() || '（无标题）';
+}
+
+async function searchEuropePMC(query, maxResults, page) {
+  const cursor = page?.cursor || '*';
   const data = await getJson('https://www.ebi.ac.uk/europepmc/webservices/rest/search', {
-    query, resultType: 'lite', pageSize: maxResults, format: 'json'
+    query, resultType: 'lite', pageSize: maxResults, format: 'json', cursorMark: cursor
   });
   const results = data?.resultList?.result;
-  if (data?.hitCount === 0 && !results) return [];
+  if (data?.hitCount === 0 && !results) return { articles: [], total: 0 };
   if (!Array.isArray(results)) throw new Error('Invalid Europe PMC response');
-  return results.map(item => ({
+  const articles = results.map(item => ({
     id: `epmc_${item.source || 'MED'}_${item.id}`,
-    title: item.title || '（无标题）',
+    title: plainTitle(item.title),
     authors: item.authorString || '',
     journal: item.journalTitle || '',
     year: item.pubYear || '',
@@ -105,17 +128,25 @@ async function searchEuropePMC(query, maxResults) {
     url: item.doi ? `https://doi.org/${item.doi}` : `https://europepmc.org/article/${item.source || 'MED'}/${item.id}`,
     source: 'Europe PMC'
   }));
+  const offset = (page?.offset || 0) + results.length;
+  const total = data.hitCount;
+  const next = results.length && offset < total && data.nextCursorMark && data.nextCursorMark !== cursor
+    ? { offset, cursor: data.nextCursorMark } : null;
+  return { articles, total, next };
 }
 
-async function searchPubMed(query, maxResults) {
+async function searchPubMed(query, maxResults, page) {
   const root = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils';
   const idQuery = /^\d+$/.test(query) ? `${query}[uid]` : query;
+  const offset = page?.offset || 0;
   const search = await getJson(`${root}/esearch.fcgi`, {
-    db: 'pubmed', term: idQuery, retmode: 'json', retmax: maxResults, sort: 'relevance'
+    db: 'pubmed', term: idQuery, retmode: 'json', retmax: Math.min(maxResults, 10000 - offset),
+    retstart: offset, sort: 'relevance'
   });
   const ids = search?.esearchresult?.idlist;
   if (!Array.isArray(ids)) throw new Error('Invalid PubMed search response');
-  if (!ids.length) return [];
+  const total = Number(search.esearchresult.count);
+  if (!ids.length) return { articles: [], total };
   const summaries = await getJson(`${root}/esummary.fcgi`, {
     db: 'pubmed', id: ids.join(','), retmode: 'json'
   });
@@ -124,7 +155,7 @@ async function searchPubMed(query, maxResults) {
     if (!item?.title) return null;
     return {
       id: `pmid_${id}`,
-      title: item.title,
+      title: plainTitle(item.title),
       authors: (item.authors || []).map(a => a.name).join(', '),
       journal: item.fulljournalname || item.source || '',
       year: (item.pubdate || '').match(/\b\d{4}\b/)?.[0] || '',
@@ -134,17 +165,21 @@ async function searchPubMed(query, maxResults) {
     };
   }).filter(Boolean);
   if (!articles.length) throw new Error('Invalid PubMed summaries');
-  return articles;
+  const nextOffset = offset + ids.length;
+  return { articles, total, next: nextOffset < Math.min(total, 10000) ? { offset: nextOffset } : null };
 }
 
-async function searchOpenAlex(query, maxResults) {
+async function searchOpenAlex(query, maxResults, page) {
   const key = process.env.OPENALEX_API_KEY;
-  const data = await getJson('https://api.openalex.org/works', { search: query, per_page: maxResults },
+  const pageNumber = (page?.offset || 0) / maxResults + 1;
+  const data = await getJson('https://api.openalex.org/works', {
+    search: query, per_page: maxResults, page: pageNumber, sort: 'relevance_score:desc'
+  },
     key ? { Authorization: `Bearer ${key}` } : undefined);
   if (!Array.isArray(data?.results)) throw new Error('Invalid OpenAlex response');
-  return data.results.map(item => ({
+  const articles = data.results.map(item => ({
     id: `oalex_${item.id.replace('https://openalex.org/', '')}`,
-    title: item.title || '（无标题）',
+    title: plainTitle(item.title),
     authors: (item.authorships || []).slice(0, 3).map(a => a.author?.display_name).filter(Boolean).join(', '),
     journal: item.primary_location?.source?.display_name || '',
     year: String(item.publication_year || ''),
@@ -152,10 +187,13 @@ async function searchOpenAlex(query, maxResults) {
     url: item.doi || item.id,
     source: 'OpenAlex'
   }));
+  const offset = pageNumber * maxResults;
+  const total = data.meta?.count;
+  const next = articles.length && offset < total && offset + maxResults <= 10000 ? { offset } : null;
+  return { articles, total, next };
 }
 
 async function fetchArticleAbstract(id) {
-  const { DOMParser } = require('@xmldom/xmldom');
   const parser = new DOMParser({ errorHandler: { warning() {}, error() {}, fatalError() {} } });
   const pmid = /^(?:pmid_|epmc_MED_)(\d{1,10})$/.exec(id)?.[1];
   if (pmid) {
@@ -213,25 +251,43 @@ function getFallbackFacts(query) {
 
 async function searchLiterature(query, options = {}) {
   const limit = Number(options.maxResults);
-  const maxResults = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 20) : 5;
+  const maxResults = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 20) : 15;
   const cleanQuery = typeof query === 'string' ? query.trim() : '';
   const searchQuery = expandQuery(cleanQuery);
   const attempts = [];
   const base = { query: cleanQuery, searchQuery, articles: [], extractedFacts: [], mode: 'bibliography-only', attempts };
   if (!cleanQuery) return { ...base, ok: false, status: 'invalid', error: '请输入文献检索关键词。' };
 
-  const providers = [
+  let providers = [
     ['Europe PMC', searchEuropePMC],
     ['PubMed', searchPubMed],
     ['OpenAlex', searchOpenAlex]
   ];
+  // Use PubMed Best Match first for focused clinical queries.
+  if (searchQuery !== cleanQuery && / OR /.test(searchQuery)) {
+    providers = [providers[1], providers[0], providers[2]];
+  }
+  const page = options.page;
+  if (page != null) {
+    providers = providers.filter(([provider]) => provider === page.provider);
+    const validOffset = Number.isSafeInteger(page.offset) && page.offset > 0;
+    let validPosition = page.offset < 10000;
+    if (page.provider === 'Europe PMC') {
+      validPosition = typeof page.cursor === 'string' && page.cursor.length > 0 && page.cursor.length <= 2048;
+    } else if (page.provider === 'OpenAlex') {
+      validPosition = page.offset % maxResults === 0 && page.offset + maxResults <= 10000;
+    }
+    if (!providers.length || !validOffset || !validPosition) {
+      return { ...base, ok: false, status: 'invalid', error: '分页已失效，请重新检索。' };
+    }
+  }
   for (const [provider, search] of providers) {
     try {
-      const articles = (await search(searchQuery, maxResults)).slice(0, maxResults);
+      const { articles, total, next } = await search(searchQuery, maxResults, page);
       attempts.push({ provider, status: articles.length ? 'found' : 'empty' });
-      if (articles.length) {
-        return { ...base, ok: true, status: 'found', provider, articles,
-          message: `${provider} 返回 ${articles.length} 条文献。阅读原文后可手动添加并核实事实。` };
+      if (articles.length || page) {
+        return { ...base, ok: true, status: articles.length ? 'found' : 'empty', provider, articles,
+          total: Number.isSafeInteger(total) ? total : null, nextPage: next ? { provider, ...next } : null };
       }
     } catch (error) {
       const status = error.response?.status;

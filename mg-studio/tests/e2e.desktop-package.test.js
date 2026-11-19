@@ -8,6 +8,47 @@ const { execFileSync } = require('node:child_process');
 const { _electron } = require('playwright-core');
 
 const executablePath = process.env.MG_PACKAGED_EXE;
+
+test('安装包：各主题示例直接载入对应的可预览工程', { skip: !executablePath && 'set MG_PACKAGED_EXE', timeout: 60000 }, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mg-samples-'));
+  const documents = path.join(dir, 'Documents');
+  fs.mkdirSync(documents);
+  let app;
+  try {
+    app = await _electron.launch({ executablePath, args: [`--user-data-dir=${path.join(dir, 'profile')}`] });
+    await app.evaluate(({ app }, dir) => app.setPath('documents', dir), documents);
+    const page = await app.firstWindow();
+    const examples = {
+      pfa: '心房颤动脉冲电场消融', ami: '心梗再灌注的救治时间',
+      hypertension: '高血压长期用药与随访', cpr: '徒手心肺复苏'
+    };
+    for (const [id, title] of Object.entries(examples)) {
+      await page.locator(`[data-example="${id}"]`).click();
+      await page.waitForURL(url => url.searchParams.get('action') === 'sample');
+      await page.getByText(title, { exact: true }).waitFor();
+      await page.locator('.beat-card').nth(3).waitFor();
+      await page.waitForFunction(() => {
+        const frame = document.querySelector('#sceneIframe');
+        const opening = frame?.contentDocument?.getElementById('scenes')?.firstElementChild;
+        return frame?.contentWindow?.__ready && Number(opening?.style.opacity) > 0;
+      });
+      assert.equal(await page.locator('#creatorModal').isVisible(), false);
+      const projectDir = path.join(documents, 'MG Studio Projects', `sample-${id}`);
+      const story = JSON.parse(fs.readFileSync(path.join(projectDir, 'story.json'), 'utf8'));
+      assert.equal(story.meta.title, title);
+      assert.ok(story.beats.some(beat => beat.facts.some(fact => fact.citation?.url)));
+      await page.locator('#btnBackToHub').click();
+    }
+    await page.locator('#btnNewProject').click();
+    await page.waitForURL(url => url.searchParams.get('action') === 'wizard');
+    await page.locator('#wzTopic').waitFor({ state: 'visible' });
+    assert.equal(await page.locator('#wzTopic').inputValue(), '');
+  } finally {
+    if (app) await app.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('安装包：打开示例、编译、配音并导出 1080p MP4', { skip: !executablePath && 'set MG_PACKAGED_EXE', timeout: 240000 }, async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mg-packaged-'));
   const documents = path.join(dir, 'Documents');
@@ -22,7 +63,7 @@ test('安装包：打开示例、编译、配音并导出 1080p MP4', { skip: !e
     await app.evaluate(({ app }, dir) => app.setPath('documents', dir), documents);
     const page = await app.firstWindow();
     await page.locator('#btnOpenDemo').click();
-    await page.waitForURL('http://127.0.0.1:*/');
+    await page.waitForURL(url => url.searchParams.get('action') === 'sample');
     await page.waitForFunction(() => document.querySelector('#sceneIframe')?.contentWindow?.__ready === true);
     const project = path.join(documents, 'MG Studio Projects', 'mini-style-medical');
     assert.ok(fs.existsSync(path.join(project, 'scene.html')));
@@ -68,7 +109,7 @@ test('安装包：工作台按钮打开向导并创建独立工程', { skip: !ex
     await app.evaluate(({ app }, dir) => app.setPath('documents', dir), documents);
     const page = await app.firstWindow();
     await page.locator('#btnOpenDemo').click();
-    await page.waitForURL('http://127.0.0.1:*/');
+    await page.waitForURL(url => url.searchParams.get('action') === 'sample');
     await page.locator('.beat-card').nth(1).click();
     const originalUrl = page.url();
     const original = await page.evaluate(() => window.desktopAPI.getCurrentProject());

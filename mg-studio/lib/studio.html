@@ -132,6 +132,7 @@ button:hover {
   background: var(--bg-hover);
   border-color: var(--accent-light);
 }
+#btnMoreLiterature[hidden] { display: none; }
 button.primary {
   background: var(--accent);
   border-color: var(--accent);
@@ -1041,12 +1042,13 @@ textarea {
         <input type="text" id="wzSearchQuery" placeholder="搜索文献关键词..." style="flex:1;">
         <button id="btnRunSearch" class="primary" style="white-space:nowrap;">🔍 联网检索文献</button>
       </div>
-      <div id="searchStatus" style="font-size:12px; color:var(--text-muted); margin-bottom:8px;"></div>
+      <div id="searchStatus" role="status" style="font-size:12px; color:var(--text-muted); margin-bottom:8px;"></div>
       
       <div style="font-size:12px; font-weight:700; color:var(--accent-light); margin-bottom:6px;">文献检索结果（Europe PMC / PubMed / OpenAlex）</div>
-      <div id="wzArticleList" style="max-height:210px; overflow-y:auto; background:var(--bg-card); border:1px solid var(--border); border-radius:6px; padding:8px; margin-bottom:12px;">
+      <div id="wzArticleList" style="max-height:min(34vh, 300px); overflow-y:auto; background:var(--bg-card); border:1px solid var(--border); border-radius:6px; padding:8px; margin-bottom:8px;">
         <div style="color:var(--text-muted); font-size:11px;">点击【联网检索文献】后将在此呈现权威论文与指南出处。</div>
       </div>
+      <button id="btnMoreLiterature" type="button" hidden style="margin-bottom:12px;">加载更多文献</button>
 
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
         <div style="font-size:12px; font-weight:700; color:var(--accent-light);">将进入分镜的事实</div>
@@ -1246,6 +1248,7 @@ const dom = {
   wzStyle: document.getElementById('wzStyle'),
   wzSearchQuery: document.getElementById('wzSearchQuery'),
   btnRunSearch: document.getElementById('btnRunSearch'),
+  btnMoreLiterature: document.getElementById('btnMoreLiterature'),
   searchStatus: document.getElementById('searchStatus'),
   wzArticleList: document.getElementById('wzArticleList'),
   btnAddCustomFact: document.getElementById('btnAddCustomFact'),
@@ -1287,6 +1290,8 @@ const dom = {
 const wizardState = {
   currentStep: 1,
   articles: [],
+  research: null,
+  topicAtResearchStep: '',
   facts: [],
   selectedFile: null,
   parsedDoc: null,
@@ -2105,64 +2110,73 @@ function setWizardStep(step) {
 }
 
 // 检索学术文献
-async function runLiteratureSearch(query) {
+async function runLiteratureSearch(query, page = null) {
   if (dom.btnRunSearch.disabled) return;
-  dom.btnRunSearch.disabled = true;
-  dom.searchStatus.textContent = '正在联网检索文献…';
-  dom.wzArticleList.innerHTML = '<div style="color:var(--text-muted); font-size:11px;">🔍 检索中，请稍候...</div>';
-
+  dom.btnRunSearch.disabled = dom.btnMoreLiterature.disabled = true;
+  dom.searchStatus.textContent = page ? '正在加载更多文献…' : '正在联网检索文献…';
+  if (!page) {
+    wizardState.research = null;
+    wizardState.articles = [];
+    dom.btnMoreLiterature.hidden = true;
+    dom.wzArticleList.textContent = '检索中，请稍候…';
+  }
   try {
     const res = await apiFetch('/api/research', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, maxResults: 5 })
+      body: JSON.stringify({ query, page })
     });
     const data = await res.json();
-    wizardState.articles = data.articles || [];
-    if (!data.ok) {
-      dom.searchStatus.textContent = data.error || '文献检索失败，请稍后重试。';
-      dom.wzArticleList.textContent = '未能加载文献结果。';
-      return;
-    }
+    if (!res.ok || !data.ok) throw new Error(data.error || '文献检索失败，请重试。');
 
+    wizardState.research = { query, nextPage: data.nextPage };
+    dom.btnMoreLiterature.hidden = !data.nextPage;
+    const key = art => art.doi?.toLowerCase() || art.id;
+    const seen = new Set(wizardState.articles.map(key));
+    const articles = data.articles.filter(art => {
+      if (seen.has(key(art))) return false;
+      seen.add(key(art));
+      return true;
+    });
+    wizardState.articles.push(...articles);
+    const total = Number.isInteger(data.total) ? ` · 数据库命中 ${data.total.toLocaleString('zh-CN')} 篇` : '';
+    const summary = wizardState.articles.length
+      ? `${data.provider} · 按相关性 · 已显示 ${wizardState.articles.length} 篇${total}。点击「引用这篇」查看摘要。`
+      : data.message || '未查询到相关文献。';
     const translated = data.searchQuery && data.searchQuery !== query ? ` 检索式：${data.searchQuery}` : '';
-    const summary = wizardState.articles.length ? `返回 ${wizardState.articles.length} 条文献。点击「引用这篇」查看摘要并填写分镜要点。` : data.message;
-    dom.searchStatus.textContent = (summary || '') + translated;
-
-    // 渲染文献列表
-    dom.wzArticleList.innerHTML = '';
-    if (wizardState.articles.length === 0) {
-      dom.wzArticleList.innerHTML = '<div style="color:var(--text-muted); font-size:11px;">未查询到相关文献。</div>';
-    } else {
-      wizardState.articles.forEach(art => {
-        const item = document.createElement('div');
-        item.style.marginBottom = '6px';
-        item.style.paddingBottom = '6px';
-        item.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
-        item.innerHTML = `
-          <div style="font-size:12px; font-weight:600; color:white;">
-            <a href="${escHtml(/^https?:\/\//.test(art.url || '') ? art.url : '#')}" target="_blank" style="color:var(--accent-light); text-decoration:none;">📄 ${escHtml(art.title)}</a>
-          </div>
-          <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">
-            ${escHtml(Array.isArray(art.authors) ? art.authors.slice(0, 3).join(', ') : (art.authors || ''))} ${escHtml(art.journal ? '· ' + art.journal : '')} (${escHtml(art.year || '')}) [来源: ${escHtml(art.source || 'Pub')}]
-          </div>
-        `;
-        const use = document.createElement('button');
-        use.type = 'button';
-        use.textContent = '引用这篇';
-        use.addEventListener('click', () => editWizardFact({ citation: art }));
-        item.appendChild(use);
-        dom.wzArticleList.appendChild(item);
-      });
+    dom.searchStatus.textContent = summary + translated;
+    if (!page) dom.wzArticleList.textContent = articles.length ? '' : '未查询到相关文献。';
+    const firstNewItemIndex = dom.wzArticleList.children.length;
+    for (const art of articles) {
+      const item = document.createElement('div');
+      item.style.marginBottom = '6px';
+      item.style.paddingBottom = '6px';
+      item.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+      item.innerHTML = `
+        <div style="font-size:12px; font-weight:600; color:white;">
+          <a href="${escHtml(/^https?:\/\//.test(art.url || '') ? art.url : '#')}" target="_blank" rel="noopener noreferrer" style="color:var(--accent-light); text-decoration:none;">📄 ${escHtml(art.title)}</a>
+        </div>
+        <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">
+          ${escHtml(Array.isArray(art.authors) ? art.authors.slice(0, 3).join(', ') : (art.authors || ''))} ${escHtml(art.journal ? '· ' + art.journal : '')} (${escHtml(art.year || '')}) [来源: ${escHtml(art.source || 'Pub')}]
+        </div>
+      `;
+      const use = document.createElement('button');
+      use.type = 'button';
+      use.textContent = '引用这篇';
+      use.addEventListener('click', () => editWizardFact({ citation: art }));
+      item.appendChild(use);
+      dom.wzArticleList.appendChild(item);
     }
-
-    renderWizardFacts();
-  } catch (err) {
-    wizardState.articles = [];
-    dom.searchStatus.textContent = '检索请求失败，请稍后重试。';
-    dom.wzArticleList.textContent = '未能加载文献结果。';
+    if (page && articles.length) {
+      const firstNewItem = dom.wzArticleList.children[firstNewItemIndex];
+      const delta = firstNewItem.getBoundingClientRect().top - dom.wzArticleList.getBoundingClientRect().top;
+      dom.wzArticleList.scrollTop += delta;
+    }
+  } catch (error) {
+    dom.searchStatus.textContent = page ? '加载更多失败。当前结果已保留，可再点一次。' : error.message;
+    if (!page) dom.wzArticleList.textContent = '未能加载文献结果。';
   } finally {
-    dom.btnRunSearch.disabled = false;
+    dom.btnRunSearch.disabled = dom.btnMoreLiterature.disabled = false;
   }
 }
 
@@ -2477,10 +2491,14 @@ dom.btnWzNext.addEventListener('click', async () => {
       setWizardStatus('请先填写视频主题。', true);
       return;
     }
-    dom.wzSearchQuery.value = topic;
+    const changed = wizardState.topicAtResearchStep && wizardState.topicAtResearchStep !== topic;
+    if (!wizardState.topicAtResearchStep || changed) dom.wzSearchQuery.value = topic;
+    wizardState.topicAtResearchStep = topic;
     setWizardStatus('');
     setWizardStep(2);
-    if (wizardState.articles.length === 0 && wizardState.facts.length === 0) runLiteratureSearch(topic);
+    if (changed || (wizardState.articles.length === 0 && wizardState.facts.length === 0)) {
+      runLiteratureSearch(dom.wzSearchQuery.value.trim() || topic);
+    }
   } else if (wizardState.currentStep === 2) {
     const facts = wizardState.facts.filter(fact => fact._checked === true);
     if (!facts.length) {
@@ -2515,6 +2533,13 @@ dom.btnWzNext.addEventListener('click', async () => {
 dom.btnRunSearch.addEventListener('click', () => {
   const q = dom.wzSearchQuery.value.trim() || dom.wzTopic.value.trim();
   if (q) runLiteratureSearch(q);
+});
+dom.wzSearchQuery.addEventListener('keydown', event => {
+  if (event.key === 'Enter') dom.btnRunSearch.click();
+});
+dom.btnMoreLiterature.addEventListener('click', () => {
+  const research = wizardState.research;
+  if (research?.nextPage) runLiteratureSearch(research.query, research.nextPage);
 });
 dom.btnAddCustomFact.addEventListener('click', () => editWizardFact());
 
@@ -2591,7 +2616,21 @@ dom.btnConfirmAddBeat.addEventListener('click', async () => {
 // 初始化启动
 function initApp() {
   autoScaleViewport();
-  loadProjectData();
+  const action = new URLSearchParams(window.location.search).get('action');
+  const loaded = loadProjectData();
+  if (action === 'sample') {
+    loaded.then(projectDir => {
+      if (!projectDir) return;
+      const deadline = performance.now() + 5000;
+      // Wait for the preview timeline, including projects compiled by older versions.
+      function showOpeningFrame() {
+        if (state.currentFrame !== 0 || state.isPlaying) return;
+        if (dom.sceneIframe.contentWindow?.__ready) seekFrame(Math.round(state.fps * 1.5));
+        else if (performance.now() < deadline) requestAnimationFrame(showOpeningFrame);
+      }
+      showOpeningFrame();
+    });
+  }
 
   // Desktop 原生客户端增强
   if (window.desktopAPI) {
@@ -2605,8 +2644,7 @@ function initApp() {
   }
 
   // 检查是否需要自动弹出 AI 创作工坊
-  const urlParams = new URLSearchParams(window.location.search);
-  if (urlParams.get('action') === 'wizard') {
+  if (action === 'wizard') {
     setTimeout(() => {
       if (typeof openCreatorModal === 'function') openCreatorModal();
     }, 400);

@@ -8,12 +8,79 @@ const studioFetch = require('./helpers/studio-fetch');
 
 const topic = '心房颤动脉冲电场消融术';
 const searchQuery = '"atrial fibrillation" AND "pulsed field ablation"';
+const rescueTopic = '急性心肌梗死黄金抢救 120 分钟';
 
 test('中文预设使用完整术语，保留英文文献检索式', () => {
   assert.equal(expandQuery(topic), searchQuery);
   assert.equal(expandQuery('经导管主动脉瓣置换术 (TAVR)'), '"transcatheter aortic valve replacement" AND TAVR');
   assert.equal(expandQuery('脑卒中早期识别与 FAST 口诀'), '"stroke" AND FAST');
   assert.equal(expandQuery('"diabetes mellitus" OR asthma'), '"diabetes mellitus" OR asthma');
+  assert.match(expandQuery(rescueTopic), /STEMI\) AND \("time to reperfusion".*"door-to-balloon time"/);
+  assert.equal(expandQuery('急性心肌梗死'), '"acute myocardial infarction"');
+  assert.match(expandQuery('高血压长期服药三大常见误区'), /"hypertension" AND \("medication adherence"/);
+});
+
+test('救治时间选题使用相关性优先分页，并保持 PubMed 返回顺序', async t => {
+  const get = t.mock.method(axios, 'get', async (url, { params }) => {
+    assert.match(url, /eutils\.ncbi\.nlm\.nih\.gov/);
+    if (url.endsWith('esearch.fcgi')) {
+      assert.equal(params.term, expandQuery(rescueTopic));
+      assert.equal(params.sort, 'relevance');
+      assert.equal(params.retmax, 15);
+      const ids = params.retstart === 0
+        ? Array.from({ length: 15 }, (_, i) => String(200 - i)) : ['42'];
+      return { data: { esearchresult: { idlist: ids, count: '16' } } };
+    }
+    const result = Object.fromEntries(params.id.split(',').map(id => [id, { title: `Reperfusion study ${id}` }]));
+    return { data: { result } };
+  });
+  const first = await searchLiterature(rescueTopic);
+  assert.equal(first.articles.length, 15);
+  assert.equal(first.articles[0].id, 'pmid_200');
+  assert.equal(first.total, 16);
+  assert.deepEqual(first.nextPage, { provider: 'PubMed', offset: 15 });
+  const second = await searchLiterature(rescueTopic, { page: first.nextPage });
+  assert.equal(get.mock.calls[2].arguments[1].params.retstart, 15);
+  assert.equal(second.articles[0].id, 'pmid_42');
+  assert.equal(second.nextPage, null);
+});
+
+test('Europe PMC 继续使用原检索的游标，文献标题解码为纯文本', async t => {
+  const get = t.mock.method(axios, 'get', async (url, { params }) => {
+    assert.match(url, /ebi\.ac\.uk/);
+    const first = params.cursorMark === '*';
+    const id = first ? '1' : '2';
+    return { data: {
+      hitCount: 2, nextCursorMark: first ? 'next-cursor' : 'last-cursor',
+      resultList: { result: [{ id, title: '&lt;b&gt;A &amp; B&lt;/b&gt;: p < 0.05' }] }
+    } };
+  });
+  const first = await searchLiterature(topic, { maxResults: 1 });
+  assert.equal(first.articles[0].title, 'A & B: p < 0.05');
+  const second = await searchLiterature(topic, { maxResults: 1, page: first.nextPage });
+  assert.equal(get.mock.calls[1].arguments[1].params.cursorMark, 'next-cursor');
+  assert.equal(second.articles[0].id, 'epmc_MED_2');
+  assert.equal(second.nextPage, null);
+  assert.equal((await searchLiterature(topic, { page: { provider: 'invalid', offset: 1 } })).status, 'invalid');
+  assert.equal(get.mock.callCount(), 2);
+});
+
+test('OpenAlex 追加下一页时使用基础分页和相关性排序', async t => {
+  const get = t.mock.method(axios, 'get', async (url, { params }) => {
+    if (!url.includes('api.openalex.org')) throw new Error('Unavailable');
+    assert.equal(params.sort, 'relevance_score:desc');
+    assert.equal(params.per_page, 1);
+    return { data: {
+      meta: { count: 2 },
+      results: [{ id: `https://openalex.org/W${params.page}`, title: 'A relevant paper' }]
+    } };
+  });
+  const first = await searchLiterature(topic, { maxResults: 1 });
+  assert.equal(first.articles[0].id, 'oalex_W1');
+  const second = await searchLiterature(topic, { maxResults: 1, page: first.nextPage });
+  assert.equal(second.articles[0].id, 'oalex_W2');
+  assert.equal(second.nextPage, null);
+  assert.equal(get.mock.callCount(), 4);
 });
 
 test('Europe PMC 无命中或请求失败时从 PubMed 获取书目', async (t) => {

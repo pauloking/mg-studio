@@ -274,9 +274,8 @@ function createStudioServer(options = {}) {
         // POST /api/research (文献书目检索)
         if (pathname === '/api/research' && req.method === 'POST') {
           const body = await parseJsonBody(req);
-          const query = body.query || '';
-          const maxResults = body.maxResults || 5;
-          const result = await searchLiterature(query, { maxResults });
+          const { query, maxResults, page } = body;
+          const result = await searchLiterature(query, { maxResults, page });
           const status = result.status === 'invalid' ? 400 : result.status === 'unavailable' ? 503 : 200;
           sendJson(res, status, result);
           return;

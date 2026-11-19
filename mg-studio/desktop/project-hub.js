@@ -26,19 +26,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // 3. 打开演示工程 (Demo)
-  btnOpenDemo.addEventListener('click', async () => {
-    if (window.desktopAPI) {
-      await window.desktopAPI.switchProject({ demo: true });
-    }
-  });
-
-  // 4. 点击内置模板
-  document.querySelectorAll('.template-item').forEach(item => {
-    item.addEventListener('click', async () => {
-      const tplId = item.getAttribute('data-template');
-      if (window.desktopAPI) {
-        await window.desktopAPI.switchProject({ templateId: tplId, action: 'wizard' });
+  const sampleStatus = document.getElementById('sampleStatus');
+  const sampleButtons = [btnOpenDemo, ...document.querySelectorAll('[data-example]')];
+  sampleButtons.forEach(button => {
+    button.addEventListener('click', async () => {
+      if (!window.desktopAPI) return;
+      sampleStatus.hidden = false;
+      sampleStatus.textContent = '正在打开示例工程…';
+      sampleButtons.forEach(item => { item.disabled = true; });
+      try {
+        const result = await window.desktopAPI.switchProject({ demo: true, demoId: button.dataset.example });
+        if (!result.ok) throw new Error(result.error);
+      } catch (error) {
+        sampleStatus.textContent = `无法打开示例工程。 ${error.message}`;
+      } finally {
+        sampleButtons.forEach(item => { item.disabled = false; });
       }
     });
   });

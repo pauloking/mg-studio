@@ -229,7 +229,7 @@ function buildAppMenu() {
           click: async () => {
             if (!mainWindow) return;
             try {
-              if (currentProjectInfo && mainWindow.webContents.getURL() === `http://${currentProjectInfo.host}:${currentProjectInfo.port}/`) {
+              if (currentProjectInfo && mainWindow.webContents.getURL().startsWith(`http://${currentProjectInfo.host}:${currentProjectInfo.port}/`)) {
                 await mainWindow.webContents.executeJavaScript('document.getElementById("btnNewProject")?.click();');
                 return;
               }
@@ -261,9 +261,13 @@ function buildAppMenu() {
         {
           label: '🧪 打开随包示例 (mini-style-medical)',
           click: async () => {
-            const demoDir = openDemoProject(projectsDir());
-            const info = await startStudioForProject(demoDir);
-            mainWindow.loadURL(`http://${info.host}:${info.port}/`);
+            try {
+              const demoDir = openDemoProject(projectsDir());
+              const info = await startStudioForProject(demoDir);
+              await mainWindow.loadURL(`http://${info.host}:${info.port}/?action=sample`);
+            } catch (error) {
+              dialog.showErrorBox('无法打开示例工程', error.message);
+            }
           }
         },
         { type: 'separator' },
@@ -394,9 +398,12 @@ ipcMain.handle('project:switch', async (event, target) => {
     let queryParam = '';
 
     if (typeof target === 'object' && target !== null) {
-      targetDir = target.demo || !target.path ? openDemoProject(projectsDir()) : target.path;
+      targetDir = target.demo || !target.path
+        ? openDemoProject(projectsDir(), target.demoId) : target.path;
       if (target.action === 'wizard') {
         queryParam = '?action=wizard';
+      } else if (target.demo) {
+        queryParam = '?action=sample';
       }
     }
 
