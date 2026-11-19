@@ -17,7 +17,7 @@
 const fs = require('fs'), path = require('path');
 const ir = require('../lib/ir');
 const { COMPONENTS, LAYOUT_NAMES } = require('../lib/components');
-const { normalizeScene } = require('../lib/compile');
+const { prepareRenderScenes } = require('../lib/compile');
 const { lintMotion } = require('../lib/motion-lint');
 const { lintMedical } = require('../lib/medical-lint');
 const { measureBoxes } = require('../lib/measure');
@@ -33,7 +33,7 @@ async function main() {
   catch (e) { console.error(e.message); return 1; }
   if (project.mode === 'v1') { console.log('v1 passthrough: 跳过编译后门'); return 0; }
 
-  const scenes = project.scenes.map(sc => normalizeScene(sc, COMPONENTS));
+  const scenes = prepareRenderScenes(project);
 
   const tlPath = path.join(dir, 'timeline.json');
   const timeline = fs.existsSync(tlPath) ? JSON.parse(fs.readFileSync(tlPath, 'utf8')) : null;

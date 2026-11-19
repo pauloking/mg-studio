@@ -1,5 +1,6 @@
 'use strict';
 const fs = require('fs'), path = require('path');
+const { MOTION_MODES } = require('./motion-plan');
 
 const ROLES = ['hook', 'context', 'conflict', 'mechanism', 'evidence', 'demo', 'takeaway', 'cta', 'objective', 'prerequisite', 'steps', 'summary', 'selfcheck'];
 const AUDIENCES = ['patient', 'professional', 'general'];
@@ -32,6 +33,7 @@ function validateStory(story) {
   if (!AUDIENCES.includes(m.audience)) errors.push('meta.audience 非法: ' + m.audience);
   if (!TEMPLATES.includes(m.template)) errors.push('meta.template 非法: ' + m.template);
   if (m.style != null && !STYLES.includes(m.style)) errors.push('meta.style 未知: ' + m.style);
+  if (m.motion != null && !MOTION_MODES.includes(m.motion)) errors.push('meta.motion 未知: ' + m.motion);
   if (!(typeof m.durationTarget === 'number' && m.durationTarget > 0)) errors.push('meta.durationTarget 必须为正数');
   const beats = Array.isArray(story && story.beats) ? story.beats : [];
   if (!Array.isArray(story && story.beats) || beats.length === 0) errors.push('beats 不能为空');

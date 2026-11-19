@@ -314,6 +314,23 @@ button.primary:hover {
   gap: 6px;
   z-index: 5;
 }
+.stage-motion {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.stage-motion label { display:flex; align-items:center; gap:6px; white-space:nowrap; }
+.stage-motion label[hidden] { display:none; }
+.stage-motion select { width:auto; padding:4px 7px; font-size:12px; }
+@media (max-width: 1120px) {
+  .stage-overlays { top: 56px; }
+}
 .overlay-toggle {
   background: rgba(24, 27, 36, 0.85);
   backdrop-filter: blur(8px);
@@ -794,6 +811,17 @@ textarea {
 
   <!-- 中央主舞台：1080p 画布 + 帧控制器 -->
   <section class="stage-center">
+    <div class="stage-motion">
+      <label id="motionPicker" for="motionSelect" hidden title="应用到标题和单要点分镜">
+        动态编排
+        <select id="motionSelect">
+          <option value="classic">原始布局</option>
+          <option value="flow">流程推进</option>
+          <option value="focus">焦点展开</option>
+        </select>
+      </label>
+      <button id="btnReplayScene" type="button" disabled title="从当前分镜第一帧重播">重播本镜</button>
+    </div>
     <div class="stage-overlays">
       <button class="overlay-toggle" id="toggleGrid">辅助网格</button>
       <button class="overlay-toggle" id="toggleSubtitleSafe">字幕盲区</button>
@@ -868,9 +896,9 @@ textarea {
       <div class="form-group">
         <label>缓动预设 (Easing Preset)</label>
         <select id="selEnterEasing">
-          <option value="eo">三次减速平滑 (eo)</option>
-          <option value="overshoot">弹簧超调回弹 (overshoot / spring)</option>
-          <option value="eio">平滑慢进慢出 (eio)</option>
+          <option value="ease">减速进入</option>
+          <option value="spring">回弹进入</option>
+          <option value="easeInOut">慢进慢出</option>
         </select>
       </div>
       <div class="form-group" id="dynamicPropsContainer">
@@ -1187,6 +1215,8 @@ const state = {
   isPlaying: false,
   playbackSpeed: 1.0,
   playTimer: null,
+  playEnd: 0,
+  motionSceneIds: [],
   overlays: {
     grid: false,
     subtitleSafe: false,
@@ -1198,6 +1228,9 @@ const dom = {
   topTitle: document.getElementById('topTitle'),
   topMeta: document.getElementById('topMeta'),
   styleSelect: document.getElementById('styleSelect'),
+  motionPicker: document.getElementById('motionPicker'),
+  motionSelect: document.getElementById('motionSelect'),
+  btnReplayScene: document.getElementById('btnReplayScene'),
   beatCount: document.getElementById('beatCount'),
   beatList: document.getElementById('beatList'),
   viewportContainer: document.getElementById('viewportContainer'),
@@ -1384,6 +1417,10 @@ function updateTimelineUI(f) {
     } else {
       dom.curSubBubble.textContent = foundScene ? `[${foundScene.id}] (环境/无台词)` : '准备就绪';
     }
+    if (foundScene && foundScene.id !== state.activeSceneId) {
+      const index = state.project?.scenes?.findIndex(scene => scene.id === foundScene.id) ?? -1;
+      if (index >= 0) selectScene(index, false);
+    }
 
     // 更新分镜进度条的高亮段
     const segments = dom.timelineScenesBar.children;
@@ -1402,7 +1439,7 @@ function seekFrame(f) {
   updateTimelineUI(f);
   try {
     const win = dom.sceneIframe.contentWindow;
-    if (win && typeof win.__frame === 'function') {
+    if (win?.__ready && typeof win.__frame === 'function') {
       win.__frame(f);
     }
   } catch (e) {
@@ -1419,24 +1456,31 @@ function togglePlay() {
   }
 }
 
-function play() {
+function play(end = state.totalFrames) {
+  if (state.currentFrame >= end - 1) seekFrame(0);
   state.isPlaying = true;
+  state.playEnd = end;
   dom.playIcon.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
-  const intervalMs = Math.round(1000 / (state.fps * state.playbackSpeed));
-  clearInterval(state.playTimer);
-  state.playTimer = setInterval(() => {
-    let nextF = state.currentFrame + 1;
-    if (nextF >= state.totalFrames) {
+  const first = state.currentFrame;
+  const start = performance.now();
+  const framesPerMs = state.fps * state.playbackSpeed / 1000;
+  cancelAnimationFrame(state.playTimer);
+  function tick(now) {
+    const next = first + Math.max(0, Math.floor((now - start) * framesPerMs));
+    if (next >= end) {
+      seekFrame(end - 1);
       pause();
       return;
     }
-    seekFrame(nextF);
-  }, intervalMs);
+    if (next !== state.currentFrame) seekFrame(next);
+    state.playTimer = requestAnimationFrame(tick);
+  }
+  state.playTimer = requestAnimationFrame(tick);
 }
 
 function pause() {
   state.isPlaying = false;
-  clearInterval(state.playTimer);
+  cancelAnimationFrame(state.playTimer);
   dom.playIcon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"/>';
 }
 
@@ -1449,7 +1493,11 @@ async function loadProjectData() {
       showToast('加载失败: ' + data.error);
       return;
     }
+    pause();
     state.project = data.project;
+    state.motionSceneIds = data.motionSceneIds || [];
+    dom.motionPicker.hidden = state.motionSceneIds.length === 0;
+    dom.btnReplayScene.disabled = !data.project?.scenes?.length;
 
     // 顶栏更新
     const story = data.project && data.project.story;
@@ -1457,6 +1505,7 @@ async function loadProjectData() {
     dom.topTitle.textContent = (story && story.meta && story.meta.title) || '未命名分镜工程';
     const curStyle = (tokens && tokens.style) || (story && story.meta && story.meta.style) || 'deep-tech';
     dom.styleSelect.value = curStyle;
+    dom.motionSelect.value = story?.meta?.motion || 'classic';
 
     // 渲染分镜列表
     renderBeatList(data.project);
@@ -1631,7 +1680,7 @@ async function deleteBeat(beatId) {
 }
 
 // 选中某个场景
-function selectScene(idx) {
+function selectScene(idx, seek = true) {
   state.activeSceneIndex = idx;
   const cards = dom.beatList.querySelectorAll('.beat-card');
   cards.forEach((c, i) => {
@@ -1645,10 +1694,11 @@ function selectScene(idx) {
   state.activeSceneId = sc.id;
 
   // 定位到该场景的时间起点
-  if (state.timeline && state.timeline.scenes) {
+  if (seek && state.timeline?.scenes) {
     const scTl = state.timeline.scenes.find(s => s.id === sc.id);
     if (scTl) {
-      seekFrame(scTl.start);
+      pause();
+      seekFrame(scTl.start + Math.min(Math.round(state.fps * 1.35), Math.floor((scTl.end - scTl.start) / 2)));
     }
   }
 
@@ -1656,15 +1706,23 @@ function selectScene(idx) {
   populateInspector(sc);
 }
 
+function updateMotionInspector(sc) {
+  const automatic = dom.motionSelect.value !== 'classic' && state.motionSceneIds.includes(sc.id);
+  dom.inpSceneLayout.value = automatic ? '动态图解' : sc.layout || 'custom';
+  dom.selEnterEasing.disabled = automatic;
+  dom.selEnterEasing.title = automatic ? '当前入场由动态编排控制' : '';
+}
+
 // 填充右侧检视器
 function populateInspector(sc) {
   dom.inpSceneId.value = sc.id;
-  dom.inpSceneLayout.value = sc.layout || 'custom';
+  updateMotionInspector(sc);
   dom.inpSceneNarration.value = sc.narration || '';
 
   // 缓动
   const firstEl = (sc.elements && sc.elements[0]) || {};
-  dom.selEnterEasing.value = (firstEl.enter && firstEl.enter.easing) || 'eo';
+  const easing = firstEl.enter?.easing || 'ease';
+  dom.selEnterEasing.value = easing === 'overshoot' ? 'spring' : easing;
 
   // 动态属性输入
   dom.dynamicPropsContainer.innerHTML = '';
@@ -1734,7 +1792,7 @@ dom.btnSaveScene.addEventListener('click', async () => {
 
   // 更新缓动
   const easing = dom.selEnterEasing.value;
-  if (sc.elements) {
+  if (sc.elements && !dom.selEnterEasing.disabled) {
     sc.elements.forEach(el => {
       if (el.enter) el.enter.easing = easing;
     });
@@ -1747,7 +1805,7 @@ dom.btnSaveScene.addEventListener('click', async () => {
     const propKey = inp.dataset.prop;
     const el = sc.elements && sc.elements.find(e => e.id === elId);
     if (el && el.props) {
-      el.props[propKey] = inp.value;
+      el.props[propKey] = typeof el.props[propKey] === 'number' ? Number(inp.value) : inp.value;
     }
   });
 
@@ -1792,14 +1850,64 @@ dom.btnSaveFacts.addEventListener('click', async () => {
 });
 
 // 重载 iframe
-function reloadIframe() {
-  const curF = state.currentFrame;
-  dom.sceneIframe.src = 'scene.html?t=' + Date.now();
-  dom.sceneIframe.onload = () => {
-    autoScaleViewport();
-    setTimeout(() => seekFrame(curF), 100);
-  };
+async function waitForPreview() {
+  const src = dom.sceneIframe.src;
+  const deadline = performance.now() + 5000;
+  while (dom.sceneIframe.src === src && performance.now() < deadline) {
+    const frame = dom.sceneIframe.contentWindow;
+    if (frame?.location.href === src && frame.__ready) return true;
+    await new Promise(resolve => setTimeout(resolve, 32));
+  }
+  return false;
 }
+
+async function reloadIframe() {
+  dom.sceneIframe.src = 'scene.html?t=' + Date.now();
+  if (!(await waitForPreview())) return false;
+  autoScaleViewport();
+  seekFrame(state.currentFrame);
+  return true;
+}
+
+async function replayScene() {
+  const scene = state.timeline?.scenes.find(sc => sc.id === state.activeSceneId);
+  if (!scene) return;
+  pause();
+  if (!(await waitForPreview())) {
+    showToast('分镜画面尚未就绪，请编译后重播。');
+    return;
+  }
+  seekFrame(scene.start);
+  play(scene.end);
+}
+
+dom.btnReplayScene.addEventListener('click', replayScene);
+dom.motionSelect.addEventListener('change', async () => {
+  const story = state.project?.story;
+  if (!story) return;
+  const previous = story.meta.motion || 'classic';
+  const motion = dom.motionSelect.value;
+  dom.motionSelect.disabled = true;
+  pause();
+  try {
+    const res = await apiFetch('/api/motion', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ motion })
+    });
+    const result = await res.json();
+    if (!result.ok) throw new Error(result.error);
+    story.meta.motion = motion;
+    const scene = state.project.scenes.find(sc => sc.id === state.activeSceneId);
+    if (scene) updateMotionInspector(scene);
+    if (await reloadIframe()) replayScene();
+    else showToast('编排已保存，画面加载超时。请重新编译或打开工程。');
+    runLintCheck();
+  } catch (error) {
+    dom.motionSelect.value = previous;
+    showToast(error.message || '切换动态编排失败。');
+  } finally {
+    dom.motionSelect.disabled = false;
+  }
+});
 
 // 风格切换
 dom.styleSelect.addEventListener('change', async (e) => {
@@ -2014,14 +2122,14 @@ document.querySelectorAll('.speed-btn').forEach(btn => {
     btn.classList.add('active');
     state.playbackSpeed = parseFloat(btn.dataset.speed);
     if (state.isPlaying) {
-      play(); // 重置计时器
+      play(state.playEnd);
     }
   });
 });
 
 // 键盘快捷键（空格播放/暂停，左右键步进）
 window.addEventListener('keydown', (e) => {
-  if (['input', 'textarea'].includes(document.activeElement.tagName.toLowerCase())) return;
+  if (['input', 'textarea', 'select', 'button'].includes(document.activeElement.tagName.toLowerCase())) return;
   if (e.code === 'Space') {
     e.preventDefault();
     togglePlay();
@@ -2282,7 +2390,7 @@ function renderWizardFacts() {
   });
 }
 
-function renderStoryboardPreview({ story, scenes, templateAdjusted }) {
+function renderStoryboardPreview({ story, scenes, motionShots = [], templateAdjusted }) {
   const count = story.beats.reduce((sum, beat) => sum + beat.facts.length, 0);
   const audience = { patient: '患者科普', professional: '专业受众', general: '大众通用' };
   dom.previewMetaTitle.textContent = story.meta.title;
@@ -2299,10 +2407,20 @@ function renderStoryboardPreview({ story, scenes, templateAdjusted }) {
     card.style.cssText = 'padding:10px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;line-height:1.55;overflow-wrap:anywhere;';
     const lines = scenes[i].elements.flatMap(({ props }) => [props.content, props.title, props.desc].filter(Boolean));
     const refs = beat.facts.map(factSourceMarkup).filter(Boolean);
+    const shot = motionShots[i];
+    const motion = shot && ({
+      opening: '标题遮罩揭示',
+      chain: shot.nodes?.join(' → '),
+      comparison: shot.nodes?.join(' / '),
+      metric: `${shot.number} ${shot.unit}环形揭示`,
+      statement: '逐段强调原文要点',
+      recap: '线条汇聚并收束'
+    })[shot.kind];
     card.innerHTML = `
       <strong>${escHtml(beat.intent)}</strong>
       <span style="font-size:12px;color:var(--text-muted);"> · 建议至少 ${scenes[i].minSec} 秒</span>
       <div style="font-size:13px; margin-top:4px;"><strong>画面</strong>　${lines.map(escHtml).join(' · ')}</div>
+      ${motion ? `<div style="font-size:13px;"><strong>动效</strong>　${escHtml(motion)}</div>` : ''}
       <div style="font-size:13px;"><strong>旁白</strong>　${escHtml(beat.narration)}</div>
       ${refs.length ? `<div style="font-size:12px;color:var(--text-muted);">出处　${refs.join('；')}</div>` : ''}`;
     dom.wzBeatsPreviewFlow.appendChild(card);
@@ -2618,19 +2736,9 @@ function initApp() {
   autoScaleViewport();
   const action = new URLSearchParams(window.location.search).get('action');
   const loaded = loadProjectData();
-  if (action === 'sample') {
-    loaded.then(projectDir => {
-      if (!projectDir) return;
-      const deadline = performance.now() + 5000;
-      // Wait for the preview timeline, including projects compiled by older versions.
-      function showOpeningFrame() {
-        if (state.currentFrame !== 0 || state.isPlaying) return;
-        if (dom.sceneIframe.contentWindow?.__ready) seekFrame(Math.round(state.fps * 1.5));
-        else if (performance.now() < deadline) requestAnimationFrame(showOpeningFrame);
-      }
-      showOpeningFrame();
-    });
-  }
+  loaded.then(async projectDir => {
+    if (projectDir && await waitForPreview()) seekFrame(state.currentFrame);
+  });
 
   // Desktop 原生客户端增强
   if (window.desktopAPI) {

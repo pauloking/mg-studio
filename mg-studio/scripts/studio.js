@@ -14,7 +14,8 @@ const { runWorker } = require('../lib/worker');
 
 const ir = require('../lib/ir');
 const { LAYOUT_NAMES, COMPONENTS } = require('../lib/components');
-const { compileProject, normalizeScene } = require('../lib/compile');
+const { compileProject, prepareRenderScenes } = require('../lib/compile');
+const { MOTION_MODES, canCompose } = require('../lib/motion-plan');
 const { lintStory } = require('../lib/story-lint');
 const { lintScript } = require('../lib/script-lint');
 const { lintMedical } = require('../lib/medical-lint');
@@ -161,7 +162,7 @@ function collectAllDiagnostics(projectDir) {
     const medicalDiags = lintMedical({ story, scenes: project.scenes });
     let motionDiags = [];
     try {
-      const normScenes = project.scenes.map(sc => normalizeScene(sc, COMPONENTS));
+      const normScenes = prepareRenderScenes(project);
       motionDiags = lintMotion({ scenes: normScenes, tokens: project.tokens, components: COMPONENTS });
     } catch (e) {
       motionDiags.push({ level: 'B', code: 'MOTION_NORMALIZE_FAIL', scene: '', msg: e.message });
@@ -260,6 +261,7 @@ function createStudioServer(options = {}) {
             hasScript,
             hasSceneHtml,
             hasTimeline,
+            motionSceneIds: projectData?.mode === 'v2' ? projectData.scenes.filter(canCompose).map(sc => sc.id) : [],
             project: projectData
           });
           return;
@@ -508,6 +510,44 @@ function createStudioServer(options = {}) {
             ok: (comp.errors || []).filter(e => !e.includes('MED_')).length === 0,
             compile: comp
           });
+          return;
+        }
+
+        if (pathname === '/api/motion' && req.method === 'POST') {
+          const { motion } = await parseJsonBody(req);
+          if (!MOTION_MODES.includes(motion)) {
+            sendJson(res, 400, { ok: false, error: '请选择有效的动态编排。' });
+            return;
+          }
+          if (activeProjects.has(fs.realpathSync(projectDir))) {
+            sendJson(res, 409, { ok: false, error: '请在配音或导出完成后切换动态编排。' });
+            return;
+          }
+          const project = ir.loadProject(projectDir, LAYOUT_NAMES);
+          if (project.mode !== 'v2' || !project.scenes.some(canCompose)) {
+            sendJson(res, 400, { ok: false, error: '此项目没有可应用编排的标题或单要点分镜。' });
+            return;
+          }
+          const storyPath = projectFilePath(projectDir, 'story.json');
+          const staged = path.join(projectDir, '.motion-' + crypto.randomUUID() + '.json');
+          project.story.meta.motion = motion;
+          fs.writeFileSync(staged, JSON.stringify(project.story, null, 2), { flag: 'wx' });
+          try {
+            const result = compileProject(projectDir, { motion });
+            if (result.errors.length) {
+              sendJson(res, 422, { ok: false, error: result.errors[0] });
+              return;
+            }
+            try {
+              fs.renameSync(staged, storyPath);
+            } catch (error) {
+              compileProject(projectDir);
+              throw error;
+            }
+          } finally {
+            fs.rmSync(staged, { force: true });
+          }
+          sendJson(res, 200, { ok: true, motion });
           return;
         }
 

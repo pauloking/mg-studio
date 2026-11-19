@@ -148,6 +148,7 @@ test('安装包：工作台按钮打开向导并创建独立工程', { skip: !ex
     await page.locator('#wzFactChk_0').check();
     await page.locator('#btnWzNext').click();
     await page.locator('#wzBeatsPreviewFlow').getByText('这份测试记录要求结合原始资料评估适用条件', { exact: false }).first().waitFor();
+    await page.locator('#wzBeatsPreviewFlow').getByText('标题遮罩揭示', { exact: false }).waitFor();
     await page.route('**/api/create-project', route => route.fulfill({ status: 500, json: { ok: false, error: '模拟写入失败' } }));
     await page.locator('#btnWzCreate').click();
     await page.locator('#wizardStatus').getByText('模拟写入失败', { exact: false }).waitFor();
@@ -157,6 +158,8 @@ test('安装包：工作台按钮打开向导并创建独立工程', { skip: !ex
     await page.locator('#creatorModal').waitFor({ state: 'hidden' });
     assert.equal(page.url(), originalUrl);
     await page.waitForFunction(() => document.querySelector('#topTitle')?.textContent === '分镜测试工程');
+    await page.waitForFunction(() => document.querySelector('#sceneIframe')?.contentDocument?.querySelector('.mg-flow'));
+    assert.equal(await page.locator('#motionSelect').inputValue(), 'flow');
     const created = await page.evaluate(() => window.desktopAPI.getCurrentProject());
     assert.notEqual(created.path, original.path);
     assert.ok(fs.existsSync(path.join(created.path, 'scene.html')));

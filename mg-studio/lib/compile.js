@@ -8,6 +8,7 @@ const { COMPONENTS, LAYOUT_NAMES } = require('./components');
 const { lintMotion } = require('./motion-lint');
 const { lintMedical, DISCLAIMER } = require('./medical-lint');
 const { checkElementProps } = require('./props');
+const { composeScenes } = require('./motion-plan');
 
 function normalizeScene(sc, components = COMPONENTS) {
   const errors = [];
@@ -59,9 +60,16 @@ function buildScriptJson(project) {
   };
 }
 
-function compileProject(dir) {
+function prepareRenderScenes(project) {
+  const original = project.scenes.map(sc => normalizeScene(sc));
+  return composeScenes({ ...project, scenes: original }).map((sc, i) =>
+    sc === original[i] ? sc : normalizeScene(sc));
+}
+
+function compileProject(dir, settings = {}) {
   const project = ir.loadProject(dir, LAYOUT_NAMES);
   if (project.mode === 'v1') return { mode: 'v1' };
+  if (settings.motion != null) project.story.meta.motion = settings.motion;
   const errors = [];
   const vid = project.story.meta.video;
   if (vid && ((vid.fps != null && vid.fps !== 30) || (vid.width != null && vid.width !== 1920) || (vid.height != null && vid.height !== 1080)))
@@ -78,7 +86,7 @@ function compileProject(dir) {
     }
   }
   let scenes, lint = [];
-  try { scenes = project.scenes.map(sc => normalizeScene(sc, COMPONENTS)); }
+  try { scenes = prepareRenderScenes(project); }
   catch (e) { errors.push(e.message); scenes = project.scenes; }
   if (!errors.length) {
     lint = lintMotion({ scenes, tokens: project.tokens, components: COMPONENTS });
@@ -99,4 +107,4 @@ function compileProject(dir) {
   return { mode: 'v2', scriptPath, htmlPath, lint, errors };
 }
 
-module.exports = { normalizeScene, buildScriptJson, compileProject };
+module.exports = { normalizeScene, prepareRenderScenes, buildScriptJson, compileProject };

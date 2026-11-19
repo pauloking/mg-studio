@@ -4,6 +4,7 @@ const path = require('path');
 const ir = require('./ir');
 const { compileProject } = require('./compile');
 const { DISCLAIMER } = require('./medical-lint');
+const { composeScenes } = require('./motion-plan');
 
 function buildStoryboardDefinition({
   topic = '健康科普', audience = 'patient', template = 'science',
@@ -54,11 +55,12 @@ function buildStoryboardDefinition({
       id: 'card0', type: 'card', props: { title: shot.title, desc: shot.screen }, enter: { preset: 'rise', at: 0.4, dur: 0.8 }
     }]
   }));
-  return {
-    story: { schema: 2, meta: { title: cleanTopic, audience: cleanAudience, template: actualTemplate, durationTarget: cleanDur, style: cleanStyle }, beats },
-    scenes,
-    templateAdjusted: actualTemplate !== cleanTemplate
-  };
+  const story = { schema: 2, meta: { title: cleanTopic, audience: cleanAudience, template: actualTemplate, durationTarget: cleanDur, style: cleanStyle, motion: 'flow' }, beats };
+  const motionShots = composeScenes({ story, scenes }).map(scene => {
+    const { kind, nodes, number, unit } = scene.elements[0].props;
+    return { kind, nodes, number, unit };
+  });
+  return { story, scenes, motionShots, templateAdjusted: actualTemplate !== cleanTemplate };
 }
 
 function writeAndCompileGeneratedProject(targetDir, { story, scenes }) {
