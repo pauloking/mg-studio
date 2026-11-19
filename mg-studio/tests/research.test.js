@@ -27,9 +27,15 @@ test('救治时间选题使用相关性优先分页，并保持 PubMed 返回顺
       assert.equal(params.term, expandQuery(rescueTopic));
       assert.equal(params.sort, 'relevance');
       assert.equal(params.retmax, 15);
-      const ids = params.retstart === 0
-        ? Array.from({ length: 15 }, (_, i) => String(200 - i)) : ['42'];
-      return { data: { esearchresult: { idlist: ids, count: '16' } } };
+      assert.equal(params.usehistory, 'y');
+      const ids = Array.from({ length: 15 }, (_, i) => String(200 - i));
+      return { data: { esearchresult: { idlist: ids, count: '16', webenv: 'MCID_TEST', querykey: '1' } } };
+    }
+    if (!params.id) {
+      assert.equal(params.WebEnv, 'MCID_TEST');
+      assert.equal(params.query_key, '1');
+      assert.equal(params.retstart, 15);
+      return { data: { result: { uids: ['42'], 42: { title: 'Reperfusion study 42' } } } };
     }
     const result = Object.fromEntries(params.id.split(',').map(id => [id, { title: `Reperfusion study ${id}` }]));
     return { data: { result } };
@@ -38,9 +44,9 @@ test('救治时间选题使用相关性优先分页，并保持 PubMed 返回顺
   assert.equal(first.articles.length, 15);
   assert.equal(first.articles[0].id, 'pmid_200');
   assert.equal(first.total, 16);
-  assert.deepEqual(first.nextPage, { provider: 'PubMed', offset: 15 });
+  assert.equal(first.nextPage.offset, 15);
   const second = await searchLiterature(rescueTopic, { page: first.nextPage });
-  assert.equal(get.mock.calls[2].arguments[1].params.retstart, 15);
+  assert.match(get.mock.calls[2].arguments[0], /esummary\.fcgi$/);
   assert.equal(second.articles[0].id, 'pmid_42');
   assert.equal(second.nextPage, null);
 });

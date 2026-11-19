@@ -135,21 +135,33 @@ async function searchEuropePMC(query, maxResults, page) {
   return { articles, total, next };
 }
 
-async function searchPubMed(query, maxResults, page) {
-  const root = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils';
+const PUBMED_API = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils';
+
+async function startPubMedSearch(query, maxResults) {
   const idQuery = /^\d+$/.test(query) ? `${query}[uid]` : query;
-  const offset = page?.offset || 0;
-  const search = await getJson(`${root}/esearch.fcgi`, {
-    db: 'pubmed', term: idQuery, retmode: 'json', retmax: Math.min(maxResults, 10000 - offset),
-    retstart: offset, sort: 'relevance'
+  const search = await getJson(`${PUBMED_API}/esearch.fcgi`, {
+    db: 'pubmed', term: idQuery, retmode: 'json', retmax: maxResults,
+    usehistory: 'y', sort: 'relevance'
   });
-  const ids = search?.esearchresult?.idlist;
+  const result = search?.esearchresult;
+  const ids = result?.idlist;
   if (!Array.isArray(ids)) throw new Error('Invalid PubMed search response');
-  const total = Number(search.esearchresult.count);
-  if (!ids.length) return { articles: [], total };
-  const summaries = await getJson(`${root}/esummary.fcgi`, {
-    db: 'pubmed', id: ids.join(','), retmode: 'json'
+  return { ids, total: Number(result.count), history: result.webenv, queryKey: result.querykey, offset: 0 };
+}
+
+async function searchPubMed(query, maxResults, page) {
+  const search = page || await startPubMedSearch(query, maxResults);
+  const { total, history, queryKey, offset } = search;
+  if (search.ids?.length === 0) return { articles: [], total };
+  // The Entrez History server keeps the original Best Match order while users page.
+  const selection = page
+    ? { WebEnv: history, query_key: queryKey, retstart: offset, retmax: Math.min(maxResults, 10000 - offset) }
+    : { id: search.ids.join(',') };
+  const summaries = await getJson(`${PUBMED_API}/esummary.fcgi`, {
+    db: 'pubmed', retmode: 'json', ...selection
   });
+  const ids = search.ids || summaries?.result?.uids;
+  if (!Array.isArray(ids)) throw new Error('Invalid PubMed summaries');
   const articles = ids.map(id => {
     const item = summaries?.result?.[id];
     if (!item?.title) return null;
@@ -166,7 +178,9 @@ async function searchPubMed(query, maxResults, page) {
   }).filter(Boolean);
   if (!articles.length) throw new Error('Invalid PubMed summaries');
   const nextOffset = offset + ids.length;
-  return { articles, total, next: nextOffset < Math.min(total, 10000) ? { offset: nextOffset } : null };
+  const next = history && queryKey && nextOffset < Math.min(total, 10000)
+    ? { offset: nextOffset, total, history, queryKey } : null;
+  return { articles, total, next };
 }
 
 async function searchOpenAlex(query, maxResults, page) {
@@ -197,7 +211,7 @@ async function fetchArticleAbstract(id) {
   const parser = new DOMParser({ errorHandler: { warning() {}, error() {}, fatalError() {} } });
   const pmid = /^(?:pmid_|epmc_MED_)(\d{1,10})$/.exec(id)?.[1];
   if (pmid) {
-    const xml = await getJson('https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi', {
+    const xml = await getJson(`${PUBMED_API}/efetch.fcgi`, {
       db: 'pubmed', id: pmid, retmode: 'xml', tool: 'mg-studio'
     });
     const article = parser.parseFromString(xml, 'application/xml').getElementsByTagName('PubmedArticle')[0];
@@ -271,8 +285,12 @@ async function searchLiterature(query, options = {}) {
   if (page != null) {
     providers = providers.filter(([provider]) => provider === page.provider);
     const validOffset = Number.isSafeInteger(page.offset) && page.offset > 0;
-    let validPosition = page.offset < 10000;
-    if (page.provider === 'Europe PMC') {
+    let validPosition = false;
+    if (page.provider === 'PubMed') {
+      validPosition = Number.isSafeInteger(page.total) && page.offset < Math.min(page.total, 10000)
+        && typeof page.history === 'string' && /^[\w-]{1,512}$/.test(page.history)
+        && typeof page.queryKey === 'string' && /^\d{1,8}$/.test(page.queryKey);
+    } else if (page.provider === 'Europe PMC') {
       validPosition = typeof page.cursor === 'string' && page.cursor.length > 0 && page.cursor.length <= 2048;
     } else if (page.provider === 'OpenAlex') {
       validPosition = page.offset % maxResults === 0 && page.offset + maxResults <= 10000;

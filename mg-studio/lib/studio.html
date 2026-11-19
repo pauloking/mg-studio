@@ -2173,7 +2173,7 @@ async function runLiteratureSearch(query, page = null) {
       dom.wzArticleList.scrollTop += delta;
     }
   } catch (error) {
-    dom.searchStatus.textContent = page ? '加载更多失败。当前结果已保留，可再点一次。' : error.message;
+    dom.searchStatus.textContent = page ? '加载更多失败。当前结果已保留，可重试加载或重新检索。' : error.message;
     if (!page) dom.wzArticleList.textContent = '未能加载文献结果。';
   } finally {
     dom.btnRunSearch.disabled = dom.btnMoreLiterature.disabled = false;
