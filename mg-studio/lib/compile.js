@@ -51,12 +51,14 @@ function buildScriptJson(project) {
     schema: 2,
     renderContext: { tokens: project.tokens, disclaimer: m.audience === 'patient' ? DISCLAIMER : null },
     fps: v.fps || 30, width: v.width || 1920, height: v.height || 1080,
-    options: Object.assign({ pad: 1.1, leadIn: .45, introLeadIn: .7, introMinSec: 6.5, outroMinSec: 8.5 }, m.options || {}),
+    options: Object.assign({ pad: 1.1, leadIn: .45, introLeadIn: .7, introMinSec: 6.5, outroMinSec: 8.5 },
+      m.options || {}, m.director?.framePlan ? { framePlan: m.director.framePlan } : {}),
     tts: m.tts || { backend: 'local' },
     scenes: project.scenes.map(sc => ({
       id: sc.id, minSec: sc.minSec || 0, narration: sc.narration,
       subs: sc.subsOverride || splitSubs(sc.narration),
       beat: sc.beat, layout: sc.layout, elements: sc.elements, cues: sc.cues || [],
+      ...(sc.segment ? { segment: sc.segment } : {}),
       ...(sc.transition ? { transition: sc.transition } : {})
     }))
   };

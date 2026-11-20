@@ -1,6 +1,7 @@
 'use strict';
 const fs = require('fs'), path = require('path');
 const { MOTION_MODES } = require('./motion-plan');
+const { validSegment } = require('./shot-segment');
 
 const ROLES = ['hook', 'context', 'conflict', 'mechanism', 'evidence', 'demo', 'takeaway', 'cta', 'objective', 'prerequisite', 'steps', 'summary', 'selfcheck'];
 const AUDIENCES = ['patient', 'professional', 'general'];
@@ -61,6 +62,7 @@ function validateScene(sc, beatIds, layoutNames) {
   if (sc.id !== sc.beat) errors.push(`M1 要求 scene.id === beat（${sc.id} vs ${sc.beat}）`);
   if (!layoutNames.includes(sc.layout)) errors.push(`scene ${sc.id} layout 未知: ${sc.layout}`);
   if (!(typeof sc.minSec === 'number' && sc.minSec >= 0)) errors.push(`scene ${sc.id} minSec 须 >= 0`);
+  if (sc.segment != null && (sc.layout !== 'directed' || !validSegment(sc.segment))) errors.push(`scene ${sc.id} 拆分时间窗无效`);
   const els = sc.elements || [];
   if (!Array.isArray(els) || els.length === 0) errors.push(`scene ${sc.id} elements 不能为空`);
   const seen = new Set();

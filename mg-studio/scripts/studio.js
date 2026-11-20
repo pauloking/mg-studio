@@ -28,6 +28,7 @@ const { buildStoryboardDefinition, writeAndCompileGeneratedProject } = require('
 const director = require('../lib/director');
 const { icons, listAssets, validateLocalImage, validateLocalVideo } = require('../lib/director-assets');
 const { atomicWrite, readShot, saveShot } = require('../lib/save-shot');
+const { splitShot, undoSplit } = require('../lib/split-shot');
 const { catalog, uploadAsset } = require('../lib/project-assets');
 const { pendingShots, updateReview } = require('../lib/director-review');
 const { projectSnapshot, previewSnapshot } = require('../lib/project-snapshot');
@@ -406,7 +407,7 @@ function createStudioServer(options = {}) {
 
         if (pathname === '/api/director/shot' && req.method === 'POST') {
           const { id, action, instruction, keepNarration, keepAssets, keepComposition, keepDuration,
-            asset, media, stored, layerId, token } = await parseJsonBody(req);
+            asset, media, stored, layerId, token, frame } = await parseJsonBody(req);
           const dir = fs.realpathSync(projectDir);
           if (action === 'discard') {
             if (shotDraft?.token === token) clearShotDraft();
@@ -428,12 +429,24 @@ function createStudioServer(options = {}) {
             return;
           }
           if (locked.has(id)) throw Object.assign(new Error('请先解锁当前镜头。'), { statusCode: 409 });
+          if (action === 'split') {
+            const result = splitShot(dir, current, frame);
+            clearShotDraft();
+            sendJson(res, 200, { ok: true, ...result });
+            return;
+          }
           const historyPath = projectFilePath(dir, 'director-undo.json');
           const history = fs.existsSync(historyPath) ? JSON.parse(fs.readFileSync(historyPath, 'utf8')) : {};
           let next;
           if (action === 'undo') {
             next = history[id];
             if (!next) throw Object.assign(new Error('当前镜头暂无可撤销的修改。'), { statusCode: 409 });
+            if (next.split || next.splitParent) {
+              const result = undoSplit(dir, next.splitParent || id, history, historyPath);
+              clearShotDraft();
+              sendJson(res, 200, { ok: true, splitUndo: true, ...result });
+              return;
+            }
           } else if (action === 'apply') {
             if (!shotDraft || shotDraft.token !== token || shotDraft.dir !== dir || shotDraft.id !== id ||
                 current.sceneRaw !== shotDraft.sceneRaw || current.storyRaw !== shotDraft.storyRaw) {
@@ -564,6 +577,7 @@ function createStudioServer(options = {}) {
         // POST /api/beat/add (动态插入新分镜)
         if (pathname === '/api/beat/add' && req.method === 'POST') {
           const body = await parseJsonBody(req);
+          if (activeProjects.has(fs.realpathSync(projectDir))) throw Object.assign(new Error('请等当前配音或导出结束。'), { statusCode: 409 });
           const beat = body.beat;
           if (!beat || !beat.id) {
             sendJson(res, 400, { ok: false, error: 'beat with id is required' });
@@ -632,17 +646,19 @@ function createStudioServer(options = {}) {
           fs.writeFileSync(storyPath, JSON.stringify(story, null, 2));
 
           const comp = compileProject(projectDir);
+          const retime = story.meta.director ? invalidateTimeline(projectDir) : false;
           const updated = ir.loadProject(projectDir, LAYOUT_NAMES);
           // 结构写入成功即 ok；医学门诊断（如 MED_FACT_UNVERIFIED，源于项目里待核实的 facts）
           // 属于内容级阻断，不该让"插入普通分镜"这个结构操作报失败——compile 诊断透传给前端展示。
           const structuralErrors = (comp.errors || []).filter(e => !e.includes('MED_'));
-          sendJson(res, 200, { ok: structuralErrors.length === 0, compile: comp, project: updated });
+          sendJson(res, 200, { ok: structuralErrors.length === 0, compile: comp, project: updated, retime });
           return;
         }
 
         // POST /api/beat/delete (删除分镜)
         if (pathname === '/api/beat/delete' && req.method === 'POST') {
           const body = await parseJsonBody(req);
+          if (activeProjects.has(fs.realpathSync(projectDir))) throw Object.assign(new Error('请等当前配音或导出结束。'), { statusCode: 409 });
           const beatId = body.beatId;
           if (!beatId) {
             sendJson(res, 400, { ok: false, error: 'beatId is required' });
@@ -669,10 +685,11 @@ function createStudioServer(options = {}) {
           if (fs.existsSync(scPath)) fs.unlinkSync(scPath);
 
           const comp = compileProject(projectDir);
+          const retime = story.meta.director ? invalidateTimeline(projectDir) : false;
           const updated = ir.loadProject(projectDir, LAYOUT_NAMES);
           // 结构写入成功即 ok；医学门诊断（内容级阻断）透传 compile 字段给前端展示
           const structuralErrors = (comp.errors || []).filter(e => !e.includes('MED_'));
-          sendJson(res, 200, { ok: structuralErrors.length === 0, compile: comp, project: updated });
+          sendJson(res, 200, { ok: structuralErrors.length === 0, compile: comp, project: updated, retime });
           return;
         }
 
@@ -809,7 +826,8 @@ function createStudioServer(options = {}) {
           if (current.story.meta.director?.locked?.includes(sc.id)) {
             throw Object.assign(new Error('请先解锁当前镜头。'), { statusCode: 409 });
           }
-          const { narration, ...scene } = sc;
+          const { narration, segment, ...scene } = sc;
+          if (current.scene.segment) scene.segment = current.scene.segment;
           const result = saveShot(dir, current, { ...scene, beat: sc.id },
             { ...current.beat, narration: typeof narration === 'string' ? narration.trim() : current.beat.narration });
           sendJson(res, 200, { ok: true, ...result });
@@ -895,7 +913,7 @@ function createStudioServer(options = {}) {
             try {
               await run('compile.js', [], log, 30000);
               const script = JSON.parse(fs.readFileSync(scriptPath, 'utf8'));
-              const ttsArgs = ['--backend', backend];
+              const ttsArgs = ['--backend', backend, ...(body.retime === true ? ['--reuse'] : [])];
               if (script.scenes.some(sc => sc.id === body.only) &&
                   script.scenes.every(sc => sc.id === body.only || fs.existsSync(path.join(workDir, 'vo', sc.id + '.wav')))) {
                 ttsArgs.push('--only', body.only);

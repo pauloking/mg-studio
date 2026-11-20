@@ -6,9 +6,10 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { _electron } = require('playwright-core');
+const { wavSamples } = require('../lib/shot-segment');
 
 const executablePath = process.env.MG_PACKAGED_EXE;
-test('安装包：一句话样例带声预览、单镜重做、换素材并导出', {
+test('安装包：带声预览、单镜重做、换素材、拆镜与后台导出', {
   skip: !executablePath && 'set MG_PACKAGED_EXE', timeout: 360000
 }, async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mg-director-e2e-'));
@@ -114,6 +115,36 @@ test('安装包：一句话样例带声预览、单镜重做、换素材并导�
     assert.equal(narration(), revised);
     assert.equal(fs.readFileSync(wav).equals(firstVoice), true);
     await page.waitForFunction(() => document.querySelector('#inpSceneNarration')?.value === '这滴雨沿着路面流向排水口。');
+    const voice3 = wavSamples(fs.readFileSync(path.join(project.path, 'vo', 'shot_3.wav')));
+    const total = await page.evaluate(() => { seekFrame(state.timeline.scenes[2].start + 75); return state.totalFrames; });
+    const split = async () => {
+      const [response] = await Promise.all([page.waitForResponse(r => new URL(r.url()).pathname === '/api/director/shot'),
+        page.locator('#btnSplitScene').click()]);
+      const result = await response.json();
+      assert.ok(result.ok, result.error);
+      await page.locator('#directorShotStatus').getByText('已拆分镜头，保留原配音与动效。').waitFor();
+      return result;
+    };
+    const part = await split();
+    const readVoice = id => wavSamples(fs.readFileSync(path.join(project.path, 'vo', id + '.wav')));
+    assert.deepEqual(Buffer.concat([readVoice('shot_3'), readVoice(part.id)]), voice3);
+    assert.equal(await page.evaluate(() => state.currentFrame), part.frame);
+    assert.equal(await page.evaluate(() => state.totalFrames), total);
+    await page.locator('#directorUndo').click();
+    await page.locator('#directorShotStatus').getByText('已合并回拆分前的镜头。').waitFor();
+    assert.deepEqual(readVoice('shot_3'), voice3);
+    await page.evaluate(() => seekFrame(state.timeline.scenes[2].start + 75));
+    const again = await split();
+    const reorder = async (index, direction) => {
+      const [response] = await Promise.all([page.waitForResponse(r => new URL(r.url()).pathname === '/api/tts'),
+        page.locator(`.beat-card[data-index="${index}"] .btn-beat-${direction}`).click()]);
+      assert.ok((await response.json()).ok);
+    };
+    await reorder(3, 'down');
+    await page.waitForFunction(id => state.timeline.scenes[4]?.id === id, again.id);
+    await reorder(4, 'up');
+    await page.waitForFunction(id => state.timeline.scenes[3]?.id === id, again.id);
+    await page.locator('.beat-card[data-index="1"]').click();
     assert.deepEqual(errors, []);
 
     const [exportRequest] = await Promise.all([page.waitForResponse(r => new URL(r.url()).pathname === '/api/export'),
@@ -129,6 +160,7 @@ test('安装包：一句话样例带声预览、单镜重做、换素材并导�
     const logs = await page.locator('#exportLogBox').textContent();
     assert.match(logs, /圆满完成/, logs);
     assert.match(logs, /复用配音/);
+    assert.match(logs, /保留拆镜旁白/);
     const movie = path.join(project.path, 'out', 'output.mp4');
     const codecs = execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_name', '-of', 'csv=p=0', movie], { encoding: 'utf8' });
     assert.match(codecs, /h264/);

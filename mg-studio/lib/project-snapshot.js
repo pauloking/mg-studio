@@ -5,6 +5,7 @@ const path = require('node:path');
 const { compileProject } = require('./compile');
 const { copyAssets } = require('./project-assets');
 const { projectFilePath, sceneFilePath } = require('./project-files');
+const { takePath } = require('./shot-segment');
 
 function copyFiles(dir, staging, files) {
   for (const file of files) {
@@ -29,13 +30,16 @@ function projectSnapshot(dir, alternate) {
     }
     fs.writeFileSync(path.join(staging, 'story.json'), JSON.stringify(story, null, 2));
     fs.mkdirSync(path.join(staging, 'scenes'));
+    const takes = new Set();
     for (const beat of story.beats) {
       const sceneFile = path.join(staging, 'scenes', beat.id + '.json');
       const source = sceneFilePath(dir, beat.id);
-      if (alternate?.scene.id === beat.id) fs.writeFileSync(sceneFile, JSON.stringify(alternate.scene));
-      else fs.copyFileSync(source, sceneFile);
+      const contents = alternate?.scene.id === beat.id ? JSON.stringify(alternate.scene) : fs.readFileSync(source, 'utf8');
+      fs.writeFileSync(sceneFile, contents);
+      const take = JSON.parse(contents).segment?.take;
+      if (take) takes.add(path.relative(dir, takePath(dir, take)));
     }
-    copyFiles(dir, staging, ['tokens.json', 'vo/bgm.wav', 'vo/voices.json', ...story.beats.map(beat => 'vo/' + beat.id + '.wav')]);
+    copyFiles(dir, staging, ['tokens.json', 'vo/bgm.wav', 'vo/voices.json', ...takes, ...story.beats.map(beat => 'vo/' + beat.id + '.wav')]);
     copyAssets(dir, staging);
     return staging;
   } catch (error) {

@@ -871,6 +871,7 @@ textarea {
         </div>
 
         <div class="time-readout">
+          <button id="btnSplitScene" type="button" hidden title="在播放头附近的字幕分界处拆分，保留原配音和运动">按字幕拆镜</button>
           <span class="current-time" id="curTimeText">00:00.00 (F: 0)</span>
           <span class="total-time" id="totalTimeText">/ 00:00.00</span>
         </div>
@@ -1328,6 +1329,7 @@ const dom = {
   motionPicker: document.getElementById('motionPicker'),
   motionSelect: document.getElementById('motionSelect'),
   btnReplayScene: document.getElementById('btnReplayScene'),
+  btnSplitScene: document.getElementById('btnSplitScene'),
   beatCount: document.getElementById('beatCount'),
   beatList: document.getElementById('beatList'),
   viewportContainer: document.getElementById('viewportContainer'),
@@ -1751,12 +1753,17 @@ function renderBeatList(project) {
 
 // 分镜重排序
 async function reorderBeat(beatId, direction) {
+  const order = state.project?.story?.beats.map(beat => beat.id) || [];
+  const from = order.indexOf(beatId);
+  const to = from + (direction === 'up' ? -1 : 1);
+  if (from < 0 || to < 0 || to >= order.length) return;
+  [order[from], order[to]] = [order[to], order[from]];
   try {
     showToast(`正在${direction === 'up' ? '上移' : '下移'}分镜 ${beatId}...`);
     const res = await apiFetch('/api/beat/reorder', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ beatId, direction })
+      body: JSON.stringify({ order })
     });
     const r = await res.json();
     if (r.ok) {
@@ -1787,7 +1794,8 @@ async function deleteBeat(beatId) {
     if (r.ok) {
       showToast(`分镜 [${beatId}] 已删除并重新编译！`);
       await loadProjectData();
-      reloadIframe();
+      if (r.retime) await prepareVoice(undefined, true);
+      else await reloadIframe();
     } else {
       showToast('删除失败: ' + (r.error || (r.compile && r.compile.errors.join('; '))));
     }
@@ -2816,6 +2824,8 @@ function updateDirectorControls(scene) {
   }
   if (directed) loadDirectorCatalog();
   const locked = Boolean(directed && meta.locked?.includes(scene.id));
+  dom.btnSplitScene.hidden = !directed;
+  dom.btnSplitScene.disabled = locked || directorBusy;
   if (directed) {
     const selected = directorUI.Layer.value;
     directorUI.Layer.replaceChildren(...scene.elements.filter(el => ['icon', 'image', 'video'].includes(el.props.kind))
@@ -2844,6 +2854,13 @@ async function changeDirectedShot(action, details = {}) {
   directorUI.ShotStatus.textContent = action === 'preview' ? '正在重新编排当前镜头…' : '正在保存…';
   try {
     const result = await wizardRequest('/api/director/shot', { id, action, ...details });
+    if (action === 'split' || result.splitUndo) {
+      await loadProjectData();
+      if (await reloadIframe()) seekFrame(result.frame);
+      directorUI.ShotStatus.textContent = result.splitUndo ? '已合并回拆分前的镜头。' : '已拆分镜头，保留原配音与动效。';
+      showToast(result.splitUndo ? '已撤销拆镜。' : '已在 ' + formatTime(result.frame, state.fps) + ' 的字幕分界处拆分。');
+      return;
+    }
     if (action === 'preview') {
       showDirectorDraft(result);
       directorUI.ShotStatus.textContent = '改版可试听。';
@@ -2866,6 +2883,7 @@ async function changeDirectedShot(action, details = {}) {
     directorUI.ShotStatus.textContent = action === 'undo' ? '已恢复上一次编排。' : '当前镜头已更新。';
   } catch (error) {
     directorUI.ShotStatus.textContent = error.message;
+    if (action === 'split') showToast(error.message);
     if (action === 'apply') directorUI.DraftStatus.textContent = error.message;
   } finally {
     directorBusy = false;
@@ -2962,6 +2980,7 @@ directorUI.Revise.addEventListener('click', () => changeDirectedShot('preview', 
   instruction: directorUI.Revision.value.trim(), keepNarration: directorUI.KeepVoice.checked,
   keepAssets: directorUI.KeepAssets.checked, keepComposition: directorUI.KeepComposition.checked, keepDuration: directorUI.KeepDuration.checked
 }));
+dom.btnSplitScene.addEventListener('click', () => changeDirectedShot('split', { frame: state.currentFrame }));
 directorUI.Lock.addEventListener('click', () => changeDirectedShot('lock'));
 directorUI.Undo.addEventListener('click', () => changeDirectedShot('undo'));
 directorUI.Replace.addEventListener('click', () => {
@@ -3308,14 +3327,15 @@ dom.btnConfirmAddBeat.addEventListener('click', async () => {
     const res = await apiFetch('/api/beat/add', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, role, layout, narration })
+      body: JSON.stringify({ beat: { id, role, narration }, layout })
     });
     const r = await res.json();
     if (r.ok) {
       showToast(`新分镜 [${id}] 添加成功！`);
       dom.addBeatModal.classList.remove('show');
       await loadProjectData();
-      reloadIframe();
+      if (r.retime) await prepareVoice(undefined, true);
+      else await reloadIframe();
     } else {
       showToast('添加失败: ' + (r.error || (r.compile && r.compile.errors.join('; '))));
     }

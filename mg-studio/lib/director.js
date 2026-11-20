@@ -83,10 +83,10 @@ async function requestPlan(config, task) {
   }
 }
 
-function cleanShot(shot, factCount) {
+function cleanShot(shot, factCount, minSeconds = 1.5) {
   if (!shot || typeof shot.title !== 'string' || !shot.title.trim() || shot.title.length > 55 ||
       typeof shot.narration !== 'string' || !shot.narration.trim() || shot.narration.length > 140 ||
-      !Number.isFinite(shot.seconds) || shot.seconds < 1.5 || shot.seconds > 28 ||
+      !Number.isFinite(shot.seconds) || shot.seconds < minSeconds || shot.seconds > 28 ||
       !TRANSITIONS.includes(shot.transition) || !Array.isArray(shot.layers) || !shot.layers.length ||
       shot.layers.length > 10 || !shot.layers.every(validateLayer) || !shot.layers.some(layer => layer.kind === 'text')) {
     throw error('有镜头缺少有效的旁白、时长或图层，请重试。');
@@ -274,11 +274,14 @@ async function reviseShot({ project, scene, beat, neighbors = [], instruction, k
   if (keepDuration) next.seconds = current.seconds;
   if (keepAssets && current.transition === 'match' && !/转场|切镜/.test(instruction)) next.transition = 'match';
   if (Array.isArray(next.layers)) next.layers = preserveLayers(current.layers, next.layers, { keepAssets, keepComposition });
-  const clean = cleanShot(next, beat.facts.length);
+  const clean = cleanShot(next, beat.facts.length, scene.segment ? .6 : 1.5);
   if (shorter && !keepDuration && clean.narration.length / 5.1 + .3 > clean.seconds) {
     throw error('指定时长容不下当前旁白。请放开旁白锁定并适当缩短文案。');
   }
-  return { scene: makeScene(scene.id, clean), beat: { ...beat, intent: clean.title, narration: clean.narration } };
+  const revised = makeScene(scene.id, clean);
+  if (scene.segment) revised.segment = scene.segment;
+  if (scene.subsOverride && clean.narration === beat.narration) revised.subsOverride = scene.subsOverride;
+  return { scene: revised, beat: { ...beat, intent: clean.title, narration: clean.narration } };
 }
 
 module.exports = { configuration, createFromBrief, reviseShot, makeIllustration, samples };

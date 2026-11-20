@@ -17,6 +17,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { createHash } = require('node:crypto');
+const { preservedVoice } = require('../lib/shot-segment');
 
 function parseArgs(argv) {
   const out = { backend: null, dir: null, only: null };
@@ -133,6 +134,22 @@ function run({ dir: argvDir, backend, only, reuse }) {
 
   for (const sc of scenes) {
     const wav = path.join(dir, 'vo', sc.id + '.wav');
+    const take = preservedVoice(dir, sc);
+    if (take) {
+      const tmp = wav + '.tmp.wav';
+      try {
+        fs.copyFileSync(take, tmp);
+        fs.renameSync(tmp, wav);
+      } finally {
+        fs.rmSync(tmp, { force: true });
+      }
+      if (Object.hasOwn(voices, sc.id)) {
+        delete voices[sc.id];
+        fs.writeFileSync(manifest, JSON.stringify(voices));
+      }
+      console.log('保留拆镜旁白', sc.id);
+      continue;
+    }
     // 各后端原生产物：say 出 aiff、百炼出 wav，随后统一转 44100 单声道
     const rawSrc = path.join(dir, 'vo', sc.id + (cfg.backend === 'bailian' || process.platform === 'win32' ? '_raw.wav' : '_raw.aiff'));
     const { cmd, args, env, input } = buildTtsCommand({ cfg, sc, raw: rawSrc });

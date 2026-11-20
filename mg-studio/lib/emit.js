@@ -190,7 +190,7 @@ function upSubtitle(t) { let cur = null;
   for (const sc of TL.scenes) for (const cu of sc.subs) if (t >= cu.from && t < cu.to) cur = cur || cu;
   if (!cur) { op(subtitleEl, 0); lastSub = ''; return; }
   if (cur.text !== lastSub) { subtitleEl.textContent = cur.text; lastSub = cur.text; }
-  op(subtitleEl, Math.min(seg(t-cur.from,0,.25), seg(cur.to-t,0,.25))); }
+  op(subtitleEl, Math.min(seg(t-(cur.fadeFrom ?? cur.from),0,.25), seg((cur.fadeTo ?? cur.to)-t,0,.25))); }
 `;
 const BOOTSTRAP = `
 const scenesEl = document.getElementById('scenes');

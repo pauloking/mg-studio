@@ -72,7 +72,7 @@ function updateDirected(state, time, duration, previous) {
     if (props.track || from) {
       const pose = layerPose(props, t);
       if (from) {
-        const origin = layerPose(from.props, 1);
+        const origin = layerPose(from.props, previous.endPhase);
         const mix = eo(seg(time, 0, .56));
         for (const key of ['x', 'y', 'w', 'h', 'scale', 'rotation']) pose[key] = origin[key] + (pose[key] - origin[key]) * mix;
       }
@@ -147,6 +147,7 @@ module.exports = {
   check: el => el.type === 'layer' && validateLayer(el.props) ? [] : ['镜头图层的内容、位置或动作无效'],
   runtime: () => layerPose.toString() + '\n' + updateDirected.toString(),
   build: sc => {
+    const { segment } = sc;
     const content = sc.elements.map(el => {
       const p = el.props;
       const { x, y, w, h } = rect(p);
@@ -162,9 +163,11 @@ module.exports = {
           const length=node.getTotalLength();node.style.strokeDasharray=length;return [node,length];
         }));
       }
-      S['${sc.id}']={r,els,strokes,transition:${JSON.stringify(TRANSITIONS.includes(sc.transition) ? sc.transition : 'cut')}}; }`;
+      S['${sc.id}']={r,els,strokes,endPhase:${segment ? (segment.from + segment.frames) / segment.total : 1},transition:${JSON.stringify(TRANSITIONS.includes(sc.transition) ? sc.transition : 'cut')}}; }`;
   },
-  extraUpdate: () => 'return updateDirected(s, lt, dur, previous);',
+  extraUpdate: sc => sc.segment
+    ? `return updateDirected(s, (${sc.segment.from} + lt / dur * ${sc.segment.frames}) / TL.fps, ${sc.segment.total} / TL.fps, previous);`
+    : 'return updateDirected(s, lt, dur, previous);',
   boxes: sc => sc.elements.map(el => ({
     id: el.id, ...rect(el.props),
     blocks: el.props.kind === 'text' ? [{ text: el.props.content, colorKey: el.props.color }] : []
