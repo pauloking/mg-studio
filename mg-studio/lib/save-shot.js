@@ -29,16 +29,33 @@ function readShot(dir, id) {
   return { storyPath, scenePath, storyRaw, sceneRaw, story, scene, index, beat: story.beats[index] };
 }
 
-function saveShot(dir, current, scene, beat) {
+function saveShot(dir, current, scene, beat, { sharedRoute } = {}) {
   const { story, index, storyPath, scenePath, storyRaw, sceneRaw } = current;
   if (scene.id !== current.scene.id || beat.id !== current.beat.id) throw new Error('镜头编号有误。');
   const narrationChanged = current.beat.narration !== beat.narration;
   const timingChanged = scene.minSec !== current.scene.minSec;
   if (narrationChanged) delete scene.subsOverride;
   const nextStory = { ...story, beats: story.beats.map((value, i) => i === index ? beat : value) };
+  const affected = [];
+  if (sharedRoute !== undefined) {
+    const stage = scene.stage?.id;
+    const stages = story.meta.director?.sharedStages || {};
+    if (!Object.hasOwn(stages, stage)) throw Object.assign(new Error('找不到要编辑的共享水路。'), { statusCode: 422 });
+    if (JSON.stringify(stages[stage].route) !== JSON.stringify(sharedRoute)) {
+      for (const item of story.beats) {
+        if (readShot(dir, item.id).scene.stage?.id !== stage) continue;
+        if (story.meta.director.locked?.includes(item.id)) {
+          throw Object.assign(new Error('共享水路影响已锁定的镜头，请解锁后再改水路。'), { statusCode: 409 });
+        }
+        affected.push(item.id);
+      }
+      nextStory.meta = { ...story.meta, director: { ...story.meta.director,
+        sharedStages: { ...stages, [stage]: { ...stages[stage], route: sharedRoute } } } };
+    }
+  }
   if (nextStory.meta.director && nextStory.meta.audience === 'patient') {
     nextStory.meta = { ...nextStory.meta, director: { ...nextStory.meta.director } };
-    const pending = pendingShots(story);
+    const pending = [...pendingShots(story), ...affected];
     if (contentSignature(scene, beat) !== contentSignature(current.scene, current.beat)) pending.push(beat.id);
     updateReview(nextStory, pending);
   }

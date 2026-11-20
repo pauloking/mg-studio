@@ -2,6 +2,7 @@
 const fs = require('fs'), path = require('path');
 const { MOTION_MODES } = require('./motion-plan');
 const { validSegment } = require('./shot-segment');
+const { validWorlds, validStageShot } = require('./shared-stage');
 
 const ROLES = ['hook', 'context', 'conflict', 'mechanism', 'evidence', 'demo', 'takeaway', 'cta', 'objective', 'prerequisite', 'steps', 'summary', 'selfcheck'];
 const AUDIENCES = ['patient', 'professional', 'general'];
@@ -35,6 +36,7 @@ function validateStory(story) {
   if (!TEMPLATES.includes(m.template)) errors.push('meta.template 非法: ' + m.template);
   if (m.style != null && !STYLES.includes(m.style)) errors.push('meta.style 未知: ' + m.style);
   if (m.motion != null && !MOTION_MODES.includes(m.motion)) errors.push('meta.motion 未知: ' + m.motion);
+  if (m.director?.sharedStages != null && !validWorlds(m.director.sharedStages)) errors.push('共享场景定义无效。');
   if (!(typeof m.durationTarget === 'number' && m.durationTarget > 0)) errors.push('meta.durationTarget 必须为正数');
   const beats = Array.isArray(story && story.beats) ? story.beats : [];
   if (!Array.isArray(story && story.beats) || beats.length === 0) errors.push('beats 不能为空');
@@ -63,8 +65,9 @@ function validateScene(sc, beatIds, layoutNames) {
   if (!layoutNames.includes(sc.layout)) errors.push(`scene ${sc.id} layout 未知: ${sc.layout}`);
   if (!(typeof sc.minSec === 'number' && sc.minSec >= 0)) errors.push(`scene ${sc.id} minSec 须 >= 0`);
   if (sc.segment != null && (sc.layout !== 'directed' || !validSegment(sc.segment))) errors.push(`scene ${sc.id} 拆分时间窗无效`);
+  if (sc.stage != null && (sc.layout !== 'directed' || !validStageShot(sc.stage))) errors.push(`scene ${sc.id} 共享场景动作无效`);
   const els = sc.elements || [];
-  if (!Array.isArray(els) || els.length === 0) errors.push(`scene ${sc.id} elements 不能为空`);
+  if (!Array.isArray(els) || (els.length === 0 && !sc.stage)) errors.push(`scene ${sc.id} elements 不能为空`);
   const seen = new Set();
   for (const el of els) {
     if (!el.id || !isSafeId(el.id) || seen.has(el.id)) errors.push(`scene ${sc.id} element.id 缺失/重复/非法: ${el.id}`);
@@ -162,6 +165,7 @@ function loadProject(dir, layoutNames) {
     const sc = JSON.parse(fs.readFileSync(sp, 'utf8'));
     errors.push(...validateScene(sc, beatIds, layoutNames).errors);
     if (!sc || sc.id !== b.id) { errors.push('场景文件 scenes/' + b.id + '.json 的 id 与 beat 不匹配: ' + (sc && sc.id)); continue; }
+    if (sc.stage && !Object.hasOwn(story.meta.director?.sharedStages || {}, sc.stage.id)) errors.push(`scene ${sc.id} 未找到共享场景`);
     scenes.push(Object.assign({}, sc, { narration: b.narration, beat: { role: b.role, emotion: b.emotion, intent: b.intent, facts: b.facts } }));
   }
   if (errors.length) { const e = new Error('IR 校验失败:\n' + errors.join('\n')); e.irErrors = errors; throw e; }

@@ -83,12 +83,12 @@ async function requestPlan(config, task) {
   }
 }
 
-function cleanShot(shot, factCount, minSeconds = 1.5) {
+function cleanShot(shot, factCount, minSeconds = 1.5, hasStage = false) {
   if (!shot || typeof shot.title !== 'string' || !shot.title.trim() || shot.title.length > 55 ||
       typeof shot.narration !== 'string' || !shot.narration.trim() || shot.narration.length > 140 ||
       !Number.isFinite(shot.seconds) || shot.seconds < minSeconds || shot.seconds > 28 ||
-      !TRANSITIONS.includes(shot.transition) || !Array.isArray(shot.layers) || !shot.layers.length ||
-      shot.layers.length > 10 || !shot.layers.every(validateLayer) || !shot.layers.some(layer => layer.kind === 'text')) {
+      !TRANSITIONS.includes(shot.transition) || !Array.isArray(shot.layers) ||
+      shot.layers.length > 10 || !shot.layers.every(validateLayer) || (!hasStage && !shot.layers.some(layer => layer.kind === 'text'))) {
     throw error('有镜头缺少有效的旁白、时长或图层，请重试。');
   }
   const evidence = shot.evidence ?? [];
@@ -109,15 +109,17 @@ function makeScene(id, shot) {
 }
 
 function toDefinition(plan, { brief, facts, audience, style, sample, target }) {
+  const sharedStages = sample && plan?.sharedStages;
   if (!plan || typeof plan.title !== 'string' || !plan.title.trim() || plan.title.length > 90 ||
-      !Array.isArray(plan.shots) || plan.shots.length < 3 || plan.shots.length > 10) {
+      !Array.isArray(plan.shots) || plan.shots.length < (sharedStages ? 2 : 3) || plan.shots.length > 10) {
     throw error('镜头计划须包含片名和 3 至 10 个镜头。');
   }
-  const shots = plan.shots.map(shot => cleanShot(shot, facts.length));
+  const shots = plan.shots.map(shot => cleanShot(shot, facts.length, 1.5, Boolean(sharedStages && shot.stage)));
   const story = { schema: 2, meta: {
     title: plan.title.trim(), audience, template: 'free', style, durationTarget: target,
-    options: { pad: .58, leadIn: .25, introLeadIn: .3, introMinSec: 1.5, outroMinSec: 1.5, fitDuration: target },
-    director: { brief, ...(plan.arc && { arc: plan.arc }), provider: sample ? 'sample' : 'model', pendingReview: audience === 'patient' && !sample }
+    options: { pad: .58, leadIn: .25, introLeadIn: sharedStages ? .25 : .3, introMinSec: 1.5, outroMinSec: 1.5, fitDuration: target },
+    director: { brief, ...(plan.arc && { arc: plan.arc }), ...(sharedStages && { sharedStages }),
+      provider: sample ? 'sample' : 'model', pendingReview: audience === 'patient' && !sample }
   }, beats: shots.map((shot, i) => ({
     id: 'shot_' + (i + 1), role: i === 0 ? 'hook' : i === shots.length - 1 ? 'takeaway' : 'mechanism',
     emotion: i === 0 ? 4 : 3, intent: shot.title,
@@ -125,7 +127,9 @@ function toDefinition(plan, { brief, facts, audience, style, sample, target }) {
       ? shot.narration + DISCLAIMER + '。' : shot.narration,
     facts: shot.evidence.map(n => facts[n - 1])
   })) };
-  return { story, scenes: shots.map((shot, i) => makeScene(story.beats[i].id, shot)) };
+  return { story, scenes: shots.map((shot, i) => ({
+    ...makeScene(story.beats[i].id, shot), ...(sharedStages && plan.shots[i].stage ? { stage: plan.shots[i].stage } : {})
+  })) };
 }
 
 function attachReference(plan, media, kind) {
@@ -274,12 +278,13 @@ async function reviseShot({ project, scene, beat, neighbors = [], instruction, k
   if (keepDuration) next.seconds = current.seconds;
   if (keepAssets && current.transition === 'match' && !/转场|切镜/.test(instruction)) next.transition = 'match';
   if (Array.isArray(next.layers)) next.layers = preserveLayers(current.layers, next.layers, { keepAssets, keepComposition });
-  const clean = cleanShot(next, beat.facts.length, scene.segment ? .6 : 1.5);
+  const clean = cleanShot(next, beat.facts.length, scene.segment ? .6 : 1.5, Boolean(scene.stage));
   if (shorter && !keepDuration && clean.narration.length / 5.1 + .3 > clean.seconds) {
     throw error('指定时长容不下当前旁白。请放开旁白锁定并适当缩短文案。');
   }
   const revised = makeScene(scene.id, clean);
   if (scene.segment) revised.segment = scene.segment;
+  if (scene.stage) revised.stage = scene.stage;
   if (scene.subsOverride && clean.narration === beat.narration) revised.subsOverride = scene.subsOverride;
   return { scene: revised, beat: { ...beat, intent: clean.title, narration: clean.narration } };
 }

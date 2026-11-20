@@ -1,4 +1,5 @@
 'use strict';
+const shared = require('./shared-stage');
 // emitSceneHtml — 发射自包含 scene.html（契约与 scene.template.html 一致 + 单场景模式）
 const { lum } = require('./color');
 
@@ -196,6 +197,7 @@ const BOOTSTRAP = `
 const scenesEl = document.getElementById('scenes');
 const subtitleEl = document.getElementById('subtitle');
 const S = {};
+const W = typeof initWorlds === 'function' ? initWorlds() : {};
 let TL = null;
 let OFF = 0;
 let previousActive = -2;
@@ -203,16 +205,19 @@ function fadeScene(r, lt, dur) { op(r, Math.min(seg(lt,0,.45), seg(dur-lt,0,.45)
 window.__ready = false; window.__err = null;
 window.__frame = function (j) { try {
   const i = j + OFF;
-  const t = i / TL.fps; drawBG(t);
+  const t = i / TL.fps;
   let active = -1;
   let pending;
   for (let k = 0; k < TL.scenes.length; k++) { const sc = TL.scenes[k]; if (i >= sc.start && i < sc.end) active = k; }
+  const worldId = S[TL.scenes[active]?.id]?.stage?.id;
+  if (!worldId) drawBG(t);
   if (active !== previousActive) {
     for (let k = 0; k < UPS.length; k++) {
       const el = scenesEl.children[k];
       el.style.display = k === active ? 'block' : 'none';
       if (k !== active) op(el, 0);
     }
+    for (const [id, world] of Object.entries(W)) world.root.hidden = id !== worldId;
     previousActive = active;
   }
   if (active >= 0) pending = UPS[active]((i - TL.scenes[active].start) / TL.fps, t);
@@ -246,8 +251,9 @@ fetch('timeline.json').then(r => r.json()).then(async tl => { TL = tl;
 }).catch(e => { window.__err = String(e); });
 `;
 
-function emitSceneHtml({ tokens, scenes, components, preRuntime, disclaimer }) {
+function emitSceneHtml({ tokens, scenes, components, preRuntime, disclaimer, sharedStages = {} }) {
   const used = [...new Set(scenes.map(s => s.layout))];
+  const hasWorld = Object.keys(sharedStages).length > 0;
   // 双保险：ir.js 已白名单校验，这里落地前再剥白名单外字符（font.family 防 </style> 越狱、色键名防 CSS 变量名打断）
   const escFontFamily = String(tokens.font.family).replace(/[^\w"',\- ]/g, '');
   const varsArr = Object.entries(tokens.colors).map(([k, v]) => `--${String(k).replace(/[^\w-]/g, '')}:${v};`);
@@ -309,11 +315,13 @@ html,body { width:1920px; height:1080px; overflow:hidden; background:var(--bg);
 #disclaimer { position:absolute; left:50%; bottom:12px; transform:translateX(-50%); z-index:61; max-width:1840px;
   color:${disclaimerColor}; font-size:20px; font-weight:500; letter-spacing:.5px; text-align:center; white-space:nowrap; }
 ${css}
+${hasWorld ? shared.css : ''}
 </style>
 </head>
 <body>
 <canvas id="bg" width="1920" height="1080"></canvas>
 <div class="vignette"></div>
+${hasWorld ? shared.stageMarkup(sharedStages) : ''}
 <div id="scenes"></div>
 <div id="subtitle"></div>
 ${disclaimer ? '<div id="disclaimer">' + String(disclaimer).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])) + '</div>' : ''}
@@ -323,6 +331,7 @@ ${HELPERS}
 ${drawBgCode}
 ${preRuntime}
 ${runtime}
+${hasWorld ? shared.runtime() : ''}
 const SPECS = ${JSON.stringify(specs).replace(/</g, '\\u003c')};
 ${BOOTSTRAP.replace('function fadeScene', '/* buildScenes 由组件生成 */\nfunction buildScenes() {\n' + builds + '\n}\n' + updates + '\nconst UPS = [' + ups + '];\nfunction fadeScene')}
 ${SUBTITLE}

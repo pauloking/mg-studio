@@ -829,7 +829,8 @@ function createStudioServer(options = {}) {
           const { narration, segment, ...scene } = sc;
           if (current.scene.segment) scene.segment = current.scene.segment;
           const result = saveShot(dir, current, { ...scene, beat: sc.id },
-            { ...current.beat, narration: typeof narration === 'string' ? narration.trim() : current.beat.narration });
+            { ...current.beat, narration: typeof narration === 'string' ? narration.trim() : current.beat.narration },
+            { sharedRoute: body.sharedRoute });
           sendJson(res, 200, { ok: true, ...result });
           return;
         }

@@ -45,9 +45,10 @@ function layerPose(props, t) {
     scale: lerp(from.scale ?? 1, to.scale ?? 1), rotation: lerp(from.rotation ?? 0, to.rotation ?? 0) };
 }
 
-function updateDirected(state, time, duration, previous) {
+function updateDirected(state, time, duration, previous, globalTime) {
   const sc = state.r;
   const t = Math.max(0, Math.min(1, time / duration));
+  if (state.stage) updateWorld(W[state.stage.id], state.stage, t, globalTime);
   const enter = eo(seg(time, 0, 0.42));
   const leave = eo(seg(time, duration - 0.28, duration));
   const pending = [];
@@ -147,7 +148,7 @@ module.exports = {
   check: el => el.type === 'layer' && validateLayer(el.props) ? [] : ['镜头图层的内容、位置或动作无效'],
   runtime: () => layerPose.toString() + '\n' + updateDirected.toString(),
   build: sc => {
-    const { segment } = sc;
+    const { segment, stage } = sc;
     const content = sc.elements.map(el => {
       const p = el.props;
       const { x, y, w, h } = rect(p);
@@ -163,11 +164,11 @@ module.exports = {
           const length=node.getTotalLength();node.style.strokeDasharray=length;return [node,length];
         }));
       }
-      S['${sc.id}']={r,els,strokes,endPhase:${segment ? (segment.from + segment.frames) / segment.total : 1},transition:${JSON.stringify(TRANSITIONS.includes(sc.transition) ? sc.transition : 'cut')}}; }`;
+      S['${sc.id}']={r,els,strokes,endPhase:${segment ? (segment.from + segment.frames) / segment.total : 1},transition:${JSON.stringify(TRANSITIONS.includes(sc.transition) ? sc.transition : 'cut')},stage:${JSON.stringify(stage || null).replace(/</g, '\\u003c')}}; }`;
   },
   extraUpdate: sc => sc.segment
-    ? `return updateDirected(s, (${sc.segment.from} + lt / dur * ${sc.segment.frames}) / TL.fps, ${sc.segment.total} / TL.fps, previous);`
-    : 'return updateDirected(s, lt, dur, previous);',
+    ? `return updateDirected(s, (${sc.segment.from} + lt / dur * ${sc.segment.frames}) / TL.fps, ${sc.segment.total} / TL.fps, previous, t);`
+    : 'return updateDirected(s, lt, dur, previous, t);',
   boxes: sc => sc.elements.map(el => ({
     id: el.id, ...rect(el.props),
     blocks: el.props.kind === 'text' ? [{ text: el.props.content, colorKey: el.props.color }] : []

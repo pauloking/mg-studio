@@ -10,6 +10,7 @@ const { lintMedical, DISCLAIMER } = require('./medical-lint');
 const { checkElementProps } = require('./props');
 const { composeScenes } = require('./motion-plan');
 const { checkedAssetPath } = require('./project-assets');
+const { visualContext } = require('./shared-stage');
 
 function normalizeScene(sc, components = COMPONENTS) {
   const errors = [];
@@ -47,9 +48,11 @@ function normalizeScene(sc, components = COMPONENTS) {
 function buildScriptJson(project) {
   const m = project.story.meta;
   const v = m.video || {};
+  const sharedStages = m.director?.sharedStages;
   return {
     schema: 2,
-    renderContext: { tokens: project.tokens, disclaimer: m.audience === 'patient' ? DISCLAIMER : null },
+    renderContext: { tokens: project.tokens, disclaimer: m.audience === 'patient' ? DISCLAIMER : null,
+      ...(sharedStages ? { sharedStages: visualContext(sharedStages) } : {}) },
     fps: v.fps || 30, width: v.width || 1920, height: v.height || 1080,
     options: Object.assign({ pad: 1.1, leadIn: .45, introLeadIn: .7, introMinSec: 6.5, outroMinSec: 8.5 },
       m.options || {}, m.director?.framePlan ? { framePlan: m.director.framePlan } : {}),
@@ -59,6 +62,7 @@ function buildScriptJson(project) {
       subs: sc.subsOverride || splitSubs(sc.narration),
       beat: sc.beat, layout: sc.layout, elements: sc.elements, cues: sc.cues || [],
       ...(sc.segment ? { segment: sc.segment } : {}),
+      ...(sc.stage ? { stage: sc.stage } : {}),
       ...(sc.transition ? { transition: sc.transition } : {})
     }))
   };
@@ -107,7 +111,9 @@ function compileProject(dir, settings = {}) {
   for (const sc of scenes) for (const el of sc.elements)
     if (el.type === 'waveform') el.props.colorHex = project.tokens.colors[el.props.color || 'accent'];
   const script = buildScriptJson(Object.assign({}, project, { scenes }));
-  const html = emitSceneHtml({ tokens: project.tokens, scenes, components: COMPONENTS, preRuntime: PRE_RUNTIME, disclaimer: ((project.story.meta && project.story.meta.audience) === 'patient') ? DISCLAIMER : null });
+  const html = emitSceneHtml({ tokens: project.tokens, scenes, components: COMPONENTS, preRuntime: PRE_RUNTIME,
+    sharedStages: project.story.meta.director?.sharedStages,
+    disclaimer: project.story.meta.audience === 'patient' ? DISCLAIMER : null });
   const scriptPath = path.join(dir, 'script.json');
   const htmlPath = path.join(dir, 'scene.html');
   fs.writeFileSync(scriptPath, JSON.stringify(script, null, 2));

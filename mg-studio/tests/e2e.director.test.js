@@ -9,6 +9,82 @@ const { _electron } = require('playwright-core');
 const { wavSamples } = require('../lib/shot-segment');
 
 const executablePath = process.env.MG_PACKAGED_EXE;
+test('安装包：共享场景的连续取景、水路编辑和导出', {
+  skip: !executablePath && 'set MG_PACKAGED_EXE', timeout: 180000
+}, async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mg-shared-stage-e2e-'));
+  const documents = path.join(root, 'Documents');
+  fs.mkdirSync(documents);
+  let app;
+  try {
+    app = await _electron.launch({ executablePath, args: [`--user-data-dir=${path.join(root, 'profile')}`] });
+    await app.evaluate(({ app }, dir) => app.setPath('documents', dir), documents);
+    assert.equal(await app.evaluate(({ app }) => app.isPackaged), true);
+    const page = await app.firstWindow();
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await page.locator('#btnNewProject').click();
+    await page.getByRole('button', { name: '试做 雨滴街道剖面（13 秒动效试片）' }).click();
+    await page.locator('#creatorModal').waitFor({ state: 'hidden', timeout: 60000 });
+    await page.waitForFunction(() => previewVoice.currentTime > .35 && state.timeline?.scenes.length === 2);
+    const sample = await page.evaluate(() => {
+      pause();
+      const player = document.querySelector('#sceneIframe').contentWindow;
+      const world = player.document.getElementById('world-street');
+      const art = world.querySelector('.world-art');
+      const water = world.querySelector('.world-route');
+      const cutaway = world.querySelector('[data-stage-cutaway]');
+      const cut = state.timeline.scenes[1].start;
+      player.__frame(cut - 1);
+      const before = [art.style.transform, water.getAttribute('stroke-dashoffset')];
+      player.__frame(cut);
+      const after = [art.style.transform, water.getAttribute('stroke-dashoffset')];
+      player.__frame(state.totalFrames - 9);
+      const visible = Number(cutaway.style.opacity);
+      seekFrame(0);
+      return { before, after, visible, worlds: player.document.querySelectorAll('.shared-stage').length,
+        total: state.totalFrames };
+    });
+    assert.equal(sample.worlds, 1);
+    assert.equal(sample.total, 404);
+    assert.ok(Math.abs(Number(sample.before[1]) - Number(sample.after[1])) < 1.5);
+    assert.ok(sample.visible > .99);
+    await page.locator('#sharedStageInspector [data-stage-track="camera"][data-index="0"][data-field="zoom"]').fill('1.61');
+    await page.getByText('编辑共享水路', { exact: true }).click();
+    await page.locator('#sharedRoute tbody tr').last().locator('input').first().fill('1710');
+    const [edit] = await Promise.all([
+      page.waitForResponse(response => new URL(response.url()).pathname === '/api/scene'),
+      page.locator('#btnSaveScene').click()
+    ]);
+    const result = await edit.json();
+    assert.ok(result.ok, result.error);
+    await page.waitForFunction(() => state.project.story.meta.director.sharedStages.street.route.at(-1)[0] === 1710 &&
+      document.querySelector('#sceneIframe').contentWindow.__ready &&
+      document.querySelector('#sceneIframe').contentDocument.querySelector('.world-route').getAttribute('d').endsWith('1710 946'));
+    const project = await page.evaluate(() => window.desktopAPI.getCurrentProject());
+    const read = file => JSON.parse(fs.readFileSync(path.join(project.path, file), 'utf8'));
+    assert.equal(read('scenes/shot_1.json').stage.camera[0].zoom, 1.61);
+    assert.equal(read('scenes/shot_2.json').stage.id, 'street');
+    assert.equal(read('story.json').meta.director.sharedStages.street.route.at(-1)[0], 1710);
+
+    await page.locator('#btnExport').click();
+    await page.waitForFunction(() => /圆满完成|异常中断/.test(document.querySelector('#exportLogBox')?.textContent || ''),
+      null, { timeout: 100000 });
+    const logs = await page.locator('#exportLogBox').textContent();
+    assert.match(logs, /圆满完成/, logs);
+    const file = path.join(project.path, 'out', 'output.mp4');
+    const streams = JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-show_entries',
+      'stream=codec_name,width,height,nb_frames', '-of', 'json', file], { encoding: 'utf8' })).streams;
+    assert.ok(streams.some(stream => stream.codec_name === 'h264' && stream.width === 1920 &&
+      stream.height === 1080 && Number(stream.nb_frames) === 404));
+    assert.ok(streams.some(stream => stream.codec_name === 'aac'));
+    assert.deepEqual(errors, []);
+  } finally {
+    if (app) await app.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('安装包：带声预览、单镜重做、换素材、拆镜与后台导出', {
   skip: !executablePath && 'set MG_PACKAGED_EXE', timeout: 360000
 }, async () => {

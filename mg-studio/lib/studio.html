@@ -944,6 +944,7 @@ textarea {
         </details>
         <div id="directorShotStatus" role="status" style="margin-top:6px;color:var(--text-muted);font-size:12px;"></div>
       </section>
+      <section class="form-group" id="sharedStageInspector" hidden aria-label="共享场景"></section>
       <div class="form-group" id="dynamicPropsContainer">
         <!-- 动态注入属性输入框 -->
       </div>
@@ -1902,12 +1903,67 @@ function directorDataEditor(layer, key) {
   return editor;
 }
 
+const stageFields = {
+  camera: ['取景关键帧', [['t', '镜内 %', 100], ['x', '中心 X'], ['y', '中心 Y'], ['zoom', '缩放']]],
+  flow: ['水流进度', [['t', '镜内 %', 100], ['value', '水路 %', 100]]],
+  reveal: ['地下剖面显露', [['t', '镜内 %', 100], ['value', '可见 %', 100]]],
+  labels: ['跟随场景的标注', [['text', '文案'], ['x', 'X'], ['y', 'Y'], ['from', '起 %', 100], ['to', '止 %', 100]]]
+};
+const stageInspector = document.getElementById('sharedStageInspector');
+stageInspector.addEventListener('focusin', pause);
+
+function populateSharedStage(scene) {
+  const stage = scene.stage;
+  const world = state.project?.story?.meta?.director?.sharedStages?.[stage?.id];
+  stageInspector.hidden = !world;
+  if (!world) { stageInspector.replaceChildren(); return; }
+  const tracks = Object.entries(stageFields).map(([key, [title, fields]]) => {
+    const headers = fields.map(([, label]) => '<th>' + label + '</th>').join('');
+    const rows = stage[key].map((point, index) => '<tr>' + fields.map(([field, label, scale = 1]) => {
+      const numeric = field !== 'text';
+      const value = numeric ? +(point[field] * scale).toFixed(5) : point[field];
+      return `<td><input type="${numeric ? 'number' : 'text'}" ${numeric ? 'step="any"' : 'maxlength="16"'}
+        data-stage-track="${key}" data-index="${index}" data-field="${field}"
+        aria-label="${title} 第 ${index + 1} 行 ${label}" value="${escHtml(value)}"></td>`;
+    }).join('') + '</tr>').join('');
+    return `<details class="director-data"${key === 'camera' ? ' open' : ''}><summary>${title}</summary>
+      <table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table></details>`;
+  }).join('');
+  const routeFields = ['X', 'Y', '控制 X', '控制 Y'];
+  const coordinates = world.route.map((point, i) => '<tr>' + routeFields.map((field, j) =>
+    `<td><input type="number" step="any" value="${point[j] ?? ''}" ${i === 0 && j > 1 ? 'disabled' : ''}
+     aria-label="水路第 ${i + 1} 点 ${field}"></td>`).join('') + '</tr>').join('');
+  stageInspector.innerHTML = `<label>共享场景</label>${tracks}
+    <details class="director-data"><summary>编辑共享水路</summary>
+      <p style="font-size:11px;color:var(--text-muted);margin:5px 0;">直线路段的控制点可留空。保存后更新使用此水路的全部镜头。</p>
+      <table id="sharedRoute"><thead><tr>${routeFields.map(field => '<th>' + field + '</th>').join('')}</tr></thead>
+      <tbody>${coordinates}</tbody></table>
+    </details>`;
+}
+
+function readSharedStage(scene) {
+  if (!scene.stage) return undefined;
+  for (const input of stageInspector.querySelectorAll('[data-stage-track]')) {
+    const { stageTrack, index, field } = input.dataset;
+    const scale = stageFields[stageTrack][1].find(([key]) => key === field)[2] || 1;
+    if (field !== 'text' && !Number.isFinite(input.valueAsNumber)) throw new Error('场景关键帧需要填写完整的数字。');
+    scene.stage[stageTrack][index][field] = field === 'text' ? input.value.trim() : input.valueAsNumber / scale;
+  }
+  return [...stageInspector.querySelectorAll('#sharedRoute tbody tr')].map(row => {
+    const [x, y, cx, cy] = row.querySelectorAll('input');
+    const fields = cx.value || cy.value ? [x, y, cx, cy] : [x, y];
+    if (fields.some(field => !Number.isFinite(field.valueAsNumber))) throw new Error('请填写完整的共享水路坐标。');
+    return fields.map(field => field.valueAsNumber);
+  });
+}
+
 // 填充右侧检视器
 function populateInspector(sc) {
   dom.inpSceneId.value = sc.id;
   updateMotionInspector(sc);
   dom.inpSceneNarration.value = sc.narration || '';
   updateDirectorControls(sc);
+  populateSharedStage(sc);
 
   // 缓动
   const firstEl = (sc.elements && sc.elements[0]) || {};
@@ -2015,10 +2071,11 @@ dom.btnSaveScene.addEventListener('click', async () => {
   }
 
   try {
+    const sharedRoute = readSharedStage(sc);
     const res = await apiFetch('/api/scene', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ scene: sc })
+      body: JSON.stringify({ scene: sc, sharedRoute })
     });
     const r = await res.json();
     if (r.ok) {

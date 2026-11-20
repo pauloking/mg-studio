@@ -17,11 +17,18 @@ test('built-in stories compile with distinct narration, visual assets and per-sh
     const plan = await director.createFromBrief({ sample });
     const result = writeAndCompileGeneratedProject(path.join(dir, sample), plan);
     assert.equal(result.ok, true, JSON.stringify(result.compile.errors));
-    assert.equal(result.scenes.length, sample === 'journey' ? 6 : 4);
-    assert.ok(new Set(plan.scenes.flatMap(sc => sc.elements.map(el => el.props.action))).size >= 4);
+    assert.equal(result.scenes.length, sample === 'rain_scene' ? 2 : sample === 'journey' ? 6 : 4);
     const html = fs.readFileSync(result.compile.htmlPath, 'utf8');
     assert.match(html, /updateDirected/);
-    assert.match(html, /dir-icon/);
+    if (sample === 'rain_scene') {
+      assert.equal(html.match(/id="world-street"/g).length, 1);
+      assert.deepEqual(plan.scenes[0].stage.camera.at(-1), { ...plan.scenes[1].stage.camera[0], t: 1 });
+      assert.equal(plan.scenes[0].stage.flow.at(-1).value, plan.scenes[1].stage.flow[0].value);
+      assert.deepEqual(plan.story.beats.map(beat => beat.narration), director.samples.journey.shots.slice(1,3).map(shot => shot.narration));
+    } else {
+      assert.ok(new Set(plan.scenes.flatMap(sc => sc.elements.map(el => el.props.action))).size >= 4);
+      assert.match(html, /dir-icon/);
+    }
   }
 });
 

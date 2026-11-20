@@ -10,8 +10,43 @@ const rainDrop = (w, h, points) => ({
   ...graphic('droplet', points[0][1], points[0][2], w, h, 'hold', 0, .45, 'accent2'),
   object: 'rain_drop', track: points.map(([t, x, y, scale]) => ({ t, x, y, ...(scale ? { scale } : {}) }))
 });
+const camera = points => points.map(([t, x, y, zoom]) => ({ t, x, y, zoom }));
+const levels = points => points.map(([t, value]) => ({ t, value }));
+const roofNarration = '这滴雨碰到斜屋顶，贴着瓦片一路滑，最后从屋檐落下。';
+const roadNarration = '雨滴沿着硬路面流。看，路边带格栅的口，就是雨水口。';
 
 const samples = {
+  rain_scene: {
+    label: '雨滴街道剖面（13 秒动效试片）',
+    brief: '画出屋面、落水管、街道与地下管道的同一剖面，让观众跟着水流从屋檐走到雨水口。',
+    title: '跟着雨水走', style: 'warm-editorial', audience: 'general',
+    sharedStages: { street: { art: 'rain-catchment', route: [
+      [590, 126], [615, 290, 611, 179], [877, 423, 717, 340], [928, 429], [937, 446, 938, 429],
+      [937, 683], [957, 707, 937, 704], [1006, 719], [1036, 748, 1027, 724],
+      [1372, 785, 1217, 765], [1392, 824, 1392, 787], [1392, 892],
+      [1464, 946, 1394, 943], [1720, 946]
+    ] } },
+    shots: [
+      { title: '水沿着屋檐落下', narration: roofNarration, seconds: 202 / 30, transition: 'cut', layers: [
+        text('跟着雨水走', 5, 7, 40, 11, 71, 'reveal', .02)
+      ], stage: { id: 'street',
+        camera: camera([[0, 675, 395, 1.49], [.38, 712, 416, 1.43], [.78, 869, 507, 1.31], [1, 984, 574, 1.16]]),
+        flow: levels([[0, .015], [.26, .106], [.57, .273], [.71, .305], [1, .524]]),
+        reveal: levels([[0, 0], [1, 0]]),
+        labels: [{ text: '斜屋面', x: 714, y: 303, from: .30, to: .57 },
+          { text: '落水管', x: 961, y: 481, from: .65, to: .95 }]
+      }},
+      { title: '水流钻进雨水口', narration: roadNarration, seconds: 202 / 30, transition: 'match', layers: [],
+        stage: { id: 'street',
+        camera: camera([[0, 984, 574, 1.16], [.53, 1258, 667, 1.41], [.74, 1278, 664, 1.40], [1, 1189, 614, 1.21]]),
+        flow: levels([[0, .524], [.24, .594], [.60, .719], [.75, .754], [.85, .841], [1, 1]]),
+        reveal: levels([[0, 0], [.64, 0], [.86, 1], [1, 1]]),
+        labels: [{ text: '沿坡汇流', x: 1120, y: 673, from: .19, to: .57 },
+          { text: '雨水口', x: 1405, y: 728, from: .48, to: .88 },
+          { text: '雨水管道', x: 1578, y: 892, from: .83, to: 1 }]
+      }}
+    ]
+  },
   journey: {
     label: '追踪一滴雨（跨镜样片）',
     brief: '做一条城市科普 MG，跟着同一滴雨，从雨云到屋顶、路面，再看雨水口与绿地的两条路径。',
@@ -23,13 +58,13 @@ const samples = {
         text('积水消失之后', 8, 15, 54, 16, 111), text('雨去哪了？', 8, 40, 37, 12, 74, 'slide', .29),
         rainDrop(8, 15, [[0, 73, 8], [.36, 72, 15], [.68, 67, 25], [1, 62, 38]])
       ]},
-      { title: '沿屋顶往下', narration: '这滴雨碰到斜屋顶，贴着瓦片一路滑，最后从屋檐落下。', seconds: 7, transition: 'match', layers: [
+      { title: '沿屋顶往下', narration: roofNarration, seconds: 7, transition: 'match', layers: [
         graphic('rain-roof', 16, 14, 68, 64, 'slide', .08, .52, 'accent'),
         shape('line', 32, 73, 42, 1.2, 'draw', .38, 'accent2'),
         text('顺着屋檐落下', 8, 8, 54, 12, 84, 'slide', .14),
         rainDrop(9, 16, [[0, 60, 25], [.25, 45, 36], [.69, 65, 51], [1, 69, 65]])
       ]},
-      { title: '沿路追到雨水口', narration: '雨滴沿着硬路面流。看，路边带格栅的口，就是雨水口。', seconds: 7, transition: 'match', layers: [
+      { title: '沿路追到雨水口', narration: roadNarration, seconds: 7, transition: 'match', layers: [
         graphic('rain-street', 8, 27, 84, 53, 'reveal', .08, .62, 'accent'),
         text('找一找路边的格栅', 9, 11, 65, 15, 85, 'reveal', .12),
         rainDrop(7, 13, [[0, 29, 35], [.28, 29, 48], [.65, 57, 51], [1, 74, 55]])
