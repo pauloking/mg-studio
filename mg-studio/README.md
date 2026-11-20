@@ -431,6 +431,16 @@ node scripts/studio.js ../my-film --port 3000 --open
      * `[ ↑ 上移 ]` / `[ ↓ 下移 ]`：调整叙事顺序并重新编译。
      * `[ 🗑️ 删除 ]`：移除多余分镜并自动刷新工程。
 
+### 一句话创片
+
+在「新建视频」中写出创作要求，再点「生成并试听」。可选参考文本和自有素材。三个内置样例无需联网模型，分别展示城市雨水、便携灯和研究对照。
+
+自定义创作需要支持 `POST /chat/completions` 和 JSON 输出的服务。展开「创作模型与参考资料」填写服务的 API 基地址、模型名和密钥，或使用 `MG_DIRECTOR_ENDPOINT`、`MG_DIRECTOR_MODEL`、`MG_DIRECTOR_API_KEY`。使用在线服务时，创作要求和参考文字会发给配置的模型，附带的媒体只传文件名和类型。密钥只保存在工作台进程的会话内。可选的 `MG_DIRECTOR_IMAGE_MODEL` 用于支持 `POST /images/generations` 并返回 Base64 图片的服务。
+
+在工作台选中镜头后可以用一句话重做、锁定或撤销该镜头。选中的素材图层可以换成内置图标、生成的插图，或导入 2 MB 以内的 PNG、JPEG、WebP、静态 SVG、MP4 和 WebM 短片。导入的短片作为无声图层，旁白走独立音轨。内置矢量素材来自 [Lucide](https://lucide.dev/license)，许可随 `templates/director-icons/LICENSE` 分发。
+
+医学科普可在文献步骤勾选已核实资料后点「用核实资料创片」。首次生成和改镜后可先试听，再在「医学核查」逐镜确认旁白、画面与出处，之后正式导出。
+
 ### 7.5 独立桌面客户端 (MG Studio Desktop - M9)
 
 为了让临床医生、科研工作者及非技术背景创作者享受开箱即用的原生软件体验，`mg-studio` 现已提供原生窗口独立桌面客户端：

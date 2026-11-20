@@ -65,11 +65,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         item.className = 'recent-item';
         item.innerHTML = `
           <div class="recent-info">
-            <h4>${p.title || '未命名工程'}</h4>
-            <p title="${p.path}">${p.path}</p>
+            <h4></h4>
+            <p></p>
           </div>
           <span class="recent-badge">${p.audience === 'patient' ? '患者科普' : p.audience === 'professional' ? '专业学术' : '通用'}</span>
         `;
+        item.querySelector('h4').textContent = p.title || '未命名工程';
+        const location = item.querySelector('p');
+        location.textContent = location.title = p.path;
         item.addEventListener('click', async () => {
           await window.desktopAPI.switchProject(p.path);
         });

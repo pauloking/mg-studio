@@ -69,7 +69,7 @@ function writeAndCompileGeneratedProject(targetDir, { story, scenes }) {
   if (fs.existsSync(target) || isSymlink(target)) {
     throw Object.assign(new Error('Project directory already exists'), { statusCode: 409 });
   }
-  if (!story.beats.some(b => b.facts.length > 0)) {
+  if (!story.meta.director && !story.beats.some(b => b.facts.length > 0)) {
     return { ok: false, projectDir: target, story, scenes, compile: { mode: 'v2', errors: ['GEN_FACTS_REQUIRED 请先添加并核实原始资料中的事实'], lint: [] } };
   }
   const parent = path.dirname(target);

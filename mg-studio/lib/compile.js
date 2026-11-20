@@ -55,7 +55,8 @@ function buildScriptJson(project) {
     scenes: project.scenes.map(sc => ({
       id: sc.id, minSec: sc.minSec || 0, narration: sc.narration,
       subs: sc.subsOverride || splitSubs(sc.narration),
-      beat: sc.beat, layout: sc.layout, elements: sc.elements, cues: sc.cues || []
+      beat: sc.beat, layout: sc.layout, elements: sc.elements, cues: sc.cues || [],
+      ...(sc.transition ? { transition: sc.transition } : {})
     }))
   };
 }

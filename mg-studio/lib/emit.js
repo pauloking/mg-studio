@@ -204,11 +204,13 @@ window.__frame = function (j) { try {
   const i = j + OFF;
   const t = i / TL.fps; drawBG(t);
   let active = -1;
+  let pending;
   for (let k = 0; k < TL.scenes.length; k++) { const sc = TL.scenes[k]; if (i >= sc.start && i < sc.end) active = k; }
   for (let k = 0; k < UPS.length; k++) { const el = scenesEl.children[k];
-    if (k === active) { el.style.display = 'block'; UPS[k]((i - TL.scenes[k].start) / TL.fps, t); }
+    if (k === active) { el.style.display = 'block'; pending = UPS[k]((i - TL.scenes[k].start) / TL.fps, t); }
     else { el.style.display = 'none'; op(el, 0); } }
   upSubtitle(t);
+  return pending;
 } catch (e) { window.__err = String(e && e.stack || e); } };
 // 真实布局盒：供 lint_scene 用 DOM 实测（隐藏场景 display:none，须先 __frame 激活）
 window.__rects = function () { const out = {};
@@ -216,14 +218,24 @@ window.__rects = function () { const out = {};
     out[sid][x.key] = { x: +r.x.toFixed(2), y: +r.y.toFixed(2), w: +r.width.toFixed(2), h: +r.height.toFixed(2) }; } }
   return out; };
 const __only = new URLSearchParams(location.search).get('scene');
-fetch('timeline.json').then(r => r.json()).then(tl => { TL = tl;
+fetch('timeline.json').then(r => r.json()).then(async tl => { TL = tl;
   tl.scenes.forEach(sc => { sc.audioDur = sc.dur; sc.dur = (sc.end - sc.start) / tl.fps; });
   buildScenes();
+  await Promise.all([...document.querySelectorAll('.dir-layer img')].map(image => image.decode()));
+  await Promise.all([...document.querySelectorAll('.dir-layer video')].map(video => {
+    if (video.readyState >= 1) return Promise.resolve();
+    if (video.error) return Promise.reject(Error('导入视频无法解码'));
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(Error('导入视频加载超时')), 8000);
+      video.addEventListener('loadedmetadata', () => { clearTimeout(timer); resolve(); }, { once: true });
+      video.addEventListener('error', () => { clearTimeout(timer); reject(Error('导入视频无法解码')); }, { once: true });
+    });
+  }));
   if (__only) { const sc = TL.scenes.find(s => s.id === __only);
     if (!sc) { window.__err = 'unknown scene: ' + __only; return; }
     OFF = sc.start; window.__N = sc.end - sc.start;
   } else { window.__N = tl.totalFrames; }
-  window.__frame(0); window.__ready = true;
+  await window.__frame(0); window.__ready = true;
 }).catch(e => { window.__err = String(e); });
 `;
 

@@ -5,6 +5,7 @@ const COMPONENTS = {
   'waveform': require('./waveform'),
   'stat': require('./stat'),
   'motion-graphic': require('./motion-graphic'),
+  'directed': require('./directed'),
   'three3d': require('./three3d')
 };
 const LAYOUT_NAMES = Object.keys(COMPONENTS).filter(name => name !== 'motion-graphic');

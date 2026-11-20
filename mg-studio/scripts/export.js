@@ -18,6 +18,8 @@ function exportVideo(backend = 'local', outputName = 'output') {
   const output = path.join('out', outputName + '.mp4');
   const isV2 = fs.existsSync('story.json');
   if (isV2) {
+    const story = JSON.parse(fs.readFileSync('story.json', 'utf8'));
+    if (story.meta.director?.pendingReview) throw new Error('请先核对医学内容与出处，再正式导出。');
     console.log('==> 0/5 编译分镜与 G0 脚本门');
     node('compile.js');
     node('lint_story.js', '.');

@@ -901,6 +901,33 @@ textarea {
           <option value="easeInOut">慢进慢出</option>
         </select>
       </div>
+      <section id="directorShotControls" hidden class="form-group">
+        <label for="directorRevision">用一句话改当前镜头</label>
+        <textarea id="directorRevision" rows="2" maxlength="450" placeholder="例如：改成同屏对照，保留旁白"></textarea>
+        <label><input type="checkbox" id="directorKeepVoice" checked> 保留旁白</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 12px;">
+          <button id="directorRevise" type="button" class="primary">重做本镜</button>
+          <button id="directorLock" type="button">锁定本镜</button>
+          <button id="directorUndo" type="button">撤销本镜修改</button>
+        </div>
+        <label for="directorLayer">素材图层</label>
+        <select id="directorLayer"></select>
+        <label for="directorAsset">替换本镜素材</label>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <img id="directorAssetPreview" width="28" height="28" alt="" style="background:#f1f5f9;padding:4px;border-radius:5px;">
+          <select id="directorAsset"></select>
+          <button id="directorReplace" type="button">替换</button>
+        </div>
+        <label for="directorUpload" style="margin-top:8px;">导入本地图片或短视频（2 MB 以内）</label>
+        <input type="file" id="directorUpload" accept="image/png,image/jpeg,image/webp,image/svg+xml,video/mp4,video/webm">
+        <details style="margin-top:6px;">
+          <summary>生成专用插图</summary>
+          <label for="directorIllustration">插图描述</label>
+          <input id="directorIllustration" maxlength="450" placeholder="描述画面主体、动作和视觉风格">
+          <button id="directorIllustrate" type="button">生成并替换</button>
+        </details>
+        <div id="directorShotStatus" role="status" style="margin-top:6px;color:var(--text-muted);font-size:12px;"></div>
+      </section>
       <div class="form-group" id="dynamicPropsContainer">
         <!-- 动态注入属性输入框 -->
       </div>
@@ -909,6 +936,10 @@ textarea {
 
     <!-- Tab 2: 医学核查与免责 -->
     <div class="tab-content" id="tabMedical">
+      <div class="form-group" id="directorReviewPanel" hidden>
+        <label><input type="checkbox" id="directorReviewCheck"> 已逐镜核对医学旁白、画面和出处</label>
+        <button type="button" id="directorReview">确认核对</button>
+      </div>
       <div class="form-group">
         <label>受众对象 (Audience)</label>
         <input type="text" id="inpStoryAudience" readonly>
@@ -953,6 +984,32 @@ textarea {
 
     <!-- Step 1 内容: 选题设定与参考资料上传 -->
     <div class="wz-step-content" id="step1Content" style="flex:1; overflow-y:auto; padding-right:4px;">
+      <section class="form-group" style="padding:14px;background:var(--bg-card);border:1px solid var(--border);border-radius:9px;">
+        <label for="directorBrief">一句话创片</label>
+        <textarea id="directorBrief" rows="2" maxlength="1600" placeholder="给孩子做一条城市科普动画，用一滴雨做主角。"></textarea>
+        <div style="display:flex;flex-wrap:wrap;gap:7px;margin:8px 0;">
+          <button class="primary" id="directorGenerate" type="button">生成并试听</button>
+          <div id="directorSamples" style="display:flex;flex-wrap:wrap;gap:7px;"></div>
+        </div>
+        <details id="directorConfig">
+          <summary>创作模型与参考资料</summary>
+          <label for="directorEndpoint">兼容 Chat Completions 的模型地址</label>
+          <input id="directorEndpoint" type="url" placeholder="https://服务地址/v1">
+          <label for="directorModel">模型名称</label>
+          <input id="directorModel" type="text" autocomplete="off">
+          <label for="directorImageModel">生图模型（选填）</label>
+          <input id="directorImageModel" type="text" autocomplete="off">
+          <label for="directorKey">密钥（仅本次会话）</label>
+          <input id="directorKey" type="password" autocomplete="off">
+          <button id="directorConnect" type="button" style="margin-top:6px;">保存本次配置</button>
+          <label for="directorReference">参考资料（选填）</label>
+          <textarea id="directorReference" rows="2" maxlength="3600"></textarea>
+          <label for="directorBriefMedia">自有图片或片段（选填，2 MB 以内）</label>
+          <input id="directorBriefMedia" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,video/mp4,video/webm">
+          <label><input type="checkbox" id="directorMedical"> 医学科普</label>
+          <div id="directorConnectionStatus" role="status" style="color:var(--text-muted);"></div>
+        </details>
+      </section>
       <!-- 自定义主题主输入框 -->
       <div class="form-group">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
@@ -1130,6 +1187,7 @@ textarea {
       <button id="btnWzPrev" style="visibility:hidden;">上一步</button>
       <div style="display:flex; gap:8px;">
         <button id="btnWzNext" class="primary">下一步：文献检索</button>
+        <button id="directorFromFacts" type="button" style="display:none;">用核实资料创片</button>
         <button id="btnWzCreate" class="primary" style="display:none; background:linear-gradient(135deg, #10b981, #06b6d4); border:none;">载入工作台</button>
       </div>
     </div>
@@ -1223,6 +1281,15 @@ const state = {
     rects: false
   }
 };
+const previewVoice = new Audio();
+previewVoice.preload = 'auto';
+
+function setPreviewVoice(ready) {
+  previewVoice.pause();
+  if (ready) previewVoice.src = '/vo/narration.wav?t=' + Date.now();
+  else previewVoice.removeAttribute('src');
+  previewVoice.load();
+}
 
 const dom = {
   topTitle: document.getElementById('topTitle'),
@@ -1464,10 +1531,17 @@ function play(end = state.totalFrames) {
   const first = state.currentFrame;
   const start = performance.now();
   const framesPerMs = state.fps * state.playbackSpeed / 1000;
+  let useVoice = previewVoice.hasAttribute('src');
+  if (useVoice) {
+    previewVoice.currentTime = first / state.fps;
+    previewVoice.playbackRate = state.playbackSpeed;
+    previewVoice.play().catch(() => { useVoice = false; });
+  }
   cancelAnimationFrame(state.playTimer);
   function tick(now) {
-    const next = first + Math.max(0, Math.floor((now - start) * framesPerMs));
-    if (next >= end) {
+    const next = useVoice ? Math.floor(previewVoice.currentTime * state.fps)
+      : first + Math.max(0, Math.floor((now - start) * framesPerMs));
+    if (next >= end || (useVoice && previewVoice.ended)) {
       seekFrame(end - 1);
       pause();
       return;
@@ -1480,6 +1554,7 @@ function play(end = state.totalFrames) {
 
 function pause() {
   state.isPlaying = false;
+  previewVoice.pause();
   cancelAnimationFrame(state.playTimer);
   dom.playIcon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"/>';
 }
@@ -1495,6 +1570,7 @@ async function loadProjectData() {
     }
     pause();
     state.project = data.project;
+    setPreviewVoice(data.hasNarration);
     state.motionSceneIds = data.motionSceneIds || [];
     dom.motionPicker.hidden = state.motionSceneIds.length === 0;
     dom.btnReplayScene.disabled = !data.project?.scenes?.length;
@@ -1585,7 +1661,7 @@ function renderBeatList(project) {
 
     card.innerHTML = `
       <div class="beat-card-header">
-        <span class="beat-id">${sc.id}</span>
+        <span class="beat-id">${escHtml(sc.layout === 'directed' ? b.intent || sc.id : sc.id)}</span>
         <div style="display:flex; align-items:center; gap:4px;">
           <span class="role-badge ${roleClass}">${b.role || 'beat'}</span>
           <button class="beat-action-btn btn-beat-up" title="上移分镜" ${isFirst ? 'disabled style="opacity:0.3;cursor:not-allowed;"' : ''}>↑</button>
@@ -1708,9 +1784,10 @@ function selectScene(idx, seek = true) {
 
 function updateMotionInspector(sc) {
   const automatic = dom.motionSelect.value !== 'classic' && state.motionSceneIds.includes(sc.id);
-  dom.inpSceneLayout.value = automatic ? '动态图解' : sc.layout || 'custom';
-  dom.selEnterEasing.disabled = automatic;
-  dom.selEnterEasing.title = automatic ? '当前入场由动态编排控制' : '';
+  const directed = sc.layout === 'directed';
+  dom.inpSceneLayout.value = directed ? '导演图层' : automatic ? '动态图解' : sc.layout || 'custom';
+  dom.selEnterEasing.disabled = automatic || directed;
+  dom.selEnterEasing.title = directed ? '当前动作由导演图层控制' : automatic ? '当前入场由动态编排控制' : '';
 }
 
 // 填充右侧检视器
@@ -1718,6 +1795,7 @@ function populateInspector(sc) {
   dom.inpSceneId.value = sc.id;
   updateMotionInspector(sc);
   dom.inpSceneNarration.value = sc.narration || '';
+  updateDirectorControls(sc);
 
   // 缓动
   const firstEl = (sc.elements && sc.elements[0]) || {};
@@ -1784,7 +1862,8 @@ function populateInspector(sc) {
 // 保存场景图元修改
 dom.btnSaveScene.addEventListener('click', async () => {
   if (!state.activeSceneId || !state.project) return;
-  const sc = state.project.scenes.find(s => s.id === state.activeSceneId);
+  const original = state.project.scenes.find(s => s.id === state.activeSceneId);
+  const sc = original && structuredClone(original);
   if (!sc) return;
 
   // 更新旁白
@@ -1818,9 +1897,13 @@ dom.btnSaveScene.addEventListener('click', async () => {
     const r = await res.json();
     if (r.ok) {
       showToast('分镜保存并重新编译成功！');
-      reloadIframe();
+      const id = sc.id;
+      await loadProjectData();
+      if (r.narrationChanged && (state.project?.story?.meta?.director || previewVoice.hasAttribute('src'))) await prepareVoice(id);
+      selectScene(state.project.scenes.findIndex(scene => scene.id === id));
+      await reloadIframe();
     } else {
-      showToast('保存出错: ' + (r.compile ? r.compile.errors.join('; ') : '未知错误'));
+      showToast('保存出错: ' + (r.error || (r.compile ? r.compile.errors.join('; ') : '未知错误')));
     }
   } catch (e) {
     showToast('保存异常: ' + e.message);
@@ -1990,26 +2073,31 @@ document.getElementById('btnCompile').addEventListener('click', async () => {
 });
 
 // 配音合成
-document.getElementById('btnTts').addEventListener('click', async () => {
+async function prepareVoice(only, retime = false) {
+  pause();
   showToast('正在调用配音引擎...');
   try {
     const res = await apiFetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({})
+      body: JSON.stringify({ only, retime })
     });
     const r = await res.json();
     if (r.ok) {
       showToast('配音合成及时间轴重建完成！');
       await loadTimelineData();
-      reloadIframe();
+      setPreviewVoice(true);
+      await reloadIframe();
+      return true;
     } else {
       showToast('配音失败: ' + (r.logs || r.error));
     }
   } catch (e) {
     showToast('配音异常: ' + e.message);
   }
-});
+  return false;
+}
+document.getElementById('btnTts').addEventListener('click', () => prepareVoice());
 
 // 视频导出流水线
 document.getElementById('btnExport').addEventListener('click', async () => {
@@ -2155,6 +2243,7 @@ async function openCreatorModal() {
   setWizardStatus('');
   dom.creatorModal.classList.add('show');
   dom.wzTopic.focus();
+  loadDirectorCatalog();
 
   // 加载推荐选题 chips
   if (dom.hotTopicChips.children.length === 0) {
@@ -2187,6 +2276,7 @@ async function openCreatorModal() {
 // 切换向导步骤
 function setWizardStep(step) {
   wizardState.currentStep = step;
+  document.getElementById('directorFromFacts').style.display = step === 2 ? 'inline-flex' : 'none';
 
   // 步骤指示灯
   dom.pillStep1.classList.toggle('active', step === 1);
@@ -2427,6 +2517,185 @@ function renderStoryboardPreview({ story, scenes, motionShots = [], templateAdju
   });
 }
 
+const directorUI = Object.fromEntries(['Brief','Endpoint','Model','ImageModel','Key','Reference','BriefMedia','Medical','Samples','Generate','FromFacts',
+  'Config','Connect','ConnectionStatus','ShotControls','Revision','KeepVoice','Revise','Lock','Undo','Asset','Replace','AssetPreview',
+  'Layer','Upload','Illustration','Illustrate','ShotStatus','ReviewPanel','ReviewCheck','Review'].map(name => [name, document.getElementById('director' + name)]));
+let directorCatalog;
+let directorBusy = false;
+
+async function loadDirectorCatalog() {
+  if (directorCatalog) return directorCatalog;
+  try {
+    const response = await apiFetch('/api/director');
+    const data = await response.json();
+    if (!data.ok) throw new Error(data.error);
+    directorCatalog = data;
+    directorUI.ConnectionStatus.textContent = data.connected ? '已配置。' : '自由创作需要配置模型，三个内置样例可直接试听。';
+    for (const sample of data.samples) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = '试做 ' + sample.label;
+      button.addEventListener('click', () => generateDirector(sample));
+      directorUI.Samples.append(button);
+    }
+    for (const asset of data.assets) directorUI.Asset.add(new Option(asset.title, asset.id));
+    updateAssetPreview();
+    return data;
+  } catch (error) {
+    directorUI.ConnectionStatus.textContent = error.message || '创片配置加载失败。';
+  }
+}
+
+function updateAssetPreview() {
+  const selected = directorCatalog?.assets.find(asset => asset.id === directorUI.Asset.value);
+  if (selected) directorUI.AssetPreview.src = selected.preview;
+}
+directorUI.Asset.addEventListener('change', updateAssetPreview);
+function directorConnectionValues() {
+  return { endpoint: directorUI.Endpoint.value.trim(), model: directorUI.Model.value.trim(),
+    imageModel: directorUI.ImageModel.value.trim(), key: directorUI.Key.value };
+}
+async function readDirectorMedia(file) {
+  if (file.size > 2_000_000) throw new Error('素材须小于 2 MB。');
+  const data = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('读取素材失败。'));
+    reader.readAsDataURL(file);
+  });
+  return { name: file.name, data, source: 'imported' };
+}
+directorUI.Connect.addEventListener('click', async () => {
+  try {
+    await wizardRequest('/api/director/config', directorConnectionValues());
+    directorUI.Key.value = '';
+    if (directorCatalog) directorCatalog.connected = true;
+    directorUI.ConnectionStatus.textContent = '配置已保存在当前会话。';
+  } catch (error) {
+    directorUI.ConnectionStatus.textContent = error.message;
+  }
+});
+
+async function generateDirector(sample, withFacts = false) {
+  if (wizardState.busy) return;
+  const brief = sample ? sample.brief : directorUI.Brief.value.trim() || (withFacts ? dom.wzTopic.value.trim() : '');
+  if (!brief) { setWizardStatus('先写一句想做什么样的短片。', true); directorUI.Brief.focus(); return; }
+  if (sample) directorUI.Brief.value = brief;
+  const facts = withFacts ? wizardState.facts.filter(fact => fact._checked) : [];
+  if (withFacts && !facts.length) { setWizardStatus('请先勾选可用于创作的核实资料。', true); return; }
+
+  wizardState.busy = directorUI.Generate.disabled = directorUI.FromFacts.disabled = dom.btnWzNext.disabled = true;
+  setWizardStatus('正在构思故事和镜头…');
+  try {
+    const connection = directorUI.Key.value || (directorUI.Endpoint.value && !directorCatalog?.connected)
+      ? directorConnectionValues() : undefined;
+    const media = !sample && directorUI.BriefMedia.files[0] ? await readDirectorMedia(directorUI.BriefMedia.files[0]) : undefined;
+    const data = await wizardRequest('/api/director/plan', { brief, sample: sample?.id, reference: directorUI.Reference.value,
+      audience: directorUI.Medical.checked || (withFacts && dom.wzAudience.value !== 'general') ? 'patient' : 'general',
+      style: dom.wzStyle.value, duration: Number(dom.wzDuration.value), facts, ...(sample ? {} : { connection, media }) });
+    directorUI.Key.value = '';
+    if (connection && directorCatalog) directorCatalog.connected = true;
+    wizardState.previewId = data.previewId;
+    renderStoryboardPreview(data);
+    setWizardStep(3);
+    setWizardStatus('正在准备可试听的初稿…');
+  } catch (error) {
+    setWizardStatus(error.message, true);
+    return;
+  } finally {
+    wizardState.busy = directorUI.Generate.disabled = directorUI.FromFacts.disabled = dom.btnWzNext.disabled = false;
+  }
+  await importStoryboard(true);
+}
+directorUI.Generate.addEventListener('click', () => generateDirector());
+directorUI.FromFacts.addEventListener('click', () => generateDirector(null, true));
+
+function updateDirectorControls(scene) {
+  const meta = state.project?.story?.meta?.director;
+  const directed = Boolean(meta && scene.layout === 'directed');
+  directorUI.ShotControls.hidden = !directed;
+  directorUI.ReviewPanel.hidden = !meta?.pendingReview;
+  if (directed) loadDirectorCatalog();
+  const locked = Boolean(directed && meta.locked?.includes(scene.id));
+  if (directed) {
+    const selected = directorUI.Layer.value;
+    directorUI.Layer.replaceChildren(...scene.elements.filter(el => ['icon', 'image', 'video'].includes(el.props.kind))
+      .map(el => new Option(el.props.media?.name || directorCatalog?.assets.find(asset => asset.id === el.props.asset)?.title || el.props.asset, el.id)));
+    if ([...directorUI.Layer.options].some(option => option.value === selected)) directorUI.Layer.value = selected;
+  }
+  directorUI.Lock.textContent = locked ? '解锁本镜' : '锁定本镜';
+  for (const control of [directorUI.Revise, directorUI.Undo, directorUI.Replace, directorUI.Upload, dom.btnSaveScene]) {
+    control.disabled = locked || directorBusy;
+  }
+  for (const control of [directorUI.Replace, directorUI.Illustrate, directorUI.Upload]) {
+    control.disabled = locked || directorBusy || !directorUI.Layer.value;
+  }
+  directorUI.Lock.disabled = directorBusy;
+}
+
+async function changeDirectedShot(action, details = {}) {
+  if (directorBusy) return;
+  const scene = state.project?.scenes.find(sc => sc.id === state.activeSceneId);
+  if (!scene) return;
+  const id = scene.id;
+  directorBusy = true;
+  updateDirectorControls(scene);
+  pause();
+  directorUI.ShotStatus.textContent = action === 'revise' ? '正在重新编排当前镜头…' : '正在保存…';
+  try {
+    const result = await wizardRequest('/api/director/shot', { id, action, ...details });
+    if (action === 'lock') {
+      const meta = state.project.story.meta.director;
+      const locked = new Set(meta.locked || []);
+      if (result.locked) locked.add(id); else locked.delete(id);
+      meta.locked = [...locked];
+      directorUI.ShotStatus.textContent = result.locked ? '本镜头已锁定。' : '本镜头已解锁。';
+      return;
+    }
+    await loadProjectData();
+    if (result.narrationChanged || result.timingChanged) await prepareVoice(id, !result.narrationChanged);
+    const index = state.project.scenes.findIndex(sc => sc.id === id);
+    if (index >= 0) selectScene(index);
+    await reloadIframe();
+    directorUI.ShotStatus.textContent = action === 'undo' ? '已恢复上一次编排。' : '当前镜头已更新。';
+  } catch (error) {
+    directorUI.ShotStatus.textContent = error.message;
+  } finally {
+    directorBusy = false;
+    const selected = state.project?.scenes.find(sc => sc.id === state.activeSceneId);
+    if (selected) updateDirectorControls(selected);
+  }
+}
+directorUI.Revise.addEventListener('click', () => changeDirectedShot('revise', {
+  instruction: directorUI.Revision.value.trim(), keepNarration: directorUI.KeepVoice.checked
+}));
+directorUI.Lock.addEventListener('click', () => changeDirectedShot('lock'));
+directorUI.Undo.addEventListener('click', () => changeDirectedShot('undo'));
+directorUI.Replace.addEventListener('click', () => changeDirectedShot('asset', { asset: directorUI.Asset.value, layerId: directorUI.Layer.value }));
+directorUI.Illustrate.addEventListener('click', () => changeDirectedShot('illustrate', {
+  instruction: directorUI.Illustration.value, layerId: directorUI.Layer.value
+}));
+directorUI.Upload.addEventListener('change', async () => {
+  const file = directorUI.Upload.files[0];
+  if (!file) return;
+  const layerId = directorUI.Layer.value;
+  const initialScene = state.activeSceneId;
+  directorUI.Upload.value = '';
+  try {
+    const media = await readDirectorMedia(file);
+    if (initialScene === state.activeSceneId) await changeDirectedShot('asset', { layerId, media });
+  } catch (error) { directorUI.ShotStatus.textContent = error.message; }
+});
+directorUI.Review.addEventListener('click', async () => {
+  try {
+    await wizardRequest('/api/director/review', { confirmed: directorUI.ReviewCheck.checked });
+    state.project.story.meta.director.pendingReview = false;
+    directorUI.ReviewPanel.hidden = true;
+    directorUI.ReviewCheck.checked = false;
+    showToast('已记录医学核对。');
+  } catch (error) { showToast(error.message); }
+});
+
 // 绑定向导事件
 dom.btnNewProject.addEventListener('click', openCreatorModal);
 function closeCreatorModal() {
@@ -2661,7 +2930,7 @@ dom.btnMoreLiterature.addEventListener('click', () => {
 });
 dom.btnAddCustomFact.addEventListener('click', () => editWizardFact());
 
-dom.btnWzCreate.addEventListener('click', async () => {
+async function importStoryboard(withVoice = false) {
   if (wizardState.busy || !wizardState.previewId) return;
   wizardState.busy = dom.btnWzCreate.disabled = dom.btnWzPrev.disabled = true;
   dom.btnWzCreate.textContent = '正在载入…';
@@ -2672,7 +2941,14 @@ dom.btnWzCreate.addEventListener('click', async () => {
     pause();
     if (await loadProjectData() !== data.projectDir) throw new Error('工程已保存，但工作台载入失败。请再次点击载入工作台。');
     seekFrame(Math.min(Math.round(state.fps * 1.2), state.totalFrames - 1));
-    reloadIframe();
+    await reloadIframe();
+    if (withVoice) {
+      const ok = await prepareVoice();
+      if (ok) {
+        seekFrame(0);
+        play();
+      }
+    }
     loaded = true;
     wizardState.previewId = null;
   } catch (error) {
@@ -2686,7 +2962,8 @@ dom.btnWzCreate.addEventListener('click', async () => {
     closeCreatorModal();
     showToast('新工程已载入工作台。');
   }
-});
+}
+dom.btnWzCreate.addEventListener('click', () => importStoryboard());
 
 // 添加新分镜弹窗事件
 dom.btnAddBeat.addEventListener('click', () => {
