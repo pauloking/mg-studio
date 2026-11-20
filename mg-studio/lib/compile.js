@@ -9,6 +9,7 @@ const { lintMotion } = require('./motion-lint');
 const { lintMedical, DISCLAIMER } = require('./medical-lint');
 const { checkElementProps } = require('./props');
 const { composeScenes } = require('./motion-plan');
+const { checkedAssetPath } = require('./project-assets');
 
 function normalizeScene(sc, components = COMPONENTS) {
   const errors = [];
@@ -76,6 +77,10 @@ function compileProject(dir, settings = {}) {
   if (vid && ((vid.fps != null && vid.fps !== 30) || (vid.width != null && vid.width !== 1920) || (vid.height != null && vid.height !== 1080)))
     errors.push('M1 渲染核冻结 30fps/1920×1080，meta.video 不可覆盖（fps/width/height）');
   for (const sc of project.scenes) {
+    for (const layer of sc.elements) if (sc.layout === 'directed' && layer.props.media?.file) {
+      try { checkedAssetPath(dir, layer.props.media); }
+      catch (error) { errors.push(error.message); }
+    }
     if (sc.custom) errors.push(`scene ${sc.id} 使用了 custom 逃生舱（M2 实现，M1 暂不支持）`);
     if (sc.subsOverride) {
       const c = checkSubs(sc.subsOverride, sc.narration);

@@ -63,7 +63,7 @@ function buildStoryboardDefinition({
   return { story, scenes, motionShots, templateAdjusted: actualTemplate !== cleanTemplate };
 }
 
-function writeAndCompileGeneratedProject(targetDir, { story, scenes }) {
+function writeAndCompileGeneratedProject(targetDir, { story, scenes }, { assetSource, assets } = {}) {
   const target = path.resolve(targetDir);
   // Creation never replaces an existing directory, even an empty one or symlink.
   if (fs.existsSync(target) || isSymlink(target)) {
@@ -76,6 +76,7 @@ function writeAndCompileGeneratedProject(targetDir, { story, scenes }) {
   fs.mkdirSync(parent, { recursive: true });
   const staged = fs.mkdtempSync(path.join(parent, '.mg-studio-'));
   try {
+    if (assetSource) require('./project-assets').copyAssets(assetSource, staged, assets);
     fs.mkdirSync(path.join(staged, 'scenes'));
     fs.writeFileSync(path.join(staged, 'story.json'), JSON.stringify(story, null, 2));
     for (const sc of scenes) {

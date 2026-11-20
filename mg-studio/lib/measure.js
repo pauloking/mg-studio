@@ -35,7 +35,8 @@ function launchOptions() {
 }
 function serve(root) {
   const ROOT = path.resolve(root);
-  const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.css': 'text/css' };
+  const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png',
+    '.css': 'text/css', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.mp4': 'video/mp4', '.webm': 'video/webm' };
   const server = http.createServer((req, res) => {
     let p = decodeURIComponent(req.url.split('?')[0]);
     if (p === '/') p = '/scene.html';

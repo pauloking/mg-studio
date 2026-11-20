@@ -5,6 +5,7 @@ const { randomUUID } = require('node:crypto');
 const { compileProject } = require('./compile');
 const { projectFilePath, sceneFilePath, validateSceneUpdate } = require('./project-files');
 const { validateStory } = require('./ir');
+const { pendingShots, contentSignature, updateReview } = require('./director-review');
 
 function atomicWrite(filename, text) {
   const temporary = path.join(path.dirname(filename), '.' + randomUUID() + '.tmp');
@@ -36,7 +37,10 @@ function saveShot(dir, current, scene, beat) {
   if (narrationChanged) delete scene.subsOverride;
   const nextStory = { ...story, beats: story.beats.map((value, i) => i === index ? beat : value) };
   if (nextStory.meta.director && nextStory.meta.audience === 'patient') {
-    nextStory.meta = { ...nextStory.meta, director: { ...nextStory.meta.director, pendingReview: true } };
+    nextStory.meta = { ...nextStory.meta, director: { ...nextStory.meta.director } };
+    const pending = pendingShots(story);
+    if (contentSignature(scene, beat) !== contentSignature(current.scene, current.beat)) pending.push(beat.id);
+    updateReview(nextStory, pending);
   }
   validateSceneUpdate(scene, nextStory);
   const validation = validateStory(nextStory);

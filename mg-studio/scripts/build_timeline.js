@@ -23,8 +23,8 @@ function durOf(file) {
   return parseFloat(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file]).toString().trim());
 }
 
-let cursor = 0;
-const scenes = s.scenes.map((sc, idx) => {
+const fit = Number.isFinite(opt.fitDuration) && opt.fitDuration > 0;
+const timing = s.scenes.map((sc, idx) => {
   const wav = path.join(ROOT, 'vo', sc.id + '.wav');
   if (!fs.existsSync(wav)) { console.error('缺少配音文件:', wav, '（先运行 tts.js）'); process.exit(1); }
   const dur = durOf(wav);
@@ -33,8 +33,26 @@ const scenes = s.scenes.map((sc, idx) => {
   const minSec = isIntro ? Math.max(sc.minSec || 0, opt.introMinSec)
     : isOutro ? Math.max(sc.minSec || 0, opt.outroMinSec)
     : (sc.minSec || 0);
-  const sceneSec = Math.max(minSec, dur + opt.pad);
-  const frames = Math.round(sceneSec * FPS);
+  const planned = Math.round(Math.max(minSec, dur + opt.pad) * FPS);
+  const floor = Math.ceil((leadIn + dur + 0.15) * FPS);
+  return { leadIn, dur, floor, frames: fit ? Math.max(planned, floor) : planned };
+});
+const speechFrames = timing.reduce((sum, shot) => sum + shot.floor, 0);
+const naturalFrames = timing.reduce((sum, shot) => sum + shot.frames, 0);
+const targetFrames = Math.round(opt.fitDuration * FPS);
+if (fit && targetFrames < naturalFrames && speechFrames < naturalFrames) {
+  const slack = Math.max(0, targetFrames - speechFrames);
+  let used = 0, scaled = 0;
+  for (const shot of timing) {
+    used += shot.frames - shot.floor;
+    const cumulative = Math.round(used * slack / (naturalFrames - speechFrames));
+    shot.frames = shot.floor + cumulative - scaled;
+    scaled = cumulative;
+  }
+}
+let cursor = 0;
+const scenes = s.scenes.map((sc, idx) => {
+  const { frames, dur, leadIn } = timing[idx];
   const start = cursor, end = cursor + frames; cursor = end;
   const audioStart = start / FPS + leadIn;
   const sceneEndSec = end / FPS;
@@ -50,6 +68,7 @@ const scenes = s.scenes.map((sc, idx) => {
 });
 
 const tl = { fps: FPS, width: s.width || 1920, height: s.height || 1080, totalFrames: cursor, scenes };
+if (fit) tl.fit = { target: opt.fitDuration, actual: cursor / FPS, speechFloor: speechFrames / FPS };
 fs.writeFileSync(path.join(ROOT, 'timeline.json'), JSON.stringify(tl, null, 1));
 
 // 语速校准回写（§7）：用实测音频时长反推 charsPerSec，按 backend+voice 分键持久化，供 lintScript 自校准。

@@ -16,6 +16,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const { createHash } = require('node:crypto');
 
 function parseArgs(argv) {
   const out = { backend: null, dir: null, only: null };
@@ -25,6 +26,7 @@ function parseArgs(argv) {
     else if (a === '--backend') out.backend = argv[++i];
     else if (a.startsWith('--only=')) out.only = a.split('=')[1];
     else if (a === '--only') out.only = argv[++i];
+    else if (a === '--reuse') out.reuse = true;
     else if (!a.startsWith('--')) out.dir = a;
   }
   return out;
@@ -116,11 +118,14 @@ function probeDuration(file) {
   return parseFloat(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file]).toString().trim());
 }
 
-function run({ dir: argvDir, backend, only }) {
+function run({ dir: argvDir, backend, only, reuse }) {
   const dir = argvDir ? path.resolve(argvDir) : process.cwd();
   const s = loadScript(dir);
   const cfg = configFor(s, backend);
   fs.mkdirSync(path.join(dir, 'vo'), { recursive: true });
+  const manifest = path.join(dir, 'vo', 'voices.json');
+  let voices = {};
+  try { voices = JSON.parse(fs.readFileSync(manifest, 'utf8')) || {}; } catch { /* An older project may have no voice signatures. */ }
 
   const { scenes, missing } = selectScenes(s.scenes, only);
   if (missing.length) console.warn('[!] --only 未命中场景 id（已忽略）:', missing.join(', '));
@@ -131,9 +136,22 @@ function run({ dir: argvDir, backend, only }) {
     // 各后端原生产物：say 出 aiff、百炼出 wav，随后统一转 44100 单声道
     const rawSrc = path.join(dir, 'vo', sc.id + (cfg.backend === 'bailian' || process.platform === 'win32' ? '_raw.wav' : '_raw.aiff'));
     const { cmd, args, env, input } = buildTtsCommand({ cfg, sc, raw: rawSrc });
-    execFileSync(cmd, args, { env, input, timeout: 120000, windowsHide: true, stdio: [input ? 'pipe' : 'ignore', 'pipe', 'pipe'] });
-    execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', rawSrc, '-ar', '44100', '-ac', '1', wav], { stdio: ['ignore', 'pipe', 'pipe'] });
-    fs.unlinkSync(rawSrc);
+    const signature = createHash('sha256').update(JSON.stringify([cmd, args.map(arg => arg === rawSrc ? '<output>' : arg), input])).digest('hex');
+    if (reuse && voices[sc.id] === signature && fs.existsSync(wav)) {
+      console.log('复用配音', sc.id);
+      continue;
+    }
+    const converted = wav + '.tmp.wav';
+    try {
+      execFileSync(cmd, args, { env, input, timeout: 120000, windowsHide: true, stdio: [input ? 'pipe' : 'ignore', 'pipe', 'pipe'] });
+      execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', rawSrc, '-ar', '44100', '-ac', '1', converted], { stdio: ['ignore', 'pipe', 'pipe'] });
+      fs.renameSync(converted, wav);
+    } finally {
+      fs.rmSync(rawSrc, { force: true });
+      fs.rmSync(converted, { force: true });
+    }
+    voices[sc.id] = signature;
+    fs.writeFileSync(manifest, JSON.stringify(voices));
     console.log('ok', sc.id, probeDuration(wav).toFixed(2) + 's', '(' + cfg.backend + ')');
   }
   if (only) console.log(`（--only：仅重配 ${scenes.length} 个场景，其余 vo/*.wav 保持不变）`);

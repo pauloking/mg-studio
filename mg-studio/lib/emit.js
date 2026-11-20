@@ -198,6 +198,7 @@ const subtitleEl = document.getElementById('subtitle');
 const S = {};
 let TL = null;
 let OFF = 0;
+let previousActive = -2;
 function fadeScene(r, lt, dur) { op(r, Math.min(seg(lt,0,.45), seg(dur-lt,0,.45))); }
 window.__ready = false; window.__err = null;
 window.__frame = function (j) { try {
@@ -206,9 +207,15 @@ window.__frame = function (j) { try {
   let active = -1;
   let pending;
   for (let k = 0; k < TL.scenes.length; k++) { const sc = TL.scenes[k]; if (i >= sc.start && i < sc.end) active = k; }
-  for (let k = 0; k < UPS.length; k++) { const el = scenesEl.children[k];
-    if (k === active) { el.style.display = 'block'; pending = UPS[k]((i - TL.scenes[k].start) / TL.fps, t); }
-    else { el.style.display = 'none'; op(el, 0); } }
+  if (active !== previousActive) {
+    for (let k = 0; k < UPS.length; k++) {
+      const el = scenesEl.children[k];
+      el.style.display = k === active ? 'block' : 'none';
+      if (k !== active) op(el, 0);
+    }
+    previousActive = active;
+  }
+  if (active >= 0) pending = UPS[active]((i - TL.scenes[active].start) / TL.fps, t);
   upSubtitle(t);
   return pending;
 } catch (e) { window.__err = String(e && e.stack || e); } };
@@ -262,6 +269,7 @@ function emitSceneHtml({ tokens, scenes, components, preRuntime, disclaimer }) {
     const extra = components[sc.layout].extraUpdate ? components[sc.layout].extraUpdate(sc) : '';
     return `function up_${sc.id}(lt, t) {
   const s = S['${sc.id}'], sc = TL.scenes[${k}], dur = sc.dur;
+  const previous = S[TL.scenes[${k} - 1]?.id];
   fadeScene(s.r, lt, dur);
   for (const el of s.els) upEl(el.e, SPECS['${sc.id}'][el.key], lt, dur, sc);
   ${extra}

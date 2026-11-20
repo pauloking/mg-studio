@@ -6,8 +6,53 @@ const text = (content, x, y, w, h, size, action = 'reveal', at = .08, align = 'l
   ({ kind: 'text', content, x, y, w, h, size, action, at, span: .23, align, color });
 const shape = (kind, x, y, w, h, action = 'draw', at = .10, color = 'accent') =>
   ({ kind, x, y, w, h, action, at, span: .53, color });
+const rainDrop = (w, h, points) => ({
+  ...graphic('droplet', points[0][1], points[0][2], w, h, 'hold', 0, .45, 'accent2'),
+  object: 'rain_drop', track: points.map(([t, x, y, scale]) => ({ t, x, y, ...(scale ? { scale } : {}) }))
+});
 
 const samples = {
+  journey: {
+    label: '追踪一滴雨（跨镜样片）',
+    brief: '做一条城市科普 MG，跟着同一滴雨，从雨云到屋顶、路面，再看雨水口与绿地的两条路径。',
+    title: '追踪一滴雨', style: 'deep-tech', audience: 'general',
+    arc: { question: '积水消失后，雨去了哪里？', visualMotif: '一滴蓝色的雨', beats: ['跟到屋顶', '顺坡到路边', '看雨水口', '比较绿地'], payoff: '从地面材料和排水口找线索' },
+    shots: [
+      { title: '积水消失之后', narration: '昨天的积水没了。它去了哪里？我们从一滴雨落下看起。', seconds: 7, transition: 'cut', layers: [
+        graphic('rain-roof', 53, 28, 39, 51, 'reveal', .16, .56, 'muted'),
+        text('积水消失之后', 8, 15, 54, 16, 111), text('雨去哪了？', 8, 40, 37, 12, 74, 'slide', .29),
+        rainDrop(8, 15, [[0, 73, 8], [.36, 72, 15], [.68, 67, 25], [1, 62, 38]])
+      ]},
+      { title: '沿屋顶往下', narration: '这滴雨碰到斜屋顶，贴着瓦片一路滑，最后从屋檐落下。', seconds: 7, transition: 'match', layers: [
+        graphic('rain-roof', 16, 14, 68, 64, 'slide', .08, .52, 'accent'),
+        shape('line', 32, 73, 42, 1.2, 'draw', .38, 'accent2'),
+        text('顺着屋檐落下', 8, 8, 54, 12, 84, 'slide', .14),
+        rainDrop(9, 16, [[0, 60, 25], [.25, 45, 36], [.69, 65, 51], [1, 69, 65]])
+      ]},
+      { title: '沿路追到雨水口', narration: '雨滴沿着硬路面流。看，路边带格栅的口，就是雨水口。', seconds: 7, transition: 'match', layers: [
+        graphic('rain-street', 8, 27, 84, 53, 'reveal', .08, .62, 'accent'),
+        text('找一找路边的格栅', 9, 11, 65, 15, 85, 'reveal', .12),
+        rainDrop(7, 13, [[0, 29, 35], [.28, 29, 48], [.65, 57, 51], [1, 74, 55]])
+      ]},
+      { title: '格栅下面', narration: '穿过格栅，雨水钻进排水管。地面上的积水也随之变少。', seconds: 6.2, transition: 'match', layers: [
+        shape('panel', 49, 13, 42, 60, 'grow', .12, 'muted'),
+        graphic('rain-street', 42, 21, 45, 49, 'reveal', .15, .48),
+        text('沿管道离开路面', 8, 19, 39, 28, 79, 'slide', .15),
+        rainDrop(7, 13, [[0, 74, 29], [.36, 73, 45], [.68, 65, 55], [1, 54, 58]])
+      ]},
+      { title: '换一个落点', narration: '把镜头倒回去。如果落在草地，雨水还可以沿土壤的空隙往下渗。', seconds: 7.3, transition: 'wipe', layers: [
+        graphic('rain-soil', 41, 25, 51, 53, 'reveal', .02, .55, 'accent'),
+        text('如果落在草地？', 8, 10, 68, 15, 87), text('看水向下渗', 8, 48, 35, 14, 67, 'slide', .50),
+        rainDrop(7, 13, [[0, 65, 27], [.42, 65, 41], [.74, 64, 55], [1, 63, 67, .7]])
+      ]},
+      { title: '带着两个线索回街上', narration: '下次下雨，看看脚下是路面还是草地，再找找雨水口。你也能追踪一滴雨。', seconds: 7.5, transition: 'match', layers: [
+        graphic('rain-street', 8, 31, 36, 44, 'reveal', .16, .47, 'accent'),
+        graphic('rain-soil', 57, 31, 35, 44, 'reveal', .36, .47, 'accent'),
+        text('看地面，找排水口', 8, 8, 84, 15, 91, 'reveal', .12, 'center'),
+        rainDrop(7, 13, [[0, 42, 55], [.42, 47, 30], [1, 47, 26]])
+      ]}
+    ]
+  },
   rain: {
     label: '雨水去哪了',
     brief: '给孩子做一条简短的城市科普动画，用一滴雨做主角，解释城市雨水的去向。',

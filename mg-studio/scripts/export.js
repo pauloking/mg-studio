@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { pendingShots } = require('../lib/director-review');
 
 // Keep the CLI and desktop on the same pipeline. Each stage receives an argv
 // array; paths inside app.asar are opened by Electron's Node runtime only.
@@ -19,13 +20,13 @@ function exportVideo(backend = 'local', outputName = 'output') {
   const isV2 = fs.existsSync('story.json');
   if (isV2) {
     const story = JSON.parse(fs.readFileSync('story.json', 'utf8'));
-    if (story.meta.director?.pendingReview) throw new Error('请先核对医学内容与出处，再正式导出。');
+    if (pendingShots(story).length) throw new Error('请先核对医学内容与出处，再正式导出。');
     console.log('==> 0/5 编译分镜与 G0 脚本门');
     node('compile.js');
     node('lint_story.js', '.');
   }
   console.log(`==> 1/5 配音 (${backend})`);
-  node('tts.js', '--backend', backend);
+  node('tts.js', '--backend', backend, '--reuse');
   console.log('==> 2/5 时间轴');
   node('build_timeline.js');
   if (isV2) node('lint_scene.js', '.');

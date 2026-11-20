@@ -328,6 +328,12 @@ button.primary:hover {
 .stage-motion label { display:flex; align-items:center; gap:6px; white-space:nowrap; }
 .stage-motion label[hidden] { display:none; }
 .stage-motion select { width:auto; padding:4px 7px; font-size:12px; }
+#shotRange select { max-width:clamp(84px,11vw,155px); }
+.stage-center:has(#shotRange:not([hidden])) .stage-overlays { top:56px; }
+.director-data { margin-top: 8px; }
+.director-data table { width: 100%; table-layout: fixed; border-spacing: 3px; }
+.director-data th { font-size: 11px; font-weight: 500; color: var(--text-muted); text-align: left; }
+.director-data input { min-width: 0; width: 100%; padding: 3px; font-size: 11px; }
 @media (max-width: 1120px) {
   .stage-overlays { top: 56px; }
 }
@@ -804,6 +810,9 @@ textarea {
         <span class="beat-count" id="beatCount">0 BEATS</span>
       </div>
     </div>
+    <details id="directorArc" hidden style="margin:8px 12px;color:var(--text-muted);font-size:12px;">
+      <summary>故事主线</summary><div id="directorArcBody"></div>
+    </details>
     <div class="beat-list" id="beatList">
       <!-- 动态插入 Beat 卡片 -->
     </div>
@@ -821,6 +830,9 @@ textarea {
         </select>
       </label>
       <button id="btnReplayScene" type="button" disabled title="从当前分镜第一帧重播">重播本镜</button>
+      <label id="shotRange" hidden>选段 <select id="shotRangeStart" aria-label="选段起始镜头"></select>
+        <span aria-hidden="true">至</span> <select id="shotRangeEnd" aria-label="选段结束镜头"></select>
+        <button id="shotRangePlay" type="button">试听选段</button></label>
     </div>
     <div class="stage-overlays">
       <button class="overlay-toggle" id="toggleGrid">辅助网格</button>
@@ -905,8 +917,11 @@ textarea {
         <label for="directorRevision">用一句话改当前镜头</label>
         <textarea id="directorRevision" rows="2" maxlength="450" placeholder="例如：改成同屏对照，保留旁白"></textarea>
         <label><input type="checkbox" id="directorKeepVoice" checked> 保留旁白</label>
+        <label><input type="checkbox" id="directorKeepAssets" checked> 保留素材</label>
+        <label><input type="checkbox" id="directorKeepComposition"> 保留构图</label>
+        <label><input type="checkbox" id="directorKeepDuration"> 保留镜头时长</label>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 12px;">
-          <button id="directorRevise" type="button" class="primary">重做本镜</button>
+          <button id="directorRevise" type="button" class="primary">预览改版</button>
           <button id="directorLock" type="button">锁定本镜</button>
           <button id="directorUndo" type="button">撤销本镜修改</button>
         </div>
@@ -918,8 +933,8 @@ textarea {
           <select id="directorAsset"></select>
           <button id="directorReplace" type="button">替换</button>
         </div>
-        <label for="directorUpload" style="margin-top:8px;">导入本地图片或短视频（2 MB 以内）</label>
-        <input type="file" id="directorUpload" accept="image/png,image/jpeg,image/webp,image/svg+xml,video/mp4,video/webm">
+        <label for="directorUpload" style="margin-top:8px;">导入工程素材（单个 48 MB 以内）</label>
+        <input type="file" id="directorUpload" multiple accept="image/png,image/jpeg,image/webp,image/svg+xml,video/mp4,video/webm">
         <details style="margin-top:6px;">
           <summary>生成专用插图</summary>
           <label for="directorIllustration">插图描述</label>
@@ -937,8 +952,9 @@ textarea {
     <!-- Tab 2: 医学核查与免责 -->
     <div class="tab-content" id="tabMedical">
       <div class="form-group" id="directorReviewPanel" hidden>
-        <label><input type="checkbox" id="directorReviewCheck"> 已逐镜核对医学旁白、画面和出处</label>
-        <button type="button" id="directorReview">确认核对</button>
+        <p id="directorReviewStatus" style="margin-bottom:8px;"></p>
+        <label><input type="checkbox" id="directorReviewCheck"> 已核对本镜旁白、画面和出处</label>
+        <button type="button" id="directorReview">确认本镜</button>
       </div>
       <div class="form-group">
         <label>受众对象 (Audience)</label>
@@ -1004,8 +1020,8 @@ textarea {
           <button id="directorConnect" type="button" style="margin-top:6px;">保存本次配置</button>
           <label for="directorReference">参考资料（选填）</label>
           <textarea id="directorReference" rows="2" maxlength="3600"></textarea>
-          <label for="directorBriefMedia">自有图片或片段（选填，2 MB 以内）</label>
-          <input id="directorBriefMedia" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,video/mp4,video/webm">
+          <label for="directorBriefMedia">自有图片或片段（最多 8 个，单个 48 MB 以内）</label>
+          <input id="directorBriefMedia" type="file" multiple accept="image/png,image/jpeg,image/webp,image/svg+xml,video/mp4,video/webm">
           <label><input type="checkbox" id="directorMedical"> 医学科普</label>
           <div id="directorConnectionStatus" role="status" style="color:var(--text-muted);"></div>
         </details>
@@ -1237,7 +1253,7 @@ textarea {
   <div class="modal-box">
     <div style="display:flex; justify-content:space-between; align-items:center;">
       <h3 style="font-size:15px; font-weight:600;">视频渲染流水线</h3>
-      <button id="btnCloseModal" style="padding:2px 8px; font-size:11px;">关闭</button>
+      <button id="btnCloseModal" style="padding:2px 8px; font-size:11px;">后台运行</button>
     </div>
     <div class="progress-bar">
       <div class="progress-fill" id="exportProgressFill"></div>
@@ -1245,6 +1261,20 @@ textarea {
     <div class="log-box" id="exportLogBox">等待出片指令...</div>
   </div>
 </div>
+
+<dialog id="directorDraft" aria-labelledby="directorDraftTitle" style="margin:auto;padding:16px;border:1px solid var(--border);border-radius:12px;background:var(--bg-panel);color:var(--text-primary);width:min(820px,calc(100vw - 32px));">
+  <h3 id="directorDraftTitle">本镜改版预览</h3>
+  <p id="directorDraftVoice" style="margin:8px 0;"></p>
+  <div id="directorDraftViewport" style="position:relative;overflow:hidden;aspect-ratio:16/9;background:#000;">
+    <iframe id="directorDraftFrame" title="改版镜头画面" style="position:absolute;left:0;top:0;border:0;transform-origin:top left;"></iframe>
+  </div>
+  <p id="directorDraftStatus" role="status" style="margin:8px 0;"></p>
+  <div style="display:flex;justify-content:flex-end;gap:8px;">
+    <button id="directorDraftReplay" type="button">重播改版</button>
+    <button id="directorDraftCancel" type="button">放弃改版</button>
+    <button id="directorDraftApply" class="primary" type="button">应用到本镜</button>
+  </div>
+</dialog>
 
 <div id="toast">消息提示</div>
 
@@ -1570,6 +1600,8 @@ async function loadProjectData() {
     }
     pause();
     state.project = data.project;
+    state.projectDir = data.projectDir;
+    setDirectorAssets(data.assets || []);
     setPreviewVoice(data.hasNarration);
     state.motionSceneIds = data.motionSceneIds || [];
     dom.motionPicker.hidden = state.motionSceneIds.length === 0;
@@ -1578,6 +1610,10 @@ async function loadProjectData() {
     // 顶栏更新
     const story = data.project && data.project.story;
     const tokens = data.project && data.project.tokens;
+    const arc = story?.meta?.director?.arc;
+    document.getElementById('directorArc').hidden = !arc;
+    document.getElementById('directorArcBody').textContent = arc ? [arc.question, arc.visualMotif, ...(arc.beats || []), arc.payoff].join(' → ') : '';
+    updateShotRangeOptions(story);
     dom.topTitle.textContent = (story && story.meta && story.meta.title) || '未命名分镜工程';
     const curStyle = (tokens && tokens.style) || (story && story.meta && story.meta.style) || 'deep-tech';
     dom.styleSelect.value = curStyle;
@@ -1613,6 +1649,7 @@ async function loadTimelineData() {
 
     dom.timelineScrubber.max = state.totalFrames - 1;
     dom.totalTimeText.textContent = `/ ${formatTime(state.totalFrames, state.fps)}`;
+    dom.totalTimeText.title = tl.fit ? `目标 ${tl.fit.target} 秒，实配 ${tl.fit.actual.toFixed(2)} 秒，旁白至少需要 ${tl.fit.speechFloor.toFixed(2)} 秒` : '';
 
     // 渲染时间轴上的场景分布条
     dom.timelineScenesBar.innerHTML = '';
@@ -1672,6 +1709,7 @@ function renderBeatList(project) {
       <div class="beat-meta-row">
         <span class="emotion-badge">情绪: ${b.emotion ? '★'.repeat(b.emotion) : '-'}</span>
         ${factsHtml}
+        ${project.story?.meta.director?.pendingShots?.includes(sc.id) ? '<span class="facts-badge unverified">待核对</span>' : ''}
       </div>
       <div class="beat-narration">${escHtml(sc.narration || '(无旁白)')}</div>
     `;
@@ -1724,7 +1762,10 @@ async function reorderBeat(beatId, direction) {
     if (r.ok) {
       showToast('分镜顺序已调整并重新编译！');
       await loadProjectData();
-      reloadIframe();
+      if (r.retime) await prepareVoice(undefined, true);
+      else await reloadIframe();
+      const index = state.project.scenes.findIndex(shot => shot.id === beatId);
+      if (index >= 0) selectScene(index);
     } else {
       showToast('调整失败: ' + (r.error || (r.compile && r.compile.errors.join('; '))));
     }
@@ -1790,6 +1831,69 @@ function updateMotionInspector(sc) {
   dom.selEnterEasing.title = directed ? '当前动作由导演图层控制' : automatic ? '当前入场由动态编排控制' : '';
 }
 
+const directorColumns = {
+  track: [['t', '进度 %', 100, 0], ['x', '横向 %', 1, 3], ['y', '纵向 %', 1, 3],
+    ['scale', '缩放', 1, 1], ['rotation', '旋转°', 1, 0]],
+  series: [['label', '标签'], ['value', '数值', 1, 0]]
+};
+
+function directorDataEditor(layer, key) {
+  const editor = document.createElement('details');
+  editor.className = 'director-data';
+  editor.dataset.el = layer.id;
+  editor.dataset.collection = key;
+  const name = key === 'track' ? '运动关键帧' : '图表数据';
+  const columns = directorColumns[key];
+  editor.innerHTML = `<summary>${name}</summary><table><thead><tr>${columns.map(([, title]) => '<th>' + title + '</th>').join('')}</tr></thead><tbody></tbody></table>`;
+  const body = editor.querySelector('tbody');
+  function addRow(values, index = -1) {
+    const row = body.insertRow(index);
+    for (const [id, label, scale, fallback] of columns) {
+      const input = document.createElement('input');
+      input.setAttribute('aria-label', label);
+      input.type = scale ? 'number' : 'text';
+      input.step = 'any';
+      input.value = scale ? (values[id] ?? fallback) * scale : values[id] || '';
+      row.insertCell().append(input);
+    }
+  }
+  const rows = layer.props[key] || [];
+  rows.forEach(values => addRow(values));
+  const add = document.createElement('button');
+  const remove = document.createElement('button');
+  add.type = remove.type = 'button';
+  add.textContent = key === 'track' ? '新增关键帧' : '新增一行';
+  remove.textContent = '删除末行';
+  function updateButtons() {
+    add.disabled = body.rows.length >= (key === 'track' ? 12 : 6);
+    remove.disabled = body.rows.length <= (key === 'track' ? 0 : 2);
+  }
+  add.addEventListener('click', () => {
+    if (key === 'track' && !body.rows.length) {
+      const { x, y } = layer.props;
+      addRow({ t: 0, x, y });
+      addRow({ t: 1, x, y });
+    } else if (key === 'track') {
+      const last = body.rows.length - 1;
+      const before = body.rows[last - 1].querySelectorAll('input');
+      const after = body.rows[last].querySelectorAll('input');
+      addRow(Object.fromEntries(columns.map(([id, , scale], i) =>
+        [id, (Number(before[i].value) + Number(after[i].value)) / (2 * scale)])), last);
+    } else {
+      addRow({});
+    }
+    updateButtons();
+  });
+  remove.addEventListener('click', () => {
+    body.deleteRow(-1);
+    if (key === 'track' && body.rows.length === 1) body.deleteRow(-1);
+    updateButtons();
+  });
+  editor.append(add, remove);
+  updateButtons();
+  return editor;
+}
+
 // 填充右侧检视器
 function populateInspector(sc) {
   dom.inpSceneId.value = sc.id;
@@ -1826,6 +1930,10 @@ function populateInspector(sc) {
         }
       }
       field.innerHTML = inner;
+      if (sc.layout === 'directed') {
+        field.append(directorDataEditor(el, 'track'));
+        if (el.props.kind === 'chart') field.append(directorDataEditor(el, 'series'));
+      }
       dom.dynamicPropsContainer.appendChild(field);
     });
   }
@@ -1878,15 +1986,25 @@ dom.btnSaveScene.addEventListener('click', async () => {
   }
 
   // 更新 props
-  const inputs = dom.dynamicPropsContainer.querySelectorAll('input[data-el]');
-  inputs.forEach(inp => {
+  const inputs = dom.dynamicPropsContainer.querySelectorAll('input[data-el][data-prop]');
+  for (const inp of inputs) {
     const elId = inp.dataset.el;
     const propKey = inp.dataset.prop;
     const el = sc.elements && sc.elements.find(e => e.id === elId);
     if (el && el.props) {
       el.props[propKey] = typeof el.props[propKey] === 'number' ? Number(inp.value) : inp.value;
     }
-  });
+  }
+  for (const editor of dom.dynamicPropsContainer.querySelectorAll('[data-collection]')) {
+    const { el: id, collection } = editor.dataset;
+    const layer = sc.elements.find(el => el.id === id);
+    const rows = [...editor.querySelectorAll('tbody tr')];
+    if (!rows.length) delete layer.props[collection];
+    else layer.props[collection] = rows.map(row => Object.fromEntries(directorColumns[collection].map(([key, , scale], i) => {
+      const input = row.cells[i].firstElementChild;
+      return [key, scale ? (input.value === '' ? NaN : Number(input.value) / scale) : input.value.trim()];
+    })));
+  }
 
   try {
     const res = await apiFetch('/api/scene', {
@@ -1922,8 +2040,10 @@ dom.btnSaveFacts.addEventListener('click', async () => {
     const r = await res.json();
     if (r.ok) {
       showToast('医学事实核查状态已同步保存！');
-      renderBeatList(state.project);
-      runLintCheck();
+      const id = state.activeSceneId;
+      await loadProjectData();
+      const index = state.project.scenes.findIndex(scene => scene.id === id);
+      if (index >= 0) selectScene(index);
     } else {
       showToast('同步失败');
     }
@@ -1965,6 +2085,32 @@ async function replayScene() {
 }
 
 dom.btnReplayScene.addEventListener('click', replayScene);
+const rangeStart = document.getElementById('shotRangeStart');
+const rangeEnd = document.getElementById('shotRangeEnd');
+function updateShotRangeOptions(story) {
+  const beats = story?.meta?.director ? story.beats : [];
+  document.getElementById('shotRange').hidden = !beats.length;
+  for (const select of [rangeStart, rangeEnd]) {
+    const previous = select.value;
+    select.replaceChildren(...beats.map((beat, index) => new Option(`${index + 1}. ${beat.intent || beat.id}`, beat.id)));
+    select.value = beats.some(beat => beat.id === previous) ? previous
+      : beats[select === rangeStart ? 0 : beats.length - 1]?.id || '';
+  }
+}
+rangeStart.addEventListener('change', () => {
+  if (rangeStart.selectedIndex > rangeEnd.selectedIndex) rangeEnd.value = rangeStart.value;
+});
+rangeEnd.addEventListener('change', () => {
+  if (rangeEnd.selectedIndex < rangeStart.selectedIndex) rangeStart.value = rangeEnd.value;
+});
+document.getElementById('shotRangePlay').addEventListener('click', async () => {
+  const start = state.timeline?.scenes.find(shot => shot.id === rangeStart.value);
+  const end = state.timeline?.scenes.find(shot => shot.id === rangeEnd.value);
+  if (!start || !end || !(await waitForPreview())) return;
+  pause();
+  seekFrame(start.start);
+  play(end.end);
+});
 dom.motionSelect.addEventListener('change', async () => {
   const story = state.project?.story;
   if (!story) return;
@@ -2100,8 +2246,13 @@ async function prepareVoice(only, retime = false) {
 document.getElementById('btnTts').addEventListener('click', () => prepareVoice());
 
 // 视频导出流水线
+let exportInProgress = false;
 document.getElementById('btnExport').addEventListener('click', async () => {
   dom.exportModal.classList.add('show');
+  if (exportInProgress) return;
+  exportInProgress = true;
+  dom.btnCloseModal.textContent = '后台运行';
+  dom.exportProgressFill.style.background = '';
   dom.exportProgressFill.style.width = '10%';
   dom.exportLogBox.textContent = '正在启动导出任务...\n';
 
@@ -2109,6 +2260,8 @@ document.getElementById('btnExport').addEventListener('click', async () => {
     const res = await apiFetch('/api/export', { method: 'POST' });
     const r = await res.json();
     if (!r.ok || !r.taskId) {
+      exportInProgress = false;
+      dom.btnCloseModal.textContent = '关闭';
       dom.exportLogBox.textContent += '无法创建导出任务: ' + (r.error || '未知错误');
       return;
     }
@@ -2124,6 +2277,8 @@ document.getElementById('btnExport').addEventListener('click', async () => {
           dom.exportLogBox.scrollTop = dom.exportLogBox.scrollHeight;
         } else if (sData.status === 'done') {
           clearInterval(pollTimer);
+          exportInProgress = false;
+          dom.btnCloseModal.textContent = '关闭';
           dom.exportProgressFill.style.width = '100%';
           dom.exportLogBox.textContent = (sData.log || '') + '\n🎉 出片流程圆满完成！';
           dom.exportLogBox.scrollTop = dom.exportLogBox.scrollHeight;
@@ -2132,16 +2287,22 @@ document.getElementById('btnExport').addEventListener('click', async () => {
           }
         } else {
           clearInterval(pollTimer);
+          exportInProgress = false;
+          dom.btnCloseModal.textContent = '关闭';
           dom.exportProgressFill.style.background = 'var(--danger)';
           dom.exportLogBox.textContent = (sData.log || '') + '\n❌ 导出任务异常中断。';
           dom.exportLogBox.scrollTop = dom.exportLogBox.scrollHeight;
         }
       } catch (pollErr) {
         clearInterval(pollTimer);
+        exportInProgress = false;
+        dom.btnCloseModal.textContent = '关闭';
         dom.exportLogBox.textContent += '\n轮询状态失败: ' + pollErr.message;
       }
     }, 1000);
   } catch (e) {
+    exportInProgress = false;
+    dom.btnCloseModal.textContent = '关闭';
     dom.exportLogBox.textContent += '启动失败: ' + e.message;
   }
 });
@@ -2518,10 +2679,16 @@ function renderStoryboardPreview({ story, scenes, motionShots = [], templateAdju
 }
 
 const directorUI = Object.fromEntries(['Brief','Endpoint','Model','ImageModel','Key','Reference','BriefMedia','Medical','Samples','Generate','FromFacts',
-  'Config','Connect','ConnectionStatus','ShotControls','Revision','KeepVoice','Revise','Lock','Undo','Asset','Replace','AssetPreview',
-  'Layer','Upload','Illustration','Illustrate','ShotStatus','ReviewPanel','ReviewCheck','Review'].map(name => [name, document.getElementById('director' + name)]));
+  'Config','Connect','ConnectionStatus','ShotControls','Revision','KeepVoice','KeepAssets','KeepComposition','KeepDuration',
+  'Revise','Lock','Undo','Asset','Replace','AssetPreview','Layer','Upload','Illustration','Illustrate','ShotStatus',
+  'ReviewPanel','ReviewCheck','ReviewStatus','Review','Draft','DraftVoice','DraftViewport','DraftFrame','DraftStatus',
+  'DraftReplay','DraftCancel','DraftApply'].map(name => [name, document.getElementById('director' + name)]));
 let directorCatalog;
 let directorBusy = false;
+let directorAssets = [];
+let directorDraft;
+let draftAnimation;
+const draftAudio = new Audio();
 
 async function loadDirectorCatalog() {
   if (directorCatalog) return directorCatalog;
@@ -2530,7 +2697,7 @@ async function loadDirectorCatalog() {
     const data = await response.json();
     if (!data.ok) throw new Error(data.error);
     directorCatalog = data;
-    directorUI.ConnectionStatus.textContent = data.connected ? '已配置。' : '自由创作需要配置模型，三个内置样例可直接试听。';
+    directorUI.ConnectionStatus.textContent = data.connected ? '已配置。' : '配置模型后可自由创作。内置样例可直接试听。';
     for (const sample of data.samples) {
       const button = document.createElement('button');
       button.type = 'button';
@@ -2538,32 +2705,53 @@ async function loadDirectorCatalog() {
       button.addEventListener('click', () => generateDirector(sample));
       directorUI.Samples.append(button);
     }
-    for (const asset of data.assets) directorUI.Asset.add(new Option(asset.title, asset.id));
-    updateAssetPreview();
+    setDirectorAssets(directorAssets);
     return data;
   } catch (error) {
     directorUI.ConnectionStatus.textContent = error.message || '创片配置加载失败。';
   }
 }
 
+function setDirectorAssets(entries) {
+  directorAssets = entries;
+  const select = directorUI.Asset;
+  const previous = select.value;
+  select.replaceChildren();
+  if (entries.length) {
+    const local = document.createElement('optgroup');
+    local.label = '工程素材';
+    local.append(...entries.map(asset => new Option(asset.name, 'local:' + asset.file)));
+    select.add(local);
+  }
+  if (directorCatalog?.assets?.length) {
+    const icons = document.createElement('optgroup');
+    icons.label = '内置素材';
+    icons.append(...directorCatalog.assets.map(asset => new Option(asset.title, asset.id)));
+    select.add(icons);
+  }
+  if ([...select.options].some(option => option.value === previous)) select.value = previous;
+  updateAssetPreview();
+}
+
 function updateAssetPreview() {
   const selected = directorCatalog?.assets.find(asset => asset.id === directorUI.Asset.value);
-  if (selected) directorUI.AssetPreview.src = selected.preview;
+  const local = directorAssets.find(asset => 'local:' + asset.file === directorUI.Asset.value);
+  const src = selected?.preview || (local?.kind === 'image' ? '/' + local.file : '');
+  directorUI.AssetPreview.hidden = !src;
+  if (src) directorUI.AssetPreview.src = src;
+  else directorUI.AssetPreview.removeAttribute('src');
 }
 directorUI.Asset.addEventListener('change', updateAssetPreview);
 function directorConnectionValues() {
   return { endpoint: directorUI.Endpoint.value.trim(), model: directorUI.Model.value.trim(),
     imageModel: directorUI.ImageModel.value.trim(), key: directorUI.Key.value };
 }
-async function readDirectorMedia(file) {
-  if (file.size > 2_000_000) throw new Error('素材须小于 2 MB。');
-  const data = await new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(new Error('读取素材失败。'));
-    reader.readAsDataURL(file);
-  });
-  return { name: file.name, data, source: 'imported' };
+async function uploadDirectorMedia(file, scope) {
+  if (file.size > 48 * 1024 * 1024) throw new Error(file.name + ' 超过 48 MB。');
+  const result = await apiFetch('/api/director/media?' + new URLSearchParams({ scope, name: file.name }),
+    { method: 'POST', body: file }).then(response => response.json());
+  if (!result.ok) throw new Error(result.error);
+  return result.media;
 }
 directorUI.Connect.addEventListener('click', async () => {
   try {
@@ -2589,10 +2777,14 @@ async function generateDirector(sample, withFacts = false) {
   try {
     const connection = directorUI.Key.value || (directorUI.Endpoint.value && !directorCatalog?.connected)
       ? directorConnectionValues() : undefined;
-    const media = !sample && directorUI.BriefMedia.files[0] ? await readDirectorMedia(directorUI.BriefMedia.files[0]) : undefined;
+    const files = [];
+    if (!sample) {
+      if (directorUI.BriefMedia.files.length > 8) throw new Error('一次创片最多选择 8 个参考素材。');
+      for (const file of directorUI.BriefMedia.files) files.push((await uploadDirectorMedia(file, 'draft')).file);
+    }
     const data = await wizardRequest('/api/director/plan', { brief, sample: sample?.id, reference: directorUI.Reference.value,
       audience: directorUI.Medical.checked || (withFacts && dom.wzAudience.value !== 'general') ? 'patient' : 'general',
-      style: dom.wzStyle.value, duration: Number(dom.wzDuration.value), facts, ...(sample ? {} : { connection, media }) });
+      style: dom.wzStyle.value, duration: Number(dom.wzDuration.value), facts, ...(sample ? {} : { connection, files }) });
     directorUI.Key.value = '';
     if (connection && directorCatalog) directorCatalog.connected = true;
     wizardState.previewId = data.previewId;
@@ -2614,7 +2806,14 @@ function updateDirectorControls(scene) {
   const meta = state.project?.story?.meta?.director;
   const directed = Boolean(meta && scene.layout === 'directed');
   directorUI.ShotControls.hidden = !directed;
-  directorUI.ReviewPanel.hidden = !meta?.pendingReview;
+  const pending = meta?.pendingShots || [];
+  const needsReview = pending.includes(scene.id);
+  directorUI.ReviewPanel.hidden = !needsReview;
+  directorUI.ReviewStatus.textContent = `本镜待核对，工程还剩 ${pending.length} 镜。`;
+  if (directorUI.ReviewCheck.dataset.id !== scene.id) {
+    directorUI.ReviewCheck.checked = false;
+    directorUI.ReviewCheck.dataset.id = scene.id;
+  }
   if (directed) loadDirectorCatalog();
   const locked = Boolean(directed && meta.locked?.includes(scene.id));
   if (directed) {
@@ -2627,9 +2826,10 @@ function updateDirectorControls(scene) {
   for (const control of [directorUI.Revise, directorUI.Undo, directorUI.Replace, directorUI.Upload, dom.btnSaveScene]) {
     control.disabled = locked || directorBusy;
   }
-  for (const control of [directorUI.Replace, directorUI.Illustrate, directorUI.Upload]) {
+  for (const control of [directorUI.Replace, directorUI.Illustrate]) {
     control.disabled = locked || directorBusy || !directorUI.Layer.value;
   }
+  directorUI.Upload.disabled = directorBusy;
   directorUI.Lock.disabled = directorBusy;
 }
 
@@ -2641,9 +2841,15 @@ async function changeDirectedShot(action, details = {}) {
   directorBusy = true;
   updateDirectorControls(scene);
   pause();
-  directorUI.ShotStatus.textContent = action === 'revise' ? '正在重新编排当前镜头…' : '正在保存…';
+  directorUI.ShotStatus.textContent = action === 'preview' ? '正在重新编排当前镜头…' : '正在保存…';
   try {
     const result = await wizardRequest('/api/director/shot', { id, action, ...details });
+    if (action === 'preview') {
+      showDirectorDraft(result);
+      directorUI.ShotStatus.textContent = '改版可试听。';
+      return;
+    }
+    if (action === 'apply') closeDirectorDraft();
     if (action === 'lock') {
       const meta = state.project.story.meta.director;
       const locked = new Set(meta.locked || []);
@@ -2660,39 +2866,149 @@ async function changeDirectedShot(action, details = {}) {
     directorUI.ShotStatus.textContent = action === 'undo' ? '已恢复上一次编排。' : '当前镜头已更新。';
   } catch (error) {
     directorUI.ShotStatus.textContent = error.message;
+    if (action === 'apply') directorUI.DraftStatus.textContent = error.message;
   } finally {
     directorBusy = false;
     const selected = state.project?.scenes.find(sc => sc.id === state.activeSceneId);
     if (selected) updateDirectorControls(selected);
   }
 }
-directorUI.Revise.addEventListener('click', () => changeDirectedShot('revise', {
-  instruction: directorUI.Revision.value.trim(), keepNarration: directorUI.KeepVoice.checked
+
+function resizeDirectorDraft() {
+  if (!directorDraft) return;
+  const { width, height } = directorDraft;
+  const scale = Math.min(directorUI.DraftViewport.clientWidth / width, directorUI.DraftViewport.clientHeight / height);
+  Object.assign(directorUI.DraftFrame.style, { width: width + 'px', height: height + 'px', transform: `scale(${scale})` });
+}
+new ResizeObserver(resizeDirectorDraft).observe(directorUI.DraftViewport);
+
+function playDirectorDraft() {
+  const candidate = directorDraft;
+  const frame = directorUI.DraftFrame.contentWindow;
+  if (!candidate || !frame?.__ready) return;
+  cancelAnimationFrame(draftAnimation);
+  const { start, end } = candidate.range;
+  const now = performance.now();
+  let withAudio = Boolean(candidate.audio);
+  if (withAudio) {
+    draftAudio.currentTime = start / candidate.fps;
+    draftAudio.play().catch(() => { withAudio = false; });
+  }
+  function tick(t) {
+    if (directorDraft !== candidate) return;
+    const f = withAudio ? Math.floor(draftAudio.currentTime * candidate.fps) : start + Math.floor((t - now) * candidate.fps / 1000);
+    frame.__frame(Math.min(end - 1, Math.max(start, f)));
+    if (f < end && (!withAudio || !draftAudio.ended)) draftAnimation = requestAnimationFrame(tick);
+    else draftAudio.pause();
+  }
+  draftAnimation = requestAnimationFrame(tick);
+}
+
+function showDirectorDraft(candidate) {
+  directorDraft = candidate;
+  directorUI.DraftVoice.textContent = candidate.narration;
+  directorUI.DraftStatus.textContent = '正在准备改版画面…';
+  directorUI.DraftReplay.disabled = directorUI.DraftApply.disabled = true;
+  if (candidate.audio) draftAudio.src = candidate.audio;
+  directorUI.DraftFrame.src = candidate.url;
+  directorUI.Draft.showModal();
+  resizeDirectorDraft();
+  const deadline = performance.now() + 10000;
+  function ready() {
+    if (directorDraft !== candidate) return;
+    const frame = directorUI.DraftFrame.contentWindow;
+    if (frame.location.href === directorUI.DraftFrame.src && frame.__ready) {
+      directorUI.DraftReplay.disabled = directorUI.DraftApply.disabled = false;
+      directorUI.DraftStatus.textContent = candidate.audio ? '正在试听本镜改版。' : candidate.audioError || '正在预览画面。';
+      playDirectorDraft();
+    } else if (performance.now() < deadline) {
+      requestAnimationFrame(ready);
+    } else {
+      directorUI.DraftStatus.textContent = '改版画面加载超时。请放弃后重试。';
+    }
+  }
+  requestAnimationFrame(ready);
+}
+
+function closeDirectorDraft() {
+  directorDraft = undefined;
+  cancelAnimationFrame(draftAnimation);
+  draftAudio.pause();
+  draftAudio.removeAttribute('src');
+  draftAudio.load();
+  directorUI.DraftFrame.removeAttribute('src');
+  directorUI.Draft.close();
+}
+
+function discardDirectorDraft() {
+  if (!directorDraft) return;
+  const { id, token } = directorDraft;
+  closeDirectorDraft();
+  directorUI.ShotStatus.textContent = '已放弃改版。';
+  wizardRequest('/api/director/shot', { id, token, action: 'discard' }).catch(error => showToast(error.message));
+}
+directorUI.Draft.addEventListener('cancel', event => { event.preventDefault(); discardDirectorDraft(); });
+directorUI.DraftReplay.addEventListener('click', playDirectorDraft);
+directorUI.DraftCancel.addEventListener('click', discardDirectorDraft);
+directorUI.DraftApply.addEventListener('click', async () => {
+  directorUI.DraftApply.disabled = directorUI.DraftCancel.disabled = true;
+  try {
+    await changeDirectedShot('apply', { id: directorDraft.id, token: directorDraft.token });
+  } finally {
+    directorUI.DraftApply.disabled = directorUI.DraftCancel.disabled = false;
+  }
+});
+directorUI.Revise.addEventListener('click', () => changeDirectedShot('preview', {
+  instruction: directorUI.Revision.value.trim(), keepNarration: directorUI.KeepVoice.checked,
+  keepAssets: directorUI.KeepAssets.checked, keepComposition: directorUI.KeepComposition.checked, keepDuration: directorUI.KeepDuration.checked
 }));
 directorUI.Lock.addEventListener('click', () => changeDirectedShot('lock'));
 directorUI.Undo.addEventListener('click', () => changeDirectedShot('undo'));
-directorUI.Replace.addEventListener('click', () => changeDirectedShot('asset', { asset: directorUI.Asset.value, layerId: directorUI.Layer.value }));
+directorUI.Replace.addEventListener('click', () => {
+  const selection = directorUI.Asset.value;
+  changeDirectedShot('asset', { ...(selection.startsWith('local:') ? { stored: selection.slice(6) } : { asset: selection }), layerId: directorUI.Layer.value });
+});
 directorUI.Illustrate.addEventListener('click', () => changeDirectedShot('illustrate', {
   instruction: directorUI.Illustration.value, layerId: directorUI.Layer.value
 }));
 directorUI.Upload.addEventListener('change', async () => {
-  const file = directorUI.Upload.files[0];
-  if (!file) return;
-  const layerId = directorUI.Layer.value;
-  const initialScene = state.activeSceneId;
+  const files = [...directorUI.Upload.files];
+  if (!files.length) return;
   directorUI.Upload.value = '';
-  try {
-    const media = await readDirectorMedia(file);
-    if (initialScene === state.activeSceneId) await changeDirectedShot('asset', { layerId, media });
-  } catch (error) { directorUI.ShotStatus.textContent = error.message; }
+  const folder = state.projectDir;
+  directorUI.Upload.disabled = true;
+  directorUI.ShotStatus.textContent = '正在导入工程素材…';
+  const entries = new Map(directorAssets.map(asset => [asset.file, asset]));
+  let imported = 0;
+  const errors = [];
+  for (const file of files) {
+    if (state.projectDir !== folder) break;
+    try {
+      const media = await uploadDirectorMedia(file, 'project');
+      entries.set(media.file, media);
+      imported++;
+    } catch (error) {
+      errors.push(file.name + '：' + error.message);
+    }
+  }
+  if (state.projectDir === folder) {
+    setDirectorAssets([...entries.values()]);
+    directorUI.ShotStatus.textContent = [`已导入 ${imported} 个工程素材。`, ...errors].join(' ');
+  }
+  directorUI.Upload.disabled = false;
 });
 directorUI.Review.addEventListener('click', async () => {
   try {
-    await wizardRequest('/api/director/review', { confirmed: directorUI.ReviewCheck.checked });
-    state.project.story.meta.director.pendingReview = false;
-    directorUI.ReviewPanel.hidden = true;
+    const id = state.activeSceneId;
+    const result = await wizardRequest('/api/director/review', { id, confirmed: directorUI.ReviewCheck.checked });
+    const meta = state.project.story.meta.director;
+    meta.pendingShots = result.pendingShots;
+    meta.pendingReview = result.pendingShots.length > 0;
     directorUI.ReviewCheck.checked = false;
-    showToast('已记录医学核对。');
+    renderBeatList(state.project);
+    const scene = state.project.scenes.find(shot => shot.id === state.activeSceneId);
+    if (scene) updateDirectorControls(scene);
+    showToast(result.pendingShots.length ? `已记录本镜，剩余 ${result.pendingShots.length} 镜待核对。` : '全部镜头已完成核对。');
   } catch (error) { showToast(error.message); }
 });
 

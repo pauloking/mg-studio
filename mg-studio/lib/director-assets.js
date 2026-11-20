@@ -11,7 +11,8 @@ const icons = {
   layers: '图层', timer: '计时器', zap: '电能', 'chart-no-axes-column': '柱图',
   'cloud-rain': '雨云', droplet: '水滴', waves: '水流', sprout: '植物',
   'tree-deciduous': '树木', house: '建筑', 'map-pin': '位置', lightbulb: '灯泡',
-  settings: '齿轮', camera: '摄影', 'circle-check': '完成', network: '网络'
+  settings: '齿轮', camera: '摄影', 'circle-check': '完成', network: '网络',
+  'rain-roof': '楼群与斜屋顶', 'rain-street': '路面与雨水口', 'rain-soil': '绿地剖面'
 };
 const directory = path.join(__dirname, '..', 'templates', 'director-icons');
 const cache = new Map();
@@ -24,7 +25,8 @@ function getIcon(id) {
 
 function listAssets() {
   return Object.entries(icons).map(([id, title]) => ({
-    id, title, source: 'Lucide', preview: 'data:image/svg+xml;base64,' + Buffer.from(getIcon(id)).toString('base64')
+    id, title, source: id.startsWith('rain-') ? 'MG Studio 原创图解' : 'Lucide',
+    preview: 'data:image/svg+xml;base64,' + Buffer.from(getIcon(id)).toString('base64')
   }));
 }
 
