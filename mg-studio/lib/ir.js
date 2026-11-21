@@ -2,7 +2,7 @@
 const fs = require('fs'), path = require('path');
 const { MOTION_MODES } = require('./motion-plan');
 const { validSegment } = require('./shot-segment');
-const { validWorlds, validStageShot } = require('./shared-stage');
+const { validWorlds, validStageShot, routeOf } = require('./shared-stage');
 
 const ROLES = ['hook', 'context', 'conflict', 'mechanism', 'evidence', 'demo', 'takeaway', 'cta', 'objective', 'prerequisite', 'steps', 'summary', 'selfcheck'];
 const AUDIENCES = ['patient', 'professional', 'general'];
@@ -165,7 +165,7 @@ function loadProject(dir, layoutNames) {
     const sc = JSON.parse(fs.readFileSync(sp, 'utf8'));
     errors.push(...validateScene(sc, beatIds, layoutNames).errors);
     if (!sc || sc.id !== b.id) { errors.push('场景文件 scenes/' + b.id + '.json 的 id 与 beat 不匹配: ' + (sc && sc.id)); continue; }
-    if (sc.stage && !Object.hasOwn(story.meta.director?.sharedStages || {}, sc.stage.id)) errors.push(`scene ${sc.id} 未找到共享场景`);
+    if (sc.stage && !routeOf(story.meta.director?.sharedStages?.[sc.stage.id], sc.stage.route)) errors.push(`scene ${sc.id} 未找到共享场景或水路`);
     scenes.push(Object.assign({}, sc, { narration: b.narration, beat: { role: b.role, emotion: b.emotion, intent: b.intent, facts: b.facts } }));
   }
   if (errors.length) { const e = new Error('IR 校验失败:\n' + errors.join('\n')); e.irErrors = errors; throw e; }

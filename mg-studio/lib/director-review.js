@@ -18,7 +18,7 @@ function contentSignature(scene, beat) {
     const source = media?.file || (media?.data && createHash('sha256').update(media.data).digest('hex'));
     return [props.content, props.title, props.desc, props.label, props.asset, source].filter(Boolean).join('\t');
   }).filter(Boolean).sort();
-  const stage = scene.stage ? [scene.stage.id, scene.stage.labels.map(label => label.text)] : null;
+  const stage = scene.stage ? [scene.stage.id, scene.stage.route, scene.stage.compare, scene.stage.labels.map(label => label.text)] : null;
   return JSON.stringify([beat.narration, beat.facts, meanings, stage]);
 }
 

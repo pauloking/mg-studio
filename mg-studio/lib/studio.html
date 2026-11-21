@@ -1022,6 +1022,9 @@ textarea {
           <button id="directorConnect" type="button" style="margin-top:6px;">保存本次配置</button>
           <label for="directorReference">参考资料（选填）</label>
           <textarea id="directorReference" rows="2" maxlength="3600"></textarea>
+          <label for="directorSharedTemplate">共享场景（选填）</label>
+          <select id="directorSharedTemplate"><option value="">普通分镜</option>
+            <option value="rain-catchment">街道雨水剖面</option></select>
           <label for="directorBriefMedia">自有图片或片段（最多 8 个，单个 48 MB 以内）</label>
           <input id="directorBriefMedia" type="file" multiple accept="image/png,image/jpeg,image/webp,image/svg+xml,video/mp4,video/webm">
           <label><input type="checkbox" id="directorMedical"> 医学科普</label>
@@ -1907,7 +1910,10 @@ const stageFields = {
   camera: ['取景关键帧', [['t', '镜内 %', 100], ['x', '中心 X'], ['y', '中心 Y'], ['zoom', '缩放']]],
   flow: ['水流进度', [['t', '镜内 %', 100], ['value', '水路 %', 100]]],
   reveal: ['地下剖面显露', [['t', '镜内 %', 100], ['value', '可见 %', 100]]],
-  labels: ['跟随场景的标注', [['text', '文案'], ['x', 'X'], ['y', 'Y'], ['from', '起 %', 100], ['to', '止 %', 100]]]
+  labels: ['跟随场景的标注', [['text', '文案'], ['x', 'X'], ['y', 'Y'], ['from', '起 %', 100], ['to', '止 %', 100]]],
+  puddle: ['积水可见度', [['t', '镜内 %', 100], ['value', '可见 %', 100]]],
+  soil: ['土壤可见度', [['t', '镜内 %', 100], ['value', '可见 %', 100]]],
+  water: ['水滴可见度', [['t', '镜内 %', 100], ['value', '可见 %', 100]]]
 };
 const stageInspector = document.getElementById('sharedStageInspector');
 stageInspector.addEventListener('focusin', pause);
@@ -1917,7 +1923,7 @@ function populateSharedStage(scene) {
   const world = state.project?.story?.meta?.director?.sharedStages?.[stage?.id];
   stageInspector.hidden = !world;
   if (!world) { stageInspector.replaceChildren(); return; }
-  const tracks = Object.entries(stageFields).map(([key, [title, fields]]) => {
+  const tracks = Object.entries(stageFields).filter(([key]) => stage[key]).map(([key, [title, fields]]) => {
     const headers = fields.map(([, label]) => '<th>' + label + '</th>').join('');
     const rows = stage[key].map((point, index) => '<tr>' + fields.map(([field, label, scale = 1]) => {
       const numeric = field !== 'text';
@@ -1930,7 +1936,8 @@ function populateSharedStage(scene) {
       <table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table></details>`;
   }).join('');
   const routeFields = ['X', 'Y', '控制 X', '控制 Y'];
-  const coordinates = world.route.map((point, i) => '<tr>' + routeFields.map((field, j) =>
+  const activeRoute = stage.route && stage.route !== 'main' ? world.routes[stage.route] : world.route;
+  const coordinates = activeRoute.map((point, i) => '<tr>' + routeFields.map((field, j) =>
     `<td><input type="number" step="any" value="${point[j] ?? ''}" ${i === 0 && j > 1 ? 'disabled' : ''}
      aria-label="水路第 ${i + 1} 点 ${field}"></td>`).join('') + '</tr>').join('');
   stageInspector.innerHTML = `<label>共享场景</label>${tracks}
@@ -2743,7 +2750,7 @@ function renderStoryboardPreview({ story, scenes, motionShots = [], templateAdju
   });
 }
 
-const directorUI = Object.fromEntries(['Brief','Endpoint','Model','ImageModel','Key','Reference','BriefMedia','Medical','Samples','Generate','FromFacts',
+const directorUI = Object.fromEntries(['Brief','Endpoint','Model','ImageModel','Key','Reference','SharedTemplate','BriefMedia','Medical','Samples','Generate','FromFacts',
   'Config','Connect','ConnectionStatus','ShotControls','Revision','KeepVoice','KeepAssets','KeepComposition','KeepDuration',
   'Revise','Lock','Undo','Asset','Replace','AssetPreview','Layer','Upload','Illustration','Illustrate','ShotStatus',
   'ReviewPanel','ReviewCheck','ReviewStatus','Review','Draft','DraftVoice','DraftViewport','DraftFrame','DraftStatus',
@@ -2848,6 +2855,7 @@ async function generateDirector(sample, withFacts = false) {
       for (const file of directorUI.BriefMedia.files) files.push((await uploadDirectorMedia(file, 'draft')).file);
     }
     const data = await wizardRequest('/api/director/plan', { brief, sample: sample?.id, reference: directorUI.Reference.value,
+      sharedTemplate: sample ? '' : directorUI.SharedTemplate.value,
       audience: directorUI.Medical.checked || (withFacts && dom.wzAudience.value !== 'general') ? 'patient' : 'general',
       style: dom.wzStyle.value, duration: Number(dom.wzDuration.value), facts, ...(sample ? {} : { connection, files }) });
     directorUI.Key.value = '';

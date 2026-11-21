@@ -24,9 +24,9 @@ test('安装包：共享场景的连续取景、水路编辑和导出', {
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.locator('#btnNewProject').click();
-    await page.getByRole('button', { name: '试做 雨滴街道剖面（13 秒动效试片）' }).click();
+    await page.getByRole('button', { name: '试做 追踪一滴雨（连续剖面完整版）' }).click();
     await page.locator('#creatorModal').waitFor({ state: 'hidden', timeout: 60000 });
-    await page.waitForFunction(() => previewVoice.currentTime > .35 && state.timeline?.scenes.length === 2);
+    await page.waitForFunction(() => previewVoice.currentTime > .35 && state.timeline?.scenes.length === 6);
     const sample = await page.evaluate(() => {
       pause();
       const player = document.querySelector('#sceneIframe').contentWindow;
@@ -39,16 +39,23 @@ test('安装包：共享场景的连续取景、水路编辑和导出', {
       const before = [art.style.transform, water.getAttribute('stroke-dashoffset')];
       player.__frame(cut);
       const after = [art.style.transform, water.getAttribute('stroke-dashoffset')];
+      player.__frame(state.timeline.scenes[4].start + 120);
+      const garden = world.querySelector('[data-route="garden"]');
+      const soil = Number(world.querySelector('[data-stage-soil]').style.opacity);
+      const gardenVisible = garden.style.display !== 'none';
       player.__frame(state.totalFrames - 9);
       const visible = Number(cutaway.style.opacity);
+      const guides = [...world.querySelectorAll('.world-guide')].filter(guide => guide.style.display === 'inline').length;
       seekFrame(0);
-      return { before, after, visible, worlds: player.document.querySelectorAll('.shared-stage').length,
+      return { before, after, visible, soil, gardenVisible, guides, worlds: player.document.querySelectorAll('.shared-stage').length,
         total: state.totalFrames };
     });
     assert.equal(sample.worlds, 1);
-    assert.equal(sample.total, 404);
+    assert.equal(sample.total, 1260);
     assert.ok(Math.abs(Number(sample.before[1]) - Number(sample.after[1])) < 1.5);
     assert.ok(sample.visible > .99);
+    assert.ok(sample.gardenVisible && sample.soil > 0);
+    assert.equal(sample.guides, 2);
     await page.locator('#sharedStageInspector [data-stage-track="camera"][data-index="0"][data-field="zoom"]').fill('1.61');
     await page.getByText('编辑共享水路', { exact: true }).click();
     await page.locator('#sharedRoute tbody tr').last().locator('input').first().fill('1710');
@@ -76,7 +83,7 @@ test('安装包：共享场景的连续取景、水路编辑和导出', {
     const streams = JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-show_entries',
       'stream=codec_name,width,height,nb_frames', '-of', 'json', file], { encoding: 'utf8' })).streams;
     assert.ok(streams.some(stream => stream.codec_name === 'h264' && stream.width === 1920 &&
-      stream.height === 1080 && Number(stream.nb_frames) === 404));
+      stream.height === 1080 && Number(stream.nb_frames) === 1260));
     assert.ok(streams.some(stream => stream.codec_name === 'aac'));
     assert.deepEqual(errors, []);
   } finally {

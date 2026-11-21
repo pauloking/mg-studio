@@ -17,7 +17,7 @@ test('built-in stories compile with distinct narration, visual assets and per-sh
     const plan = await director.createFromBrief({ sample });
     const result = writeAndCompileGeneratedProject(path.join(dir, sample), plan);
     assert.equal(result.ok, true, JSON.stringify(result.compile.errors));
-    assert.equal(result.scenes.length, sample === 'rain_scene' ? 2 : sample === 'journey' ? 6 : 4);
+    assert.equal(result.scenes.length, sample === 'rain_scene' ? 2 : ['journey', 'rain_story'].includes(sample) ? 6 : 4);
     const html = fs.readFileSync(result.compile.htmlPath, 'utf8');
     assert.match(html, /updateDirected/);
     if (sample === 'rain_scene') {
@@ -25,11 +25,48 @@ test('built-in stories compile with distinct narration, visual assets and per-sh
       assert.deepEqual(plan.scenes[0].stage.camera.at(-1), { ...plan.scenes[1].stage.camera[0], t: 1 });
       assert.equal(plan.scenes[0].stage.flow.at(-1).value, plan.scenes[1].stage.flow[0].value);
       assert.deepEqual(plan.story.beats.map(beat => beat.narration), director.samples.journey.shots.slice(1,3).map(shot => shot.narration));
+    } else if (sample === 'rain_story') {
+      assert.equal(html.match(/id="world-street"/g).length, 1);
+      assert.match(html, /data-route="garden"/);
+      assert.equal(plan.scenes[4].stage.route, 'garden');
+      assert.equal(plan.scenes[5].stage.compare, true);
+      assert.equal(plan.story.meta.durationTarget, 42);
+      assert.deepEqual(plan.story.beats.map(beat => beat.narration), director.samples.journey.shots.map(shot => shot.narration));
     } else {
       assert.ok(new Set(plan.scenes.flatMap(sc => sc.elements.map(el => el.props.action))).size >= 4);
       assert.match(html, /dir-icon/);
     }
   }
+});
+
+test('the selected shared template reaches the planner and aligns consecutive matched shots', async t => {
+  const source = director.samples.rain_story;
+  const requests = [];
+  const provider = http.createServer(async (req, res) => {
+    let json = '';
+    for await (const chunk of req) json += chunk;
+    const payload = JSON.parse(JSON.parse(json).messages[1].content);
+    requests.push(payload);
+    const plan = payload.stage === 'story' ? { arc: source.arc } : {
+      title: '雨停后的街道', shots: source.shots.slice(0, 3).map((shot, index) =>
+        index === 1 ? { ...shot, stage: { ...shot.stage, camera: shot.stage.camera.map((point, i) =>
+          i === 0 ? { ...point, x: 800 } : point) } } : shot)
+    };
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify(plan) } }] }));
+  });
+  await new Promise(resolve => provider.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise(resolve => provider.close(resolve)));
+  const config = director.configuration({ endpoint: 'http://127.0.0.1:' + provider.address().port + '/v1', model: 'test-model' });
+  const brief = { brief: '下雨后的街道积水去了哪里', sharedTemplate: 'rain-catchment' };
+  const plan = await director.createFromBrief(brief, config);
+  assert.deepEqual(requests.map(request => request.stage), ['story', 'shots']);
+  assert.ok(requests.every(request => request.sharedStage.id === 'street' && request.sharedStage.routes.garden));
+  assert.equal(plan.story.meta.title, '雨停后的街道');
+  assert.equal(plan.story.meta.director.provider, 'model');
+  assert.equal(plan.scenes[1].stage.camera[0].x, plan.scenes[0].stage.camera.at(-1).x);
+  assert.ok(plan.story.meta.director.sharedStages.street.routes.garden);
+  await assert.rejects(director.createFromBrief({ ...brief, sharedTemplate: 'unsupported' }, config), /请核对本次选题/);
 });
 
 test('configured model produces the editable plan, with lock, scope and undo on the API', async t => {

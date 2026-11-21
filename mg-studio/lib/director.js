@@ -5,12 +5,13 @@ const { samples, graphic, text, shape } = require('./director-samples');
 const { ACTIONS, TRANSITIONS, validateLayer } = require('./components/directed');
 const { DISCLAIMER } = require('./medical-lint');
 const { isStoredMedia } = require('./project-assets');
+const { validStageShot, routeOf } = require('./shared-stage');
 
 const instructions = `你是中文 MG 动画导演。用视觉动作讲故事，让开场的问题在后续镜头里逐步得到回答。
 每一镜都需要有具体的画面设计，图形在镜头之间传递观众的注意力。不要用固定的欢迎句、事实卡片罗列或空泛的总结。
 只输出 JSON 对象 {"title":"片名","shots":[{"title":"镜头名","narration":"可自然朗读的旁白","seconds":5,
 "transition":"cut","evidence":[1],"layers":[{"kind":"icon","asset":"droplet","x":60,"y":20,"w":20,"h":30,"color":"accent","action":"draw","at":0.15,"span":0.55}]}]}。
-通常为 3 到 10 镜，根据目标时长分配节奏。每镜 1.5 至 28 秒，至多 10 层，至少有一层文字。围绕旁白时刻错开图层动作。
+通常为 3 到 10 镜，根据目标时长分配节奏。每镜 1.5 至 28 秒，至多 10 层。无共享场景的镜头至少有一层文字，共享场景可以让画面和标注直接解释。围绕旁白时刻错开图层动作。
 kind 可以为 text、icon、line、ring、panel、chart。text 需要 content、size（32~140）和 align（left 或 center）。icon 需要目录中的 asset。
 chart 必须使用资料中的真实数值，series=[{"label":"类别","value":10}]，可用 2~6 组数据。
 同一对象跨镜时复用 object（如 rain_drop）和相同 asset，下一镜 transition 使用 match。track 可写 [{"t":0,"x":15,"y":20},{"t":1,"x":64,"y":45,"scale":1.2}]，t 为镜头进度，x/y 为百分比，可加 rotation（角度）。路径各点必须在画布内。
@@ -108,11 +109,18 @@ function makeScene(id, shot) {
   };
 }
 
-function toDefinition(plan, { brief, facts, audience, style, sample, target }) {
-  const sharedStages = sample && plan?.sharedStages;
+function toDefinition(plan, { brief, facts, audience, style, sample, target, templateWorlds }) {
+  const sharedStages = sample ? plan?.sharedStages : templateWorlds;
   if (!plan || typeof plan.title !== 'string' || !plan.title.trim() || plan.title.length > 90 ||
-      !Array.isArray(plan.shots) || plan.shots.length < (sharedStages ? 2 : 3) || plan.shots.length > 10) {
+      !Array.isArray(plan.shots) || plan.shots.length < (sample && sharedStages ? 2 : 3) || plan.shots.length > 10) {
     throw error('镜头计划须包含片名和 3 至 10 个镜头。');
+  }
+  if (plan.shots.some(shot => shot?.stage != null && (!validStageShot(shot.stage) ||
+      !routeOf(sharedStages?.[shot.stage.id], shot.stage.route)))) {
+    throw error('模型返回的共享场景、路径或关键帧无效，请重试。');
+  }
+  if (templateWorlds && !plan.shots.some((shot, i) => shot?.stage && plan.shots[i - 1]?.stage?.id === shot.stage.id)) {
+    throw error('所选共享场景需要至少两个连续镜头，请重试。');
   }
   const shots = plan.shots.map(shot => cleanShot(shot, facts.length, 1.5, Boolean(sharedStages && shot.stage)));
   const story = { schema: 2, meta: {
@@ -127,9 +135,20 @@ function toDefinition(plan, { brief, facts, audience, style, sample, target }) {
       ? shot.narration + DISCLAIMER + '。' : shot.narration,
     facts: shot.evidence.map(n => facts[n - 1])
   })) };
-  return { story, scenes: shots.map((shot, i) => ({
-    ...makeScene(story.beats[i].id, shot), ...(sharedStages && plan.shots[i].stage ? { stage: plan.shots[i].stage } : {})
-  })) };
+  return { story, scenes: shots.map((shot, i) => {
+    const scene = makeScene(story.beats[i].id, shot);
+    const stage = plan.shots[i].stage;
+    if (!stage) return scene;
+    scene.stage = stage;
+    const previous = plan.shots[i - 1]?.stage;
+    if (templateWorlds && previous?.id === stage.id && shot.transition === 'match') {
+      const join = key => stage[key].map((point, index) =>
+        index ? point : { ...previous[key].at(-1), t: point.t });
+      scene.stage = { ...stage, camera: join('camera'), reveal: join('reveal'),
+        ...((stage.route ?? 'main') === (previous.route ?? 'main') ? { flow: join('flow') } : {}) };
+    }
+    return scene;
+  }) };
 }
 
 function attachReference(plan, media, kind) {
@@ -171,9 +190,13 @@ async function createFromBrief(input, config) {
   const brief = typeof input.brief === 'string' ? input.brief.trim() : '';
   if (brief.length < 4 || brief.length > 1600) throw error('请写一条 4 至 1600 字的创作要求。');
   if (!config) throw error('请先填写创作模型配置。也可以直接试做内置样例。', 400);
-  const style = ir.STYLES.includes(input.style) ? input.style : 'deep-tech';
   const isMedical = input.audience === 'patient' || /医学|诊疗|用药|患者|心梗|消融|临床|房颤|卒中|疗效|高血压/.test(brief);
   const audience = isMedical ? 'patient' : 'general';
+  if (input.sharedTemplate && (input.sharedTemplate !== 'rain-catchment' || isMedical)) {
+    throw error('街道雨水剖面用于城市雨水科普，请核对本次选题与场景。');
+  }
+  const templateWorlds = input.sharedTemplate ? samples.rain_story.sharedStages : undefined;
+  const style = ir.STYLES.includes(input.style) ? input.style : templateWorlds ? 'warm-editorial' : 'deep-tech';
   const target = Number.isFinite(input.duration) ? Math.max(12, Math.min(90, input.duration)) : 30;
   const submitted = Array.isArray(input.facts) ? input.facts.slice(0, 12) : [];
   const facts = submitted.filter(fact => fact && typeof fact.claim === 'string' && fact.claim.trim() &&
@@ -190,6 +213,13 @@ async function createFromBrief(input, config) {
     reference: context, ...(media ? { media: { name: media.name, kind: mediaKind } } : {}),
     assets: attachments.map((entry, index) => ({ id: index + 1, name: entry.name, kind: entry.kind })),
     facts: facts.map((fact, i) => ({ id: i + 1, claim: fact.claim })) };
+  if (templateWorlds) contextForModel.sharedStage = {
+    id: 'street', description: '1920×1080 街道剖面，左侧斜屋面与落水管，中间路坡与雨水口，右侧草地与土壤。',
+    routes: { main: '屋面到落水管约 0.1–0.52，路面约 0.52–0.74，地下管道约 0.74–1。',
+      garden: '右侧雨水由空中落到草地，约 0.55 开始下渗。' },
+    example: samples.rain_scene.shots[1].stage,
+    guidance: '安排至少两镜共用该剖面。每个镜头将 camera、flow、reveal、labels 等写入 stage 对象。camera 用画布像素与 1–2.5 倍缩放，t 和各 value 为 0–1。route 默认 main，草地用 garden，可用 soil 关键帧显示土壤。label 用绝对 x/y 与 from/to。地面汇流保持 reveal 为 0，入井后揭开。相邻镜头用 match 继承取景与同路径进度，跳回过去可以 cut。'
+  };
   const storyPass = await requestPlan(config, { ...contextForModel, stage: 'story',
     task: '先设计故事主线，阶段输出 {"arc":{"question":"开场问题","visualMotif":"贯穿对象","beats":["推进段落"],"payoff":"结尾回答"}}，本阶段先不要做镜头表。' });
   // Compatible providers can return a complete plan directly.
@@ -205,7 +235,7 @@ async function createFromBrief(input, config) {
   }
   if (media) attachReference(plan, media, mediaKind);
   applyReferences(plan, attachments);
-  return toDefinition(plan, { brief, facts, audience, style, sample: false, target });
+  return toDefinition(plan, { brief, facts, audience, style, sample: false, target, templateWorlds });
 }
 
 function preserveLayers(current, proposed, { keepAssets, keepComposition }) {

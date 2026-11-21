@@ -1,4 +1,5 @@
 'use strict';
+const { routeOf } = require('./shared-stage');
 const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
@@ -40,17 +41,23 @@ function saveShot(dir, current, scene, beat, { sharedRoute } = {}) {
   if (sharedRoute !== undefined) {
     const stage = scene.stage?.id;
     const stages = story.meta.director?.sharedStages || {};
-    if (!Object.hasOwn(stages, stage)) throw Object.assign(new Error('找不到要编辑的共享水路。'), { statusCode: 422 });
-    if (JSON.stringify(stages[stage].route) !== JSON.stringify(sharedRoute)) {
+    const world = stages[stage];
+    const route = scene.stage?.route ?? 'main';
+    const existing = routeOf(world, route);
+    if (!existing) throw Object.assign(new Error('找不到要编辑的共享水路。'), { statusCode: 422 });
+    if (JSON.stringify(existing) !== JSON.stringify(sharedRoute)) {
       for (const item of story.beats) {
-        if (readShot(dir, item.id).scene.stage?.id !== stage) continue;
+        const currentStage = item.id === scene.id ? scene.stage : readShot(dir, item.id).scene.stage;
+        if (currentStage?.id !== stage || ((currentStage.route ?? 'main') !== route && !currentStage.compare)) continue;
         if (story.meta.director.locked?.includes(item.id)) {
           throw Object.assign(new Error('共享水路影响已锁定的镜头，请解锁后再改水路。'), { statusCode: 409 });
         }
         affected.push(item.id);
       }
+      const nextWorld = route === 'main' ? { ...world, route: sharedRoute }
+        : { ...world, routes: { ...world.routes, [route]: sharedRoute } };
       nextStory.meta = { ...story.meta, director: { ...story.meta.director,
-        sharedStages: { ...stages, [stage]: { ...stages[stage], route: sharedRoute } } } };
+        sharedStages: { ...stages, [stage]: nextWorld } } };
     }
   }
   if (nextStory.meta.director && nextStory.meta.audience === 'patient') {

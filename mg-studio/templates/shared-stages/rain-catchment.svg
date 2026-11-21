@@ -87,12 +87,18 @@
     <path d="M-5 952q434-51 840-3t657 45q279 3 431-25v115H-5z" fill="#996c55" opacity=".74"/>
     <path d="M-5 872Q374 846 758 875T1426 919q309 6 499-21M-5 978q512-41 860 8t591 44q268-2 479-19" fill="none" stroke="#837064" stroke-width="3" opacity=".45"/>
     <path d="M0 762H1920V1080H0Z" fill="url(#stone)" opacity=".78"/>
+    <g data-stage-soil="" transform="translate(-1184 0) scale(1.6167 1)">
+      <path d="M1762 802q79-3 158-24v302h-165l2-198z" fill="#ae8467" stroke="#dec2a0" stroke-width="4"/>
+      <path d="M1759 852q82 17 161-13m-163 101q71 24 163-9m-163 52q81 23 163-4" fill="none" stroke="#ead3a7" stroke-width="8" opacity=".5"/>
+      <path d="M1838 798q2 25-34 65m35-64q4 24 35 56m-39-30 3 60m-25-33-24 15m73-22 24 16" fill="none" stroke="#7f694d" stroke-width="5" stroke-linecap="round"/>
+      <g fill="#f5dfb9" opacity=".63"><circle cx="1777" cy="864" r="5"/><circle cx="1817" cy="895" r="8"/><circle cx="1884" cy="882" r="6"/><circle cx="1793" cy="926" r="7"/><circle cx="1863" cy="942" r="7"/><circle cx="1877" cy="995" r="9"/><circle cx="1828" cy="1030" r="6"/><circle cx="1900" cy="926" r="4"/></g>
+    </g>
     <g data-stage-cutaway="">
-      <path d="M1307 772h164v118q0 19 20 19h432v89h-471q-145-3-145-107z" fill="#523f3c" opacity=".3" transform="translate(9 7)"/>
-      <path d="M1340 774h106v117q0 17 23 17h451v76h-471q-108 0-109-91z" fill="#e0cab1" stroke="#7a6259" stroke-width="6" stroke-linejoin="round"/>
-      <path d="M1362 778h63v112q0 39 45 39h450v33h-470q-88 0-88-67z" fill="#49555b" stroke="#b0a394" stroke-width="4" stroke-linejoin="round"/>
-      <path d="M1329 818h17m-17 33h17m81 8h21m-121 30h18m139 26v55m62-55v55m62-55v55m62-55v55m62-55v55m62-55v55m62-55v55" stroke="#79655c" opacity=".62" stroke-width="4"/>
-      <path d="M1485 912h415" fill="none" stroke="#f6e6c9" stroke-width="6" opacity=".74"/>
+      <path d="M1307 772h164v118q0 19 20 19h239v89h-278q-145-3-145-107z" fill="#523f3c" opacity=".3" transform="translate(9 7)"/>
+      <path d="M1340 774h106v117q0 17 23 17h263v76h-283q-108 0-109-91z" fill="#e0cab1" stroke="#7a6259" stroke-width="6" stroke-linejoin="round"/>
+      <path d="M1362 778h63v112q0 39 45 39h262v33h-282q-88 0-88-67z" fill="#49555b" stroke="#b0a394" stroke-width="4" stroke-linejoin="round"/>
+      <path d="M1329 818h17m-17 33h17m81 8h21m-121 30h18m139 26v55m62-55v55m62-55v55m62-55v55" stroke="#79655c" opacity=".62" stroke-width="4"/>
+      <path d="M1485 912h242" fill="none" stroke="#f6e6c9" stroke-width="6" opacity=".74"/>
     </g>
   </g>
   <path d="M0 751C335 755 646 749 935 737L1384 785 1584 777 1920 751v32l-339 37-201 2-447-46Q482 798 0 786Z" fill="url(#road)" stroke="#505d60" stroke-width="4" stroke-linejoin="round"/>
@@ -105,4 +111,11 @@
     <path d="M1362 772l13 24m3-23 12 22m3-20 11 20m4-19 11 19m3-17 11 16m2-15 10 14" fill="none" stroke="#9faea8" stroke-width="4" stroke-linecap="round"/>
     <path d="M1356 786l94 1" stroke="#a7b3a9" stroke-width="2" opacity=".74"/>
   </g>
+  <g data-stage-puddle="">
+    <path d="M1080 766q50-5 103 10t128 11q39 4 1 9-37 10-94 0t-112-15q-32-4-26-15z" fill="#27879e" opacity=".85"/>
+    <path d="M1098 770q61 0 106 16m18 2q36 6 66 2" fill="none" stroke="#b3f2df" stroke-width="4" stroke-linecap="round"/>
+  </g>
+  <path d="M1624 764q93-22 190-24 58 2 106-17v79l-240 18-56-23z" fill="#86a879" stroke="#526e52" stroke-width="4"/>
+  <path d="M1668 759l-4-13m24 9 4-20m22 21-3-17m22 12-2-14m21 14 6-15m44 11-7-18m34 10 4-15m33 9-2-14" fill="none" stroke="#d1db99" stroke-width="4" stroke-linecap="round"/>
+
 </svg>

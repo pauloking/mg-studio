@@ -169,4 +169,50 @@ const samples = {
   }
 };
 
-module.exports = { samples, graphic, text, shape };
+const streetWorld = {
+  ...samples.rain_scene.sharedStages.street,
+  routes: { garden: [
+    [1674, 355], [1765, 751, 1809, 545], [1765, 813, 1760, 775],
+    [1782, 883, 1790, 846], [1752, 940, 1765, 917], [1784, 1019, 1744, 978]
+  ] }
+};
+const street = (view, flow, reveal, labels = [], extra = {}) => ({
+  id: 'street', camera: camera(view), flow: levels(flow), reveal: levels(reveal), labels, ...extra
+});
+const label = (text, x, y, from, to) => ({ text, x, y, from, to });
+const off = [[0, 0], [1, 0]];
+const roof = samples.rain_scene.shots[0].stage;
+const road = samples.rain_scene.shots[1].stage;
+const rainStory = {
+  ...samples.journey, label: '追踪一滴雨（连续剖面完整版）', style: 'warm-editorial',
+  sharedStages: { street: streetWorld },
+  shots: [
+    { layers: [text('积水去哪了？', 29, 6, 45, 11, 71, 'reveal', .05)], stage: street(
+      [[0, 1230, 651, 1.42], [.46, 1240, 636, 1.37], [1, 675, 395, 1.49]],
+      [[0, .015], [1, .015]], off, [label('昨天的积水', 1120, 704, .14, .52)],
+      { puddle: levels([[0, 1], [.31, 1], [.60, 0], [1, 0]]), water: levels([[0, 0], [.68, 0], [.94, 1], [1, 1]]) }) },
+    { layers: [], stage: roof },
+    { layers: [], stage: { ...road,
+      camera: camera([[0, 984, 574, 1.16], [.60, 1230, 660, 1.40], [1, 1278, 664, 1.40]]),
+      flow: levels([[0, .524], [.28, .603], [.66, .723], [1, .754]]),
+      reveal: levels(off), labels: [label('沿坡汇流', 1120, 673, .19, .62),
+        label('雨水口', 1404, 728, .58, 1)] } },
+    { layers: [], stage: street(
+      [[0, 1278, 664, 1.40], [.53, 1350, 681, 1.43], [1, 1321, 643, 1.26]],
+      [[0, .754], [.27, .775], [.58, .9], [1, 1]], [[0, 0], [.45, 1], [1, 1]],
+      [label('雨水口', 1404, 728, 0, .34), label('雨水管道', 1540, 872, .37, .98)]) },
+    { layers: [], stage: street(
+      [[0, 1321, 643, 1.26], [.25, 1520, 576, 1.34], [.65, 1510, 650, 1.37], [1, 1320, 614, 1.15]],
+      [[0, 0], [.22, .04], [.49, .54], [.73, .77], [1, 1]], [[0, 1], [.28, 0], [1, 0]],
+      [label('落到草地', 1596, 658, .29, .66), label('渗入土壤', 1671, 854, .65, .99)],
+      { route: 'garden', soil: levels([[0, 0], [.36, 0], [.66, 1], [1, 1]]),
+        water: levels([[0, 0], [.13, 0], [.25, 1], [1, 1]]) }) },
+    { layers: [text('一滴雨，两条路', 5, 7, 45, 11, 69, 'reveal', .08)], stage: street(
+      [[0, 1320, 614, 1.15], [.55, 1190, 574, 1.09], [1, 960, 540, 1]],
+      off, [[0, .15], [.25, 1], [1, 1]],
+      [label('路面径流', 1145, 690, .26, .92), label('草地下渗', 1640, 700, .39, .92)],
+      { compare: true, soil: levels([[0, 1], [1, 1]]) }) }
+  ].map((shot, i) => ({ ...samples.journey.shots[i], ...shot, seconds: [195, 202, 202, 197, 217, 247][i] / 30 }))
+};
+
+module.exports = { samples: { rain_story: rainStory, ...samples }, graphic, text, shape };
