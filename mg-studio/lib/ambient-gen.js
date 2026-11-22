@@ -8,11 +8,14 @@
 const fs = require('fs'), path = require('path');
 const { execFileSync } = require('child_process');
 const { extractBrief } = require('./visual-intent');
+const { storeAsset } = require('./project-assets');
 const LICENSE = 'AI 生成 (百炼 text2img)';
 
 function hash(s) { let h = 5381; for (const c of s) h = ((h << 5) + h + c.charCodeAt(0)) >>> 0; return h % 2147483647; }
 function promptFor(brief) {
-  return '医学科普视频氛围背景，主题：' + brief.subject + '。抽象柔和的深色科技感渐变光晕与粒子，无文字、无人物、无真实解剖细节、无器械，安全中性，不构成诊疗建议。';
+  // 不注入主题词：实测 wan2.7-image 会把 prompt 中的主题/声明词渲染成画面文字（含错字），
+  // 医学背景绝不允许 baked 文字。纯图形描述 + 强 negative 双保险。
+  return '纯抽象背景图：深色科技感柔和渐变光晕与细粒子，蓝紫青色调，中心留暗区。画面中绝对不要出现任何文字、汉字、字母、数字、标题、字幕、水印、logo、人物、器官或器械，仅图形与光效。';
 }
 
 function generateAmbientAsset({ beat, dir, yes = false, exec = execFileSync, env = process.env }) {
@@ -30,15 +33,19 @@ function generateAmbientAsset({ beat, dir, yes = false, exec = execFileSync, env
   const prefix = 'ambient-' + beat.id;
   const before = new Set(fs.readdirSync(assetsDir));
   try {
-    exec('bl', ['image', 'generate', '--prompt', prompt, '--size', '1920*1080', '--seed', String(seed),
+    exec('bl', ['image', 'generate', '--prompt', prompt, '--size', '16:9', '--seed', String(seed),
       '--out-dir', assetsDir, '--out-prefix', prefix, '--watermark', 'false',
-      '--negative-prompt', '文字, 水印, logo, 人物, 真实解剖, 血腥', '--output', 'json'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+      '--negative-prompt', '文字, 汉字, 字母, 数字, 标题, 字幕, 水印, logo, 人物, 人脸, 器官, 解剖, 器械, 血腥', '--output', 'json'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (e) { return { ok: false, err: 'bl image generate 失败: ' + String(e.message).slice(0, 160) }; }
   const created = fs.readdirSync(assetsDir).filter(f => !before.has(f) && f.startsWith(prefix) && /\.(png|jpe?g|webp)$/i.test(f));
   if (!created.length) return { ok: false, err: 'bl 未产出图片文件' };
-  const asset = { id: prefix, kind: 'image', license: LICENSE, source: 'bailian text2img', tags: [brief.type, brief.subject], path: 'assets/' + created[0], prompt, seed };
+  // 内容寻址入库（assets/<sha256>.<ext> + .json sidecar），满足 directed isStoredMedia/checkedAssetPath 契约
+  const raw = path.join(assetsDir, created[0]);
+  const media = storeAsset(dir, created[0], fs.readFileSync(raw));
+  fs.rmSync(raw, { force: true });
+  const asset = { id: prefix, kind: 'image', license: LICENSE, source: 'bailian text2img', tags: [brief.type, brief.subject], path: media.file, name: media.name, prompt, seed };
   index.push(asset); fs.writeFileSync(indexP, JSON.stringify(index, null, 2));
-  return { ok: true, reused: false, asset };
+  return { ok: true, reused: false, asset, media };
 }
 
 /** ambient → directed 全幅氛围图场景（image layer, hold）。未授权/失败时返回 consent/err，不产出场景。 */
@@ -50,7 +57,7 @@ function generateAmbientScene(opts) {
     ok: true, asset: r.asset, reused: r.reused,
     scene: {
       id: beat.id, beat: beat.id, layout: 'directed', minSec: 6, visualBrief: extractBrief(beat),
-      elements: [{ id: 'bg', type: 'layer', props: { kind: 'image', action: 'hold', color: 'accent', x: 3, y: 3, w: 91, h: 81, at: 0, span: 0.9, media: { file: r.asset.path, kind: 'image' } } }]
+      elements: [{ id: 'bg', type: 'layer', props: { kind: 'image', action: 'hold', color: 'accent', x: 3, y: 3, w: 91, h: 81, at: 0, span: 0.9, media: r.media || { file: r.asset.path, name: r.asset.name, kind: 'image' } } }]
     }
   };
 }

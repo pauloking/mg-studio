@@ -78,4 +78,4 @@ function composeScenes(project) {
   });
 }
 
-module.exports = { MOTION_MODES, canCompose, composeScenes };
+module.exports = { MOTION_MODES, canCompose, composeScenes, extractNodes, extractComparison };

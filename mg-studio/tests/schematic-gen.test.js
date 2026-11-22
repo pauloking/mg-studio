@@ -46,3 +46,14 @@ test('generateSchematicScene：panorama/ambient 返回 null（P3 范畴）', () 
   assert.equal(generateSchematicScene({ beat: { id: 'p', narration: '术野全景。' } }), null);
   assert.equal(generateSchematicScene({ beat: { id: 'a', narration: '欢迎观看。' } }), null);
 });
+
+test('generateSchematicScene：diagram 无 labels 时从旁白自动提取节点', () => {
+  const b = { id: 'd', narration: '判读依次经过 V6 确认夺获、V1 区分类型、腔内电图核实三个步骤。', intent: '判读流程' };
+  const sc = generateSchematicScene({ beat: b });
+  assert.deepEqual(sc.elements[0].props.labels, ['V6 确认夺获', 'V1 区分类型', '腔内电图核实']);
+});
+test('generateSchematicScene：comparison 无 labels 时自动提取对比项', () => {
+  const b = { id: 'c', narration: '对比选择性与非选择性夺获。', intent: '对比' };
+  const sc = generateSchematicScene({ beat: b });
+  assert.deepEqual(sc.elements[0].props.labels, ['选择性', '非选择性夺获']);
+});
