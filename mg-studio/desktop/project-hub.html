@@ -162,6 +162,7 @@
     }
     .template-item {
       padding: 12px;
+      text-align: left;
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -272,33 +273,34 @@
         <button class="action-btn" id="btnOpenDemo">
           <div class="btn-icon">🧪</div>
           <div class="btn-text">
-            <h4>打开医学科普示例 (Demo)</h4>
-            <p>快速体验脉冲消融、ECG 生理波形与大数字滚动</p>
+            <h4>打开医学科普示例</h4>
+            <p>直接打开「心律科普」工程，查看画面和已有分镜</p>
           </div>
         </button>
 
         <div style="margin-top: 22px;">
           <div class="card-title" style="margin-bottom: 8px;">
-            <span>📚</span> 快速模板库
+            <span>📚</span> 按主题查看示例
           </div>
           <div class="template-grid">
-            <div class="template-item" data-template="pfa">
+            <button type="button" class="template-item" data-example="pfa">
               <div class="tpl-title">心房颤动 PFA 消融</div>
-              <div class="tpl-desc">脉冲电场隔离、细胞微孔电穿孔前沿机制</div>
-            </div>
-            <div class="template-item" data-template="ami">
-              <div class="tpl-title">心梗黄金救治 120</div>
-              <div class="tpl-desc">突发胸痛识别、急诊介入救治时间轴</div>
-            </div>
-            <div class="template-item" data-template="hypertension">
-              <div class="tpl-title">高血压长期用药误区</div>
-              <div class="tpl-desc">血压波动靶器官损害、长期平稳降压</div>
-            </div>
-            <div class="template-item" data-template="cpr">
+              <div class="tpl-desc">解读脉冲电场消融对比试验</div>
+            </button>
+            <button type="button" class="template-item" data-example="ami">
+              <div class="tpl-title">心梗再灌注的救治时间</div>
+              <div class="tpl-desc">通过指南了解再灌注从何时计时</div>
+            </button>
+            <button type="button" class="template-item" data-example="hypertension">
+              <div class="tpl-title">高血压长期用药与随访</div>
+              <div class="tpl-desc">家庭血压记录与服药依从性</div>
+            </button>
+            <button type="button" class="template-item" data-example="cpr">
               <div class="tpl-title">徒手心肺复苏 (CPR)</div>
-              <div class="tpl-desc">教学拆解：按压频率、深度与通气比</div>
-            </div>
+              <div class="tpl-desc">查看徒手复苏课程的分镜示例</div>
+            </button>
           </div>
+          <p id="sampleStatus" role="status" hidden></p>
         </div>
       </div>
     </div>

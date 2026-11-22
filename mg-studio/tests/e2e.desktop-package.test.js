@@ -1,0 +1,220 @@
+'use strict';
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { execFileSync } = require('node:child_process');
+const { _electron } = require('playwright-core');
+
+const executablePath = process.env.MG_PACKAGED_EXE;
+
+test('安装包：各主题示例直接载入对应的可预览工程', { skip: !executablePath && 'set MG_PACKAGED_EXE', timeout: 60000 }, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mg-samples-'));
+  const documents = path.join(dir, 'Documents');
+  fs.mkdirSync(documents);
+  let app;
+  try {
+    app = await _electron.launch({ executablePath, args: [`--user-data-dir=${path.join(dir, 'profile')}`] });
+    await app.evaluate(({ app }, dir) => app.setPath('documents', dir), documents);
+    const page = await app.firstWindow();
+    const examples = {
+      pfa: '心房颤动脉冲电场消融', ami: '心梗再灌注的救治时间',
+      hypertension: '高血压长期用药与随访', cpr: '徒手心肺复苏'
+    };
+    for (const [id, title] of Object.entries(examples)) {
+      await page.locator(`[data-example="${id}"]`).click();
+      await page.waitForURL(url => url.searchParams.get('action') === 'sample');
+      await page.getByText(title, { exact: true }).waitFor();
+      await page.locator('.beat-card').nth(3).waitFor();
+      await page.waitForFunction(() => {
+        const frame = document.querySelector('#sceneIframe');
+        const opening = frame?.contentDocument?.getElementById('scenes')?.firstElementChild;
+        return frame?.contentWindow?.__ready && Number(opening?.style.opacity) > 0;
+      });
+      assert.equal(await page.locator('#creatorModal').isVisible(), false);
+      const projectDir = path.join(documents, 'MG Studio Projects', `sample-${id}`);
+      const story = JSON.parse(fs.readFileSync(path.join(projectDir, 'story.json'), 'utf8'));
+      assert.equal(story.meta.title, title);
+      assert.ok(story.beats.some(beat => beat.facts.some(fact => fact.citation?.url)));
+      await page.locator('#btnBackToHub').click();
+    }
+    await page.locator('#btnNewProject').click();
+    await page.waitForURL(url => url.searchParams.get('action') === 'wizard');
+    await page.locator('#wzTopic').waitFor({ state: 'visible' });
+    assert.equal(await page.locator('#wzTopic').inputValue(), '');
+  } finally {
+    if (app) await app.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('安装包：打开示例、编译、配音并导出 1080p MP4', { skip: !executablePath && 'set MG_PACKAGED_EXE', timeout: 240000 }, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mg-packaged-'));
+  const documents = path.join(dir, 'Documents');
+  fs.mkdirSync(documents);
+  let app;
+  try {
+    const env = { ...process.env };
+    delete env.PW_PATH;
+    if (process.platform === 'darwin') env.PATH = '/usr/bin:/bin:/usr/sbin:/sbin';
+    app = await _electron.launch({ executablePath, args: [`--user-data-dir=${path.join(dir, 'profile')}`], env });
+    assert.equal(await app.evaluate(({ app }) => app.isPackaged), true);
+    await app.evaluate(({ app }, dir) => app.setPath('documents', dir), documents);
+    const page = await app.firstWindow();
+    await page.locator('#btnOpenDemo').click();
+    await page.waitForURL(url => url.searchParams.get('action') === 'sample');
+    await page.waitForFunction(() => document.querySelector('#sceneIframe')?.contentWindow?.__ready === true);
+    const project = path.join(documents, 'MG Studio Projects', 'mini-style-medical');
+    assert.ok(fs.existsSync(path.join(project, 'scene.html')));
+
+    const request = async (route, button) => {
+      const [response] = await Promise.all([
+        page.waitForResponse(r => new URL(r.url()).pathname === route && r.request().method() === 'POST', { timeout: 40000 }),
+        page.locator(button).click()
+      ]);
+      const result = await response.json();
+      assert.equal(result.ok, true, JSON.stringify(result));
+    };
+    await request('/api/compile', '#btnCompile');
+    await request('/api/tts', '#btnTts');
+    const hookSize = () => fs.statSync(path.join(project, 'vo', 'hook.wav')).size;
+    const baselineVoiceSize = hookSize();
+    assert.ok(baselineVoiceSize > 44);
+    const timeline = () => JSON.parse(fs.readFileSync(path.join(project, 'timeline.json')));
+    assert.ok(timeline().totalFrames > 0);
+
+    const panel = page.locator('#voiceSettingsDialog');
+    const engine = panel.getByLabel('引擎');
+    const speed = panel.getByLabel('语速');
+    const playSample = async () => {
+      const [response] = await Promise.all([
+        page.waitForResponse(r => new URL(r.url()).pathname === '/api/tts/audition'),
+        panel.getByRole('button', { name: '试听', exact: true }).click()
+      ]);
+      assert.equal(response.ok(), true, response.ok() ? '' : await response.text());
+      await page.waitForFunction(() => {
+        const audio = document.getElementById('voiceAuditionPlayer');
+        return !audio.hidden && Number.isFinite(audio.duration) && audio.duration > 0 && audio.currentTime > 0;
+      });
+      return page.locator('#voiceAuditionPlayer').evaluate(audio => audio.duration);
+    };
+    await page.getByRole('button', { name: '配音设置', exact: true }).click();
+    await engine.selectOption('bailian');
+    assert.equal(await panel.getByLabel('语气指令').isVisible(), true);
+    await engine.selectOption('local');
+    if (process.platform === 'darwin') {
+      const voice = await panel.getByLabel('系统音色').locator('option').evaluateAll(options =>
+        options.find(option => option.textContent.endsWith('zh_CN') && option.value.startsWith('Tingting'))?.value);
+      assert.ok(voice);
+      await panel.getByLabel('系统音色').selectOption(voice);
+    }
+    const normal = await playSample();
+    await speed.press('End');
+    assert.equal(await page.locator('#voiceAuditionPlayer').isVisible(), false);
+    const faster = await playSample();
+    assert.ok(faster < normal * 0.8, `试听应加速，原 ${normal}s，现 ${faster}s`);
+    await request('/api/tts/settings', '#btnSaveVoiceSettings');
+    await panel.waitFor({ state: 'hidden' });
+    await page.waitForFunction(() => document.getElementById('btnVoiceSettings').hasAttribute('data-needs-voice'));
+    assert.equal(hookSize(), baselineVoiceSize, '仅保存不会生成旁白');
+    await page.reload();
+    await page.waitForFunction(() => document.getElementById('btnVoiceSettings').hasAttribute('data-needs-voice'));
+    await page.getByRole('button', { name: '配音设置', exact: true }).click();
+    await panel.getByText('配音设置已更改，请重新生成旁白。').waitFor();
+    assert.equal(await speed.inputValue(), '1.5');
+    await request('/api/tts', '#btnSaveAndVoice');
+    await panel.waitFor({ state: 'hidden' });
+    assert.ok(hookSize() < baselineVoiceSize * 0.8);
+    assert.ok(timeline().voiceRevision);
+    assert.equal(fs.readFileSync(path.join(project, 'vo', 'narration-revision.txt'), 'utf8'), timeline().voiceRevision);
+
+    await request('/api/export', '#btnExport');
+    await page.waitForFunction(() => /圆满完成|异常中断/.test(document.querySelector('#exportLogBox')?.textContent || ''), null, { timeout: 180000 });
+    const logs = await page.locator('#exportLogBox').textContent();
+    assert.match(logs, /出片流程圆满完成/, logs);
+    assert.match(logs, /复用配音 hook/, logs);
+    const filename = path.join(project, 'out', 'output.mp4');
+    const info = JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_name,width,height:format=duration', '-of', 'json', filename], { encoding: 'utf8' }));
+    assert.ok(info.streams.some(s => s.codec_name === 'h264' && s.width === 1920 && s.height === 1080));
+    assert.ok(info.streams.some(s => s.codec_name === 'aac'));
+    const qa = JSON.parse(fs.readFileSync(path.join(project, 'reports', 'qa.json')));
+    assert.equal(qa.blocking.length, 0);
+    console.log(`MP4 ${info.format.duration}s | QA B=${qa.blocking.length} W=${qa.warnings.length}`);
+    if (process.env.MG_SAMPLE_OUTPUT) fs.copyFileSync(filename, process.env.MG_SAMPLE_OUTPUT);
+  } finally {
+    if (app) await app.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('安装包：工作台按钮打开向导并创建独立工程', { skip: !executablePath && 'set MG_PACKAGED_EXE', timeout: 60000 }, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mg-wizard-'));
+  const documents = path.join(dir, 'Documents');
+  fs.mkdirSync(documents);
+  let app;
+  try {
+    app = await _electron.launch({ executablePath, args: [`--user-data-dir=${path.join(dir, 'profile')}`] });
+    await app.evaluate(({ app }, dir) => app.setPath('documents', dir), documents);
+    const page = await app.firstWindow();
+    await page.locator('#btnOpenDemo').click();
+    await page.waitForURL(url => url.searchParams.get('action') === 'sample');
+    await page.locator('.beat-card').nth(1).click();
+    const originalUrl = page.url();
+    const original = await page.evaluate(() => window.desktopAPI.getCurrentProject());
+    const originalStory = fs.readFileSync(path.join(original.path, 'story.json'), 'utf8');
+
+    if (process.platform === 'darwin') {
+      const titleBar = await app.evaluate(({ BrowserWindow }) => {
+        const window = BrowserWindow.getAllWindows()[0];
+        return window.getContentBounds().y - window.getBounds().y;
+      });
+      assert.ok(titleBar > 0, 'toolbar cannot overlap the macOS title bar');
+    }
+    await page.route('**/api/topics', route => route.abort());
+    await page.locator('#btnNewProject').click();
+    await page.getByRole('dialog', { name: 'AI 视频策划工坊 (全流程向导)' }).waitFor({ state: 'visible' });
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'wzTopic');
+    await page.keyboard.press('Escape');
+    await page.locator('#creatorModal').waitFor({ state: 'hidden' });
+
+    // Invoke the action bound to Cmd/Ctrl+N from the current workbench.
+    await app.evaluate(({ Menu, BrowserWindow }) => {
+      const file = Menu.getApplicationMenu().items.find(item => item.label === '文件');
+      const item = file.submenu.items.find(item => item.accelerator === 'CmdOrCtrl+N');
+      return item.click(item, BrowserWindow.getAllWindows()[0], {});
+    });
+    await page.locator('#creatorModal').waitFor({ state: 'visible' });
+    assert.equal(page.url(), originalUrl);
+    await page.locator('#btnTabPasteText').click();
+    await page.locator('#txtDocPaste').fill('# 分镜测试工程\n这份测试记录要求结合原始资料评估适用条件。');
+    await page.locator('#btnParseDoc').click();
+    await page.locator('#btnApplyParsedDoc').click();
+    await page.locator('#btnWzNext').click();
+    await page.locator('#btnWzNext').click();
+    await page.locator('#wizardStatus').getByText('核对原文并勾选', { exact: false }).waitFor();
+    assert.equal(await page.locator('#step3Content').isVisible(), false);
+    await page.locator('#wzFactChk_0').check();
+    await page.locator('#btnWzNext').click();
+    await page.locator('#wzBeatsPreviewFlow').getByText('这份测试记录要求结合原始资料评估适用条件', { exact: false }).first().waitFor();
+    await page.locator('#wzBeatsPreviewFlow').getByText('标题遮罩揭示', { exact: false }).waitFor();
+    await page.route('**/api/create-project', route => route.fulfill({ status: 500, json: { ok: false, error: '模拟写入失败' } }));
+    await page.locator('#btnWzCreate').click();
+    await page.locator('#wizardStatus').getByText('模拟写入失败', { exact: false }).waitFor();
+    assert.equal(await page.locator('#creatorModal').isVisible(), true);
+    await page.unroute('**/api/create-project');
+    await page.locator('#btnWzCreate').click();
+    await page.locator('#creatorModal').waitFor({ state: 'hidden' });
+    assert.equal(page.url(), originalUrl);
+    await page.waitForFunction(() => document.querySelector('#topTitle')?.textContent === '分镜测试工程');
+    await page.waitForFunction(() => document.querySelector('#sceneIframe')?.contentDocument?.querySelector('.mg-flow'));
+    assert.equal(await page.locator('#motionSelect').inputValue(), 'flow');
+    const created = await page.evaluate(() => window.desktopAPI.getCurrentProject());
+    assert.notEqual(created.path, original.path);
+    assert.ok(fs.existsSync(path.join(created.path, 'scene.html')));
+    assert.equal(fs.readFileSync(path.join(original.path, 'story.json'), 'utf8'), originalStory);
+  } finally {
+    if (app) await app.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

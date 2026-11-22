@@ -12,6 +12,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const { SAMPLE_RATE, validFrameTiming, preservedVoice, placeSubtitles } = require('../lib/shot-segment');
 
 const ROOT = process.cwd();
 const s = JSON.parse(fs.readFileSync(path.join(ROOT, 'script.json'), 'utf8'));
@@ -23,20 +24,56 @@ function durOf(file) {
   return parseFloat(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file]).toString().trim());
 }
 
-let cursor = 0;
-const scenes = s.scenes.map((sc, idx) => {
+const fit = Number.isFinite(opt.fitDuration) && opt.fitDuration > 0;
+const voiceRevision = s.tts?.revision;
+function frameTiming(shot, dur) {
+  const segment = shot.segment;
+  if (segment && shot.minSec === segment.durationFrames / FPS && preservedVoice(ROOT, shot, voiceRevision)) return segment;
+  const plan = opt.framePlan;
+  const pinned = plan && plan.target === opt.fitDuration && plan.voiceRevision === voiceRevision ? plan.shots?.[shot.id] : null;
+  if (validFrameTiming(pinned) && pinned.narration === shot.narration && pinned.minSec === shot.minSec &&
+      pinned.dur === +dur.toFixed(2) && pinned.leadSamples / SAMPLE_RATE + dur <= pinned.durationFrames / FPS + 0.001) return pinned;
+  return null;
+}
+const timing = s.scenes.map((sc, idx) => {
   const wav = path.join(ROOT, 'vo', sc.id + '.wav');
   if (!fs.existsSync(wav)) { console.error('缺少配音文件:', wav, '（先运行 tts.js）'); process.exit(1); }
   const dur = durOf(wav);
+  const fixed = frameTiming(sc, dur);
+  if (fixed) {
+    const leadIn = fixed.leadSamples / SAMPLE_RATE;
+    return { leadIn, dur, fixed, floor: fixed.durationFrames, frames: fixed.durationFrames };
+  }
   const isIntro = idx === 0, isOutro = idx === s.scenes.length - 1;
   const leadIn = sc.leadIn != null ? sc.leadIn : (isIntro ? opt.introLeadIn : opt.leadIn);
   const minSec = isIntro ? Math.max(sc.minSec || 0, opt.introMinSec)
     : isOutro ? Math.max(sc.minSec || 0, opt.outroMinSec)
     : (sc.minSec || 0);
-  const sceneSec = Math.max(minSec, dur + opt.pad);
-  const frames = Math.round(sceneSec * FPS);
+  const planned = Math.round(Math.max(minSec, dur + opt.pad) * FPS);
+  const floor = Math.ceil((leadIn + dur + 0.15) * FPS);
+  return { leadIn, dur, floor, frames: fit ? Math.max(planned, floor) : planned };
+});
+const reservedFrames = timing.reduce((sum, shot) => sum + shot.floor, 0);
+const speechFrames = timing.reduce((sum, shot) => sum + Math.min(shot.frames, Math.ceil((shot.leadIn + shot.dur + .15) * FPS)), 0);
+const naturalFrames = timing.reduce((sum, shot) => sum + shot.frames, 0);
+const targetFrames = Math.round(opt.fitDuration * FPS);
+if (fit && targetFrames < naturalFrames && reservedFrames < naturalFrames) {
+  const slack = Math.max(0, targetFrames - reservedFrames);
+  let used = 0, scaled = 0;
+  for (const shot of timing) {
+    used += shot.frames - shot.floor;
+    const cumulative = Math.round(used * slack / (naturalFrames - reservedFrames));
+    shot.frames = shot.floor + cumulative - scaled;
+    scaled = cumulative;
+  }
+}
+let cursor = 0;
+const scenes = s.scenes.map((sc, idx) => {
+  const { frames, dur, leadIn, fixed } = timing[idx];
   const start = cursor, end = cursor + frames; cursor = end;
   const audioStart = start / FPS + leadIn;
+  if (fixed) return { id: sc.id, start, end, audioStart, dur: +dur.toFixed(2),
+    subs: placeSubtitles(fixed.subs, start / FPS) };
   const sceneEndSec = end / FPS;
   // 字幕窗口钳制到场景边界，避免换场残留
   const winFrom = audioStart, winTo = Math.min(audioStart + dur + 0.5, sceneEndSec - 0.05);
@@ -50,6 +87,8 @@ const scenes = s.scenes.map((sc, idx) => {
 });
 
 const tl = { fps: FPS, width: s.width || 1920, height: s.height || 1080, totalFrames: cursor, scenes };
+if (voiceRevision) tl.voiceRevision = voiceRevision;
+if (fit) tl.fit = { target: opt.fitDuration, actual: cursor / FPS, speechFloor: speechFrames / FPS };
 fs.writeFileSync(path.join(ROOT, 'timeline.json'), JSON.stringify(tl, null, 1));
 
 // 语速校准回写（§7）：用实测音频时长反推 charsPerSec，按 backend+voice 分键持久化，供 lintScript 自校准。

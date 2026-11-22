@@ -33,6 +33,11 @@ process.on('unhandledRejection', (reason) => {
 
 const { createStudioServer, resolveProjectDir } = require('../scripts/studio');
 const { runDiagnostics } = require('../scripts/doctor');
+const { openDemoProject } = require('./demo-project');
+
+function projectsDir() {
+  return path.join(app.getPath('documents'), 'MG Studio Projects');
+}
 
 let mainWindow = null;
 let currentServer = null;
@@ -89,8 +94,19 @@ async function startStudioForProject(projectDir) {
   }
 
   const resolved = resolveProjectDir(projectDir);
-  currentServer = createStudioServer({ projectDir: resolved, port: 0, projectsDir: path.join(app.getPath('documents'), 'MG Studio Projects') }); // port 0 动态获取空闲端口
-  const running = await currentServer.start();
+  const server = createStudioServer({
+    projectDir: resolved, port: 0, projectsDir: projectsDir(),
+    onProjectCreated(projectPath, meta) {
+      if (currentServer !== server || !currentProjectInfo) return;
+      currentProjectInfo = {
+        ...currentProjectInfo, title: meta.title, audience: meta.audience,
+        path: projectPath, lastOpened: new Date().toISOString()
+      };
+      saveRecentProject(currentProjectInfo);
+    }
+  });
+  currentServer = server;
+  const running = await server.start();
 
   // 读取工程基本信息用于最近项目记录
   let title = path.basename(resolved);
@@ -126,8 +142,8 @@ function createMainWindow() {
     minHeight: 720,
     title: 'MG Studio 演播室',
     backgroundColor: '#090a10',
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
-    trafficLightPosition: { x: 16, y: 16 },
+    // Keep interactive web controls below the native title bar on macOS.
+    titleBarStyle: 'default',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -211,10 +227,17 @@ function buildAppMenu() {
           label: '✨ 新建视频 (AI 创作工坊)...',
           accelerator: 'CmdOrCtrl+N',
           click: async () => {
-            if (mainWindow) {
-              const demoDir = path.join(__dirname, '..', 'tests', 'fixtures', 'mini-style-medical');
+            if (!mainWindow) return;
+            try {
+              if (currentProjectInfo && mainWindow.webContents.getURL().startsWith(`http://${currentProjectInfo.host}:${currentProjectInfo.port}/`)) {
+                await mainWindow.webContents.executeJavaScript('document.getElementById("btnNewProject")?.click();');
+                return;
+              }
+              const demoDir = openDemoProject(projectsDir());
               const info = await startStudioForProject(demoDir);
-              mainWindow.loadURL(`http://${info.host}:${info.port}/?action=wizard`);
+              await mainWindow.loadURL(`http://${info.host}:${info.port}/?action=wizard`);
+            } catch (error) {
+              dialog.showErrorBox('无法打开新建视频向导', error.message);
             }
           }
         },
@@ -238,9 +261,13 @@ function buildAppMenu() {
         {
           label: '🧪 打开随包示例 (mini-style-medical)',
           click: async () => {
-            const demoDir = path.join(__dirname, '..', 'tests', 'fixtures', 'mini-style-medical');
-            const info = await startStudioForProject(demoDir);
-            mainWindow.loadURL(`http://${info.host}:${info.port}/`);
+            try {
+              const demoDir = openDemoProject(projectsDir());
+              const info = await startStudioForProject(demoDir);
+              await mainWindow.loadURL(`http://${info.host}:${info.port}/?action=sample`);
+            } catch (error) {
+              dialog.showErrorBox('无法打开示例工程', error.message);
+            }
           }
         },
         { type: 'separator' },
@@ -266,7 +293,7 @@ function buildAppMenu() {
           label: '⚡ 重新编译分镜',
           accelerator: 'CmdOrCtrl+B',
           click: () => {
-            if (mainWindow) mainWindow.webContents.executeJavaScript('if (typeof runCompile === "function") runCompile();');
+            if (mainWindow) mainWindow.webContents.executeJavaScript('document.getElementById("btnCompile")?.click();');
           }
         },
         {
@@ -280,14 +307,14 @@ function buildAppMenu() {
           label: '🎙️ 合成配音与排轴',
           accelerator: 'CmdOrCtrl+Shift+V',
           click: () => {
-            if (mainWindow) mainWindow.webContents.executeJavaScript('if (typeof runTTS === "function") runTTS();');
+            if (mainWindow) mainWindow.webContents.executeJavaScript('document.getElementById("btnTts")?.click();');
           }
         },
         {
           label: '🎬 导出 1080p 视频',
           accelerator: 'CmdOrCtrl+E',
           click: () => {
-            if (mainWindow) mainWindow.webContents.executeJavaScript('if (typeof runExport === "function") runExport();');
+            if (mainWindow) mainWindow.webContents.executeJavaScript('document.getElementById("btnExport")?.click();');
           }
         },
         { type: 'separator' },
@@ -371,15 +398,12 @@ ipcMain.handle('project:switch', async (event, target) => {
     let queryParam = '';
 
     if (typeof target === 'object' && target !== null) {
-      if (target.demo) {
-        targetDir = path.join(__dirname, '..', 'tests', 'fixtures', 'mini-style-medical');
-      } else if (target.path) {
-        targetDir = target.path;
-      } else {
-        targetDir = path.join(__dirname, '..', 'tests', 'fixtures', 'mini-style-medical');
-      }
+      targetDir = target.demo || !target.path
+        ? openDemoProject(projectsDir(), target.demoId) : target.path;
       if (target.action === 'wizard') {
         queryParam = '?action=wizard';
+      } else if (target.demo) {
+        queryParam = '?action=sample';
       }
     }
 

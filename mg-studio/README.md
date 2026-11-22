@@ -379,6 +379,7 @@ node scripts/studio.js ../my-film --port 3000 --open
 ```
 
 ### 7.2 核心特性与架构安全
+* **工程配音设置**：在工作台顶栏点「配音设置」，选择系统语音或百炼并调整语速。百炼还支持填写模型、音色和语气指令。可先点「试听」，再点「保存并重新配音」，同时更新旁白和字幕时间轴。工程设置也用于导出。
 * **网络与路径安全**：服务严格绑定至本地回环地址 `127.0.0.1`，静态文件伺服采用严格的 `path.resolve` 边界核验，主动防御目录穿越探测（测试覆盖 403 阻断）。
 * **虚拟时间轴平滑回退**：工程初创或尚未调用配音生成时，Studio 服务端自动按文字长度与分镜时长预估生成虚拟时间轴（Synthesized Timeline），让创作者在撰写分镜时即可秒级预览画面与动效，无需等待语音合成。
 * **8 大视觉风格一键切换**：顶栏下拉即时切换 `deep-tech`、`clean-medical`、`warm-editorial`、`swiss-modern`、`vital-energy`、`cyber-neon`、`ink-zen`、`aurora-glass`，实时级联深合并与增量编译。
@@ -399,12 +400,16 @@ node scripts/studio.js ../my-film --port 3000 --open
 | `/api/compile` | `POST` | 全量重新编译 `script.json` 与 `scene.html` |
 | `/api/lint` | `GET` | 聚合叙事、脚本、医学、动效三大门禁全量诊断 |
 | `/api/tts` | `POST` | 调用配音脚本与时间轴构建器 |
+| `/api/tts/settings` | `GET / POST` | 读取与保存当前工程的配音设置 |
+| `/api/tts/audition` | `POST` | 使用表单中的配音选项返回一段试听 WAV |
 | `/api/export` | `POST` | 启动后台出片流水线，返回异步 `taskId` |
 | `/api/task-status` | `GET` | 轮询后台出片进度与日志（`?taskId=...`） |
 | `/api/topics` | `GET` | 获取医学/科学推荐权威选题与模板 |
 | `/api/parse-doc` | `POST` | 解析参考资料（支持 .pdf/.docx/.md/.txt/.json 拖拽与纯文本粘贴），提取核心事实、统计指标、建议受众与模板 |
-| `/api/research` | `POST` | 检索 Europe PMC / OpenAlex 权威文献并提炼结构化事实 |
-| `/api/create-project` | `POST` | 一键由选题+事实生成 IR v2 工程并自动完成全量编译 |
+| `/api/research` | `POST` | 检索 Europe PMC / PubMed / OpenAlex 书目，报告命中、无命中或服务不可用 |
+| `/api/article-abstract` | `POST` | 按所选文献 ID 读取原文摘要 |
+| `/api/preview-project` | `POST` | 用已核实事实生成分镜预览并返回 `previewId` |
+| `/api/create-project` | `POST` | 根据 `previewId` 编译并保存预览中的工程，重复请求复用已保存的工程 |
 | `/api/beat/add` | `POST` | 新增分镜（指定 ID、角色、排版组件与旁白） |
 | `/api/beat/delete` | `POST` | 删除指定分镜并自动重新编译 |
 | `/api/beat/reorder` | `POST` | 调整分镜前后顺序（`up` / `down`）并自动重新编译 |
@@ -415,40 +420,37 @@ node scripts/studio.js ../my-film --port 3000 --open
 针对专业医学与硬核科学视频制作的高门槛痛点，`mg-studio` 内置了从选题、文献检索、事实链核查到分镜大纲自动编排的全流程策划工坊：
 
 1. **Step 1: 选题与参考资料智能解析 (M8)**
-   * **100% 自主自定义选题**：输入框允许用户自由输入任意前沿技术、罕见病或专业器械选题，提供「↺ 清空输入」快捷重置；上方推荐热词仅作为创作灵感参考。
-   * **多格式参考资料上传与文本直接粘贴**：
-     * 支持 `.pdf`、`.docx`、`.md`、`.txt`、`.json` 文件的拖拽与本地选取。
-     * 支持直接粘贴长篇临床指南、最新发表论文 Abstract 或专家门诊笔记。
-   * **智能解析引擎 (`lib/doc-parser.js`)**：
-     * 自动从资料中提炼结构化事实候选集：包含统计指标（百分比、比值、置信区间）、核心论断、机理机制与禁忌警示。
-     * 智能推断建议受众分类（`patient` / `professional` / `general`）与建议叙事模板（`science` / `teaching` / `product`）。
-     * 提供「一键应用至当前向导」：自动回填主题与配置，并将抽取的事实注入事实库，打上高亮 `[用户资料]` 绿色专属徽标并默认勾选！
-2. **Step 2: 权威文献联网检索与事实证据库**
-   * 直连 Europe PMC 与 OpenAlex 开放学术知识图谱，通过 MeSH 关键词自动扩展与检索。
-   * 自动抽取论文核心论断、临床试验结论并生成结构化事实清单（Facts Checklist）。
-   * 创作者可直观勾选采纳事实，或手动追加临床共识事实。
-3. **Step 3: 故事线规划与分镜组件映射**
-   * AI 自动编排叙事骨架，将叙事功能角色严格映射到对应的高保真 MG 排版组件：
-     * `hook`（痛点悬念） $\rightarrow$ `title-card` 标题卡
-     * `conflict`（认知冲突） $\rightarrow$ `points` 多卡片
-     * `mechanism`（核心机理） $\rightarrow$ `waveform` 电生理/脉冲信号
-     * `evidence`（循证依据） $\rightarrow$ `stat` 大数字滚动统计
-     * `takeaway`（医嘱行动与免责） $\rightarrow$ `points` 提示卡片
-   * 自动保障情绪极差 $\Delta \ge 2$，患者向自动装配标准就医科普免责声明。
-4. **Step 4: 一键载入工作台与即时演播**
-   * 点击 `[ 🚀 载入工作台并开始演播 ]`，服务端自动生成 `story.json` 与 `scenes/*.json` 并触发编译器编译。
-   * 画布秒级载入 1080p 动态视频，时间轴、字幕气泡与门禁系统联动就绪。
+   * 输入主题和受众。可以上传 PDF、DOCX、Markdown、TXT、JSON，或粘贴资料文本。解析后的事实为待核实候选。
+2. **文献检索与事实**
+   * 优先查询 Europe PMC，失败或无命中时试 PubMed 和 OpenAlex。找到论文后点「引用这篇」，用摘要选中一句或从原文粘贴摘录，然后填写简明的画面和旁白要点。也可手动录入已有资料及出处。
+   * 核对原文及适用范围后，勾选纳入分镜。检索结果中的标题和 DOI 只用于定位出处。
+3. **预览分镜**
+   * 逐镜展示实际画面文字、旁白、出处和建议时长。每条选用事实对应一个主体镜头，另有开场和小结。
+4. **载入工作台**
+   * 点击「载入工作台」后编译并创建独立工程。失败信息显示在向导底部，可修正或重试。
 5. **分镜大纲可视化增删改**
    * 左栏分镜列表支持鼠标悬停快捷操作：
      * `[ ＋分镜 ]`：随时插入新分镜并指定排版组件与口播旁白。
      * `[ ↑ 上移 ]` / `[ ↓ 下移 ]`：调整叙事顺序并重新编译。
      * `[ 🗑️ 删除 ]`：移除多余分镜并自动刷新工程。
 
+### 一句话创片
+
+在「新建视频」中写出创作要求，再点「生成并试听」。可选参考文本和自有素材。三个内置样例无需联网模型，分别展示城市雨水、便携灯和研究对照。
+
+自定义创作需要支持 `POST /chat/completions` 和 JSON 输出的服务。展开「创作模型与参考资料」填写服务的 API 基地址、模型名和密钥，或使用 `MG_DIRECTOR_ENDPOINT`、`MG_DIRECTOR_MODEL`、`MG_DIRECTOR_API_KEY`。使用在线服务时，创作要求和参考文字会发给配置的模型，附带的媒体只传文件名和类型。密钥只保存在工作台进程的会话内。可选的 `MG_DIRECTOR_IMAGE_MODEL` 用于支持 `POST /images/generations` 并返回 Base64 图片的服务。
+
+在工作台选中镜头后可以用一句话重做、锁定或撤销该镜头。选中的素材图层可以换成内置图标、生成的插图，或导入 2 MB 以内的 PNG、JPEG、WebP、静态 SVG、MP4 和 WebM 短片。导入的短片作为无声图层，旁白走独立音轨。内置矢量素材来自 [Lucide](https://lucide.dev/license)，许可随 `templates/director-icons/LICENSE` 分发。
+
+医学科普可在文献步骤勾选已核实资料后点「用核实资料创片」。首次生成和改镜后可先试听，再在「医学核查」逐镜确认旁白、画面与出处，之后正式导出。
+
 ### 7.5 独立桌面客户端 (MG Studio Desktop - M9)
 
 为了让临床医生、科研工作者及非技术背景创作者享受开箱即用的原生软件体验，`mg-studio` 现已提供原生窗口独立桌面客户端：
 
 * **启动命令**：`npm run desktop`（或指定分镜目录 `npm run desktop ../my-project`）。
+* **随包示例**：首次打开时复制到系统文档目录 `MG Studio Projects/mini-style-medical` 并编译预览。再次打开会继续使用这份可编辑工程。
+* **配音与导出环境**：安装包包含 JavaScript 运行时与 Playwright 驱动。请安装 Google Chrome，并让 `ffmpeg`（支持 `libx264`）和 `ffprobe` 能从 `PATH` 找到。macOS 使用系统 `say`，默认声音为 Tingting；Windows 使用 System.Speech，中文旁白需要已安装的中文桌面语音，可用 `TTS_VOICE` 选择已安装的声音。工程也可以通过 `meta.tts.backend` 选择已经配置好的 `bailian` 后端。
 * **核心组成**：
   * **主进程托管 (`desktop/main.js`)**：自动启动并托管本地 Studio 服务（动态分配可用端口，严格本地回环），管理原生应用菜单与快捷键（`Cmd+N` 新建 / `Cmd+O` 打开 / `Cmd+B` 编译 / `Cmd+E` 导出）。内置全局异常弹窗守护与本地日志持久化（`mg-studio-error.log`）。
   * **项目中心 (`desktop/project-hub.html`)**：启动欢迎中心，展示快速创作入口、内置经典模板、最近项目记录与环境自检看板。

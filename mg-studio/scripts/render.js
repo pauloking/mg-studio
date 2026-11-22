@@ -15,6 +15,7 @@ const { pickSmokeFrames } = require('../lib/scene-map');
 function loadPW() {
   if (process.env.PW_PATH) return require(process.env.PW_PATH);
   try { return require('playwright'); } catch (e) {}
+  try { return require('playwright-core'); } catch (e) {}
   try {
     const root = require('child_process').execSync('npm root -g', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
     return require(path.join(root, 'playwright'));
@@ -38,7 +39,8 @@ const REQ_PORT = process.env.RENDER_PORT ? parseInt(process.env.RENDER_PORT, 10)
 const CHANNEL = process.env.PW_CHANNEL === undefined ? 'chrome' : process.env.PW_CHANNEL;
 fs.mkdirSync(OUT, { recursive: true });
 
-const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.css': 'text/css' };
+const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png',
+  '.css': 'text/css', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.mp4': 'video/mp4', '.webm': 'video/webm' };
 const ROOT_RESOLVED = path.resolve(ROOT);
 const server = http.createServer((req, res) => {
   let p = decodeURIComponent(req.url.split('?')[0]);
@@ -62,6 +64,16 @@ const server = http.createServer((req, res) => {
   await page.waitForFunction(() => window.__ready === true || window.__err, { timeout: 30000 });
   const initErr = await page.evaluate(() => window.__err);
   if (initErr) { console.error('INIT ERROR:', initErr); process.exit(1); }
+  await page.evaluate(() => document.fonts.ready.then(() => true));
+  const cdp = await page.context().newCDPSession(page);
+  async function captureFrame(frame, output) {
+    await page.evaluate(f => window.__frame(f), frame);
+    // Chrome's fast PNG setting changes compression only. Layout, alpha and pixel values are preserved.
+    const { data } = await cdp.send('Page.captureScreenshot', {
+      format: 'png', captureBeyondViewport: false, optimizeForSpeed: true
+    });
+    fs.writeFileSync(output, data, 'base64');
+  }
   const n = await page.evaluate(() => window.__N);
 
   // ── 增量模式：--all（逐 scene + 缓存）/ --scene <id>（单渲）/ --no-cache（强制）──
@@ -85,13 +97,15 @@ const server = http.createServer((req, res) => {
       if ((scenesById[sc.id] || {}).layout === 'three3d') { skipped++; console.log('  skip', sc.id, '(3D 段，由 render_three 提供帧)'); continue; }
       const nFrames = sc.end - sc.start;
       const dir = path.join(ROOT, 'frames', sc.id);
-      const vis = fc.visualHash({ scene: { definition: scenesById[sc.id] || { id: sc.id }, timeline: sc }, tokens, context, compVersion: process.env.MG_COMP_VERSION || '1', compilerVersion: process.env.MG_COMPILER_VERSION || '1' });
+      const definition = scenesById[sc.id] || { id: sc.id };
+      const from = definition.transition === 'match' ? scenesById[tl.scenes[tl.scenes.indexOf(sc) - 1]?.id] : undefined;
+      const vis = fc.visualHash({ scene: { definition, timeline: sc, ...(from ? { from } : {}) }, tokens, context, compVersion: process.env.MG_COMP_VERSION || (definition.layout === 'directed' ? '2' : '1'), compilerVersion: process.env.MG_COMPILER_VERSION || '1' });
       const aud = fc.hashFile(path.join(ROOT, 'vo', sc.id + '.wav'));
       const dec = fc.decide({ visualHash: vis, audioHash: aud, frameCount: nFrames, cached: prev[sc.id] });
       const have = fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => f.endsWith('.png')).length : 0;
       if (dec.render === false && !NO_CACHE && have === nFrames) { skipped++; console.log('  skip', sc.id, '(缓存命中)'); continue; }
       fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
-      for (let k = 0; k < nFrames; k++) { await page.evaluate(f => window.__frame(f), sc.start + k); await page.screenshot({ path: path.join(dir, `f_${String(k).padStart(4, '0')}.png`) }); }
+      for (let k = 0; k < nFrames; k++) await captureFrame(sc.start + k, path.join(dir, `f_${String(k).padStart(4, '0')}.png`));
       next[sc.id] = { visualHash: vis, audioHash: aud, frameCount: nFrames, duration: +((sc.end - sc.start) / tl.fps).toFixed(3) };
       rendered++; console.log('  render', sc.id, nFrames, '帧');
     }
@@ -116,8 +130,7 @@ const server = http.createServer((req, res) => {
   const t0 = Date.now();
   for (let j = 0; j < list.length; j++) {
     const i = list[j];
-    await page.evaluate(f => window.__frame(f), i);
-    await page.screenshot({ path: path.join(OUT, `f_${String(i).padStart(4, '0')}.png`) });
+    await captureFrame(i, path.join(OUT, `f_${String(i).padStart(4, '0')}.png`));
     if (!SMOKE && j % 60 === 0) console.log('  frame', i, ((Date.now() - t0) / 1000).toFixed(1) + 's');
   }
   const err = await page.evaluate(() => window.__err);

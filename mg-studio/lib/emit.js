@@ -1,4 +1,5 @@
 'use strict';
+const shared = require('./shared-stage');
 // emitSceneHtml — 发射自包含 scene.html（契约与 scene.template.html 一致 + 单场景模式）
 const { lum } = require('./color');
 
@@ -190,25 +191,38 @@ function upSubtitle(t) { let cur = null;
   for (const sc of TL.scenes) for (const cu of sc.subs) if (t >= cu.from && t < cu.to) cur = cur || cu;
   if (!cur) { op(subtitleEl, 0); lastSub = ''; return; }
   if (cur.text !== lastSub) { subtitleEl.textContent = cur.text; lastSub = cur.text; }
-  op(subtitleEl, Math.min(seg(t-cur.from,0,.25), seg(cur.to-t,0,.25))); }
+  op(subtitleEl, Math.min(seg(t-(cur.fadeFrom ?? cur.from),0,.25), seg((cur.fadeTo ?? cur.to)-t,0,.25))); }
 `;
 const BOOTSTRAP = `
 const scenesEl = document.getElementById('scenes');
 const subtitleEl = document.getElementById('subtitle');
 const S = {};
+const W = typeof initWorlds === 'function' ? initWorlds() : {};
 let TL = null;
 let OFF = 0;
+let previousActive = -2;
 function fadeScene(r, lt, dur) { op(r, Math.min(seg(lt,0,.45), seg(dur-lt,0,.45))); }
 window.__ready = false; window.__err = null;
 window.__frame = function (j) { try {
   const i = j + OFF;
-  const t = i / TL.fps; drawBG(t);
+  const t = i / TL.fps;
   let active = -1;
+  let pending;
   for (let k = 0; k < TL.scenes.length; k++) { const sc = TL.scenes[k]; if (i >= sc.start && i < sc.end) active = k; }
-  for (let k = 0; k < UPS.length; k++) { const el = scenesEl.children[k];
-    if (k === active) { el.style.display = 'block'; UPS[k]((i - TL.scenes[k].start) / TL.fps, t); }
-    else { el.style.display = 'none'; op(el, 0); } }
+  const worldId = S[TL.scenes[active]?.id]?.stage?.id;
+  if (!worldId) drawBG(t);
+  if (active !== previousActive) {
+    for (let k = 0; k < UPS.length; k++) {
+      const el = scenesEl.children[k];
+      el.style.display = k === active ? 'block' : 'none';
+      if (k !== active) op(el, 0);
+    }
+    for (const [id, world] of Object.entries(W)) world.root.hidden = id !== worldId;
+    previousActive = active;
+  }
+  if (active >= 0) pending = UPS[active]((i - TL.scenes[active].start) / TL.fps, t);
   upSubtitle(t);
+  return pending;
 } catch (e) { window.__err = String(e && e.stack || e); } };
 // 真实布局盒：供 lint_scene 用 DOM 实测（隐藏场景 display:none，须先 __frame 激活）
 window.__rects = function () { const out = {};
@@ -216,19 +230,30 @@ window.__rects = function () { const out = {};
     out[sid][x.key] = { x: +r.x.toFixed(2), y: +r.y.toFixed(2), w: +r.width.toFixed(2), h: +r.height.toFixed(2) }; } }
   return out; };
 const __only = new URLSearchParams(location.search).get('scene');
-fetch('timeline.json').then(r => r.json()).then(tl => { TL = tl;
+fetch('timeline.json').then(r => r.json()).then(async tl => { TL = tl;
   tl.scenes.forEach(sc => { sc.audioDur = sc.dur; sc.dur = (sc.end - sc.start) / tl.fps; });
   buildScenes();
+  await Promise.all([...document.querySelectorAll('.dir-layer img')].map(image => image.decode()));
+  await Promise.all([...document.querySelectorAll('.dir-layer video')].map(video => {
+    if (video.readyState >= 1) return Promise.resolve();
+    if (video.error) return Promise.reject(Error('导入视频无法解码'));
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(Error('导入视频加载超时')), 8000);
+      video.addEventListener('loadedmetadata', () => { clearTimeout(timer); resolve(); }, { once: true });
+      video.addEventListener('error', () => { clearTimeout(timer); reject(Error('导入视频无法解码')); }, { once: true });
+    });
+  }));
   if (__only) { const sc = TL.scenes.find(s => s.id === __only);
     if (!sc) { window.__err = 'unknown scene: ' + __only; return; }
     OFF = sc.start; window.__N = sc.end - sc.start;
   } else { window.__N = tl.totalFrames; }
-  window.__frame(0); window.__ready = true;
+  await window.__frame(0); window.__ready = true;
 }).catch(e => { window.__err = String(e); });
 `;
 
-function emitSceneHtml({ tokens, scenes, components, preRuntime, disclaimer }) {
+function emitSceneHtml({ tokens, scenes, components, preRuntime, disclaimer, sharedStages = {} }) {
   const used = [...new Set(scenes.map(s => s.layout))];
+  const hasWorld = Object.keys(sharedStages).length > 0;
   // 双保险：ir.js 已白名单校验，这里落地前再剥白名单外字符（font.family 防 </style> 越狱、色键名防 CSS 变量名打断）
   const escFontFamily = String(tokens.font.family).replace(/[^\w"',\- ]/g, '');
   const varsArr = Object.entries(tokens.colors).map(([k, v]) => `--${String(k).replace(/[^\w-]/g, '')}:${v};`);
@@ -250,6 +275,7 @@ function emitSceneHtml({ tokens, scenes, components, preRuntime, disclaimer }) {
     const extra = components[sc.layout].extraUpdate ? components[sc.layout].extraUpdate(sc) : '';
     return `function up_${sc.id}(lt, t) {
   const s = S['${sc.id}'], sc = TL.scenes[${k}], dur = sc.dur;
+  const previous = S[TL.scenes[${k} - 1]?.id];
   fadeScene(s.r, lt, dur);
   for (const el of s.els) upEl(el.e, SPECS['${sc.id}'][el.key], lt, dur, sc);
   ${extra}
@@ -289,11 +315,13 @@ html,body { width:1920px; height:1080px; overflow:hidden; background:var(--bg);
 #disclaimer { position:absolute; left:50%; bottom:12px; transform:translateX(-50%); z-index:61; max-width:1840px;
   color:${disclaimerColor}; font-size:20px; font-weight:500; letter-spacing:.5px; text-align:center; white-space:nowrap; }
 ${css}
+${hasWorld ? shared.css : ''}
 </style>
 </head>
 <body>
 <canvas id="bg" width="1920" height="1080"></canvas>
 <div class="vignette"></div>
+${hasWorld ? shared.stageMarkup(sharedStages) : ''}
 <div id="scenes"></div>
 <div id="subtitle"></div>
 ${disclaimer ? '<div id="disclaimer">' + String(disclaimer).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])) + '</div>' : ''}
@@ -303,6 +331,7 @@ ${HELPERS}
 ${drawBgCode}
 ${preRuntime}
 ${runtime}
+${hasWorld ? shared.runtime() : ''}
 const SPECS = ${JSON.stringify(specs).replace(/</g, '\\u003c')};
 ${BOOTSTRAP.replace('function fadeScene', '/* buildScenes 由组件生成 */\nfunction buildScenes() {\n' + builds + '\n}\n' + updates + '\nconst UPS = [' + ups + '];\nfunction fadeScene')}
 ${SUBTITLE}

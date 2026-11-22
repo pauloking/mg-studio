@@ -6,23 +6,34 @@
  */
 const http = require('http');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { projectFilePath, sceneFilePath, validateSceneUpdate } = require('../lib/project-files');
-const { spawn, execFileSync } = require('child_process');
+const { execFileSync } = require('child_process');
+const { runWorker } = require('../lib/worker');
 
 const ir = require('../lib/ir');
 const { LAYOUT_NAMES, COMPONENTS } = require('../lib/components');
-const { compileProject, normalizeScene } = require('../lib/compile');
+const { compileProject, prepareRenderScenes } = require('../lib/compile');
+const { MOTION_MODES, canCompose } = require('../lib/motion-plan');
 const { lintStory } = require('../lib/story-lint');
 const { lintScript } = require('../lib/script-lint');
 const { lintMedical } = require('../lib/medical-lint');
 const { lintMotion } = require('../lib/motion-lint');
 const { loadTemplate } = require('../lib/narratives');
 const { splitSubs } = require('../lib/subs');
-const { searchLiterature, getCuratedTopics } = require('../lib/research');
+const { searchLiterature, fetchArticleAbstract, getCuratedTopics } = require('../lib/research');
 const { buildStoryboardDefinition, writeAndCompileGeneratedProject } = require('../lib/ai-generator');
+const director = require('../lib/director');
+const { icons, listAssets, validateLocalImage, validateLocalVideo } = require('../lib/director-assets');
+const { atomicWrite, readShot, saveShot } = require('../lib/save-shot');
+const { splitShot, undoSplit } = require('../lib/split-shot');
+const { catalog, uploadAsset } = require('../lib/project-assets');
+const { pendingShots, updateReview } = require('../lib/director-review');
+const { projectSnapshot, previewSnapshot } = require('../lib/project-snapshot');
 const { extractRawText, analyzeDocumentText } = require('../lib/doc-parser');
+const { BACKENDS, settingsFor, parseSettings, localVoices, narrationRevisionMatches, hasCurrentNarration } = require('../lib/voice-settings');
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -32,6 +43,8 @@ const MIME_TYPES = {
   '.wav': 'audio/wav',
   '.mp3': 'audio/mpeg',
   '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.webp': 'image/webp',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
@@ -39,7 +52,8 @@ const MIME_TYPES = {
   '.ico': 'image/x-icon'
 };
 
-const tasks = new Map();
+const activeProjects = new Set();
+const activeExports = new Set();
 
 function resolveProjectDir(target) {
   if (target) return path.resolve(target);
@@ -106,7 +120,9 @@ function getOrSynthesizeTimeline(projectDir) {
     const isIntro = idx === 0;
     const isOutro = idx === project.scenes.length - 1;
     const textLen = (sc.narration || '').length;
-    const estDur = Math.max(sc.minSec || 0, isIntro ? 6.5 : isOutro ? 8.5 : Math.max(4.0, Math.round(textLen / 4.0) + 1.5));
+    const estimate = project.story.meta.director ? textLen / 5.5 + .58
+      : isIntro ? 6.5 : isOutro ? 8.5 : Math.max(4.0, Math.round(textLen / 4.0) + 1.5);
+    const estDur = Math.max(sc.minSec || 0, estimate);
     const frames = Math.round(estDur * FPS);
     const start = cursor;
     const end = cursor + frames;
@@ -160,7 +176,7 @@ function collectAllDiagnostics(projectDir) {
     const medicalDiags = lintMedical({ story, scenes: project.scenes });
     let motionDiags = [];
     try {
-      const normScenes = project.scenes.map(sc => normalizeScene(sc, COMPONENTS));
+      const normScenes = prepareRenderScenes(project);
       motionDiags = lintMotion({ scenes: normScenes, tokens: project.tokens, components: COMPONENTS });
     } catch (e) {
       motionDiags.push({ level: 'B', code: 'MOTION_NORMALIZE_FAIL', scene: '', msg: e.message });
@@ -185,6 +201,23 @@ function collectAllDiagnostics(projectDir) {
 }
 
 function createStudioServer(options = {}) {
+  const tasks = new Map();
+  let storyboardPreview;
+  let directorConnection;
+  let draftAssets;
+  let shotDraft;
+  let voiceAudition = false;
+  function clearShotDraft() {
+    if (!shotDraft) return;
+    fs.rmSync(shotDraft.root, { recursive: true, force: true });
+    shotDraft = undefined;
+  }
+  function invalidateTimeline(dir) {
+    const hadVoice = fs.existsSync(path.join(dir, 'vo', 'narration.wav'));
+    fs.rmSync(path.join(dir, 'timeline.json'), { force: true });
+    fs.rmSync(path.join(dir, 'vo', 'narration.wav'), { force: true });
+    return hadVoice;
+  }
   let projectDir = resolveProjectDir(options.projectDir);
   const projectsDir = options.projectsDir || path.join(path.dirname(projectDir), 'mg-projects');
   const csrfToken = crypto.randomBytes(32).toString('hex');
@@ -240,6 +273,7 @@ function createStudioServer(options = {}) {
           let loadError = null;
           try {
             projectData = ir.loadProject(projectDir, LAYOUT_NAMES);
+            if (projectData.story?.meta.director) updateReview(projectData.story, pendingShots(projectData.story));
           } catch (e) {
             loadError = e.message;
           }
@@ -247,6 +281,7 @@ function createStudioServer(options = {}) {
           const hasScript = fs.existsSync(path.join(projectDir, 'script.json'));
           const hasSceneHtml = fs.existsSync(path.join(projectDir, 'scene.html'));
           const hasTimeline = fs.existsSync(path.join(projectDir, 'timeline.json'));
+          const tts = projectData?.story?.meta.tts || projectData?.script?.tts;
 
           sendJson(res, 200, {
             ok: !loadError,
@@ -257,7 +292,11 @@ function createStudioServer(options = {}) {
             hasScript,
             hasSceneHtml,
             hasTimeline,
-            project: projectData
+            hasNarration: hasCurrentNarration(projectDir, tts?.revision),
+            voiceNeedsUpdate: !!tts?.revision && !narrationRevisionMatches(projectDir, tts.revision),
+            motionSceneIds: projectData?.mode === 'v2' ? projectData.scenes.filter(canCompose).map(sc => sc.id) : [],
+            project: projectData,
+            assets: projectData?.story?.meta.director ? catalog(projectDir) : []
           });
           return;
         }
@@ -268,13 +307,26 @@ function createStudioServer(options = {}) {
           return;
         }
 
-        // POST /api/research (文献检索与事实抽取)
+        // POST /api/research (文献书目检索)
         if (pathname === '/api/research' && req.method === 'POST') {
           const body = await parseJsonBody(req);
-          const query = body.query || '';
-          const maxResults = body.maxResults || 5;
-          const result = await searchLiterature(query, { maxResults });
-          sendJson(res, 200, result);
+          const { query, maxResults, page } = body;
+          const result = await searchLiterature(query, { maxResults, page });
+          const status = result.status === 'invalid' ? 400 : result.status === 'unavailable' ? 503 : 200;
+          sendJson(res, status, result);
+          return;
+        }
+
+        if (pathname === '/api/article-abstract' && req.method === 'POST') {
+          const { id } = await parseJsonBody(req);
+          try {
+            const abstract = await fetchArticleAbstract(id);
+            sendJson(res, 200, { ok: true, abstract });
+          } catch (error) {
+            sendJson(res, error.statusCode || 502, {
+              ok: false, error: error.statusCode ? error.message : '暂时无法获取摘要。可打开原文并粘贴相关段落。'
+            });
+          }
           return;
         }
 
@@ -302,18 +354,226 @@ function createStudioServer(options = {}) {
           return;
         }
 
-        // POST /api/create-project (一键创建/重构新项目并编译)
+        if (pathname === '/api/director' && req.method === 'GET') {
+          sendJson(res, 200, { ok: true, connected: Boolean(directorConnection || director.configuration()),
+            samples: Object.entries(director.samples).map(([id, sample]) => ({ id, label: sample.label, brief: sample.brief })),
+            assets: listAssets() });
+          return;
+        }
+
+        if (pathname === '/api/director/config' && req.method === 'POST') {
+          const connection = await parseJsonBody(req);
+          if (!connection.endpoint || !connection.model) {
+            throw Object.assign(new Error('请填写模型地址和模型名称。'), { statusCode: 400 });
+          }
+          directorConnection = director.configuration(connection);
+          sendJson(res, 200, { ok: true });
+          return;
+        }
+
+        if (pathname === '/api/director/media' && req.method === 'POST') {
+          const scope = searchParams.get('scope');
+          if (!['draft', 'project'].includes(scope)) throw Object.assign(new Error('请选择素材归属。'), { statusCode: 400 });
+          if (scope === 'draft' && !draftAssets) draftAssets = fs.mkdtempSync(path.join(os.tmpdir(), 'mg-studio-assets-'));
+          const dir = scope === 'draft' ? draftAssets : fs.realpathSync(projectDir);
+          const media = await uploadAsset(req, dir, searchParams.get('name'));
+          sendJson(res, 200, { ok: true, media });
+          return;
+        }
+
+        if (pathname === '/api/director/plan' && req.method === 'POST') {
+          const body = await parseJsonBody(req);
+          if (body.connection?.endpoint || body.connection?.model) {
+            if (!body.connection.endpoint || !body.connection.model) throw Object.assign(new Error('请填写模型地址和模型名称。'), { statusCode: 400 });
+            directorConnection = director.configuration(body.connection);
+          }
+          const files = Array.isArray(body.files) ? body.files.slice(0, 8) : [];
+          const available = draftAssets ? catalog(draftAssets) : [];
+          const attachments = [...new Set(files)].map(file => available.find(entry => entry.file === file));
+          if (attachments.some(entry => !entry)) throw Object.assign(new Error('参考素材已失效，请重新选择。'), { statusCode: 422 });
+          const definition = await director.createFromBrief({ ...body, attachments }, directorConnection || director.configuration());
+          const id = crypto.randomUUID();
+          storyboardPreview = { id, definition, result: null, assetSource: draftAssets, assets: attachments };
+          sendJson(res, 200, { ok: true, previewId: id, ...definition });
+          return;
+        }
+
+        if (pathname === '/api/director/review' && req.method === 'POST') {
+          const { id, confirmed } = await parseJsonBody(req);
+          const storyPath = projectFilePath(projectDir, 'story.json');
+          const story = JSON.parse(fs.readFileSync(storyPath, 'utf8'));
+          if (confirmed !== true || !pendingShots(story).includes(id)) throw Object.assign(new Error('请选择一镜并核对旁白、画面和出处。'), { statusCode: 422 });
+          updateReview(story, pendingShots(story).filter(shot => shot !== id));
+          atomicWrite(storyPath, JSON.stringify(story, null, 2));
+          sendJson(res, 200, { ok: true, pendingShots: pendingShots(story) });
+          return;
+        }
+
+        if (pathname === '/api/director/shot' && req.method === 'POST') {
+          const { id, action, instruction, keepNarration, keepAssets, keepComposition, keepDuration,
+            asset, media, stored, layerId, token, frame } = await parseJsonBody(req);
+          const dir = fs.realpathSync(projectDir);
+          if (action === 'discard') {
+            if (shotDraft?.token === token) clearShotDraft();
+            sendJson(res, 200, { ok: true });
+            return;
+          }
+          if (activeProjects.has(dir)) throw Object.assign(new Error('请等当前配音或导出结束。'), { statusCode: 409 });
+          const current = readShot(dir, id);
+          if (!current.story.meta.director || current.scene.layout !== 'directed') {
+            throw Object.assign(new Error('该镜头不属于一句话创片工程。'), { statusCode: 422 });
+          }
+          const locked = new Set(current.story.meta.director.locked || []);
+          if (action === 'lock') {
+            if (locked.has(id)) locked.delete(id);
+            else locked.add(id);
+            current.story.meta.director.locked = [...locked];
+            atomicWrite(current.storyPath, JSON.stringify(current.story, null, 2));
+            sendJson(res, 200, { ok: true, locked: locked.has(id) });
+            return;
+          }
+          if (locked.has(id)) throw Object.assign(new Error('请先解锁当前镜头。'), { statusCode: 409 });
+          if (action === 'split') {
+            const result = splitShot(dir, current, frame);
+            clearShotDraft();
+            sendJson(res, 200, { ok: true, ...result });
+            return;
+          }
+          const historyPath = projectFilePath(dir, 'director-undo.json');
+          const history = fs.existsSync(historyPath) ? JSON.parse(fs.readFileSync(historyPath, 'utf8')) : {};
+          let next;
+          if (action === 'undo') {
+            next = history[id];
+            if (!next) throw Object.assign(new Error('当前镜头暂无可撤销的修改。'), { statusCode: 409 });
+            if (next.split || next.splitParent) {
+              const result = undoSplit(dir, next.splitParent || id, history, historyPath);
+              clearShotDraft();
+              sendJson(res, 200, { ok: true, splitUndo: true, ...result });
+              return;
+            }
+          } else if (action === 'apply') {
+            if (!shotDraft || shotDraft.token !== token || shotDraft.dir !== dir || shotDraft.id !== id ||
+                current.sceneRaw !== shotDraft.sceneRaw || current.storyRaw !== shotDraft.storyRaw) {
+              throw Object.assign(new Error('工程已变化，请重新生成改版预览。'), { statusCode: 409 });
+            }
+            next = shotDraft.next;
+          } else if (action === 'revise' || action === 'preview') {
+            if (typeof instruction !== 'string' || !instruction.trim() || instruction.length > 450) {
+              throw Object.assign(new Error('请写一条 1 至 450 字的镜头修改要求。'), { statusCode: 422 });
+            }
+            const neighbors = current.story.beats.slice(Math.max(0, current.index - 1), current.index + 2)
+              .filter(beat => beat.id !== id).map(beat => readShot(dir, beat.id).scene);
+            next = await director.reviseShot({ project: { story: current.story }, scene: current.scene,
+              beat: current.beat, neighbors, instruction, keepNarration, keepAssets, keepComposition, keepDuration }, directorConnection || director.configuration());
+            if (dir !== fs.realpathSync(projectDir) || activeProjects.has(dir) ||
+                fs.readFileSync(current.storyPath, 'utf8') !== current.storyRaw ||
+                fs.readFileSync(current.scenePath, 'utf8') !== current.sceneRaw) {
+              throw Object.assign(new Error('工程在生成期间有变化，请在当前镜头重试。'), { statusCode: 409 });
+            }
+            if (action === 'preview') {
+              const sameTiming = next.beat.narration === current.beat.narration && next.scene.minSec === current.scene.minSec;
+              const root = previewSnapshot(dir, next, sameTiming && hasCurrentNarration(dir, current.story.meta.tts?.revision));
+              let audioError;
+              if (!fs.existsSync(path.join(root, 'vo', 'narration.wav'))) {
+                const backend = current.story.meta.tts?.backend === 'bailian' ? 'bailian' : 'local';
+                const run = (name, args, timeout) => runWorker(path.join(__dirname, name), args,
+                  { cwd: root, spawnProcess: options.spawnProcess, timeout });
+                try {
+                  await run('tts.js', ['--backend', backend, '--reuse'], 300000);
+                  await run('build_timeline.js', [], 30000);
+                  await run('assemble_audio.js', [], 30000);
+                } catch {
+                  audioError = '旁白预览生成失败。可先看画面，应用后重新配音。';
+                }
+              }
+              if (dir !== fs.realpathSync(projectDir) || fs.readFileSync(current.storyPath, 'utf8') !== current.storyRaw ||
+                  fs.readFileSync(current.scenePath, 'utf8') !== current.sceneRaw) {
+                fs.rmSync(root, { recursive: true, force: true });
+                throw Object.assign(new Error('工程已变化，请重新生成改版预览。'), { statusCode: 409 });
+              }
+              clearShotDraft();
+              const token = crypto.randomUUID();
+              shotDraft = { root, token, dir, id, next, sceneRaw: current.sceneRaw, storyRaw: current.storyRaw };
+              const timeline = getOrSynthesizeTimeline(root);
+              if (!fs.existsSync(path.join(root, 'timeline.json'))) atomicWrite(path.join(root, 'timeline.json'), JSON.stringify(timeline));
+              const range = timeline.scenes.find(shot => shot.id === id);
+              const url = '/director-preview/' + token + '/';
+              sendJson(res, 200, { ok: true, token, id, url: url + 'scene.html', range, fps: timeline.fps,
+                width: timeline.width || 1920, height: timeline.height || 1080,
+                narration: next.beat.narration, audioError, audio: fs.existsSync(path.join(root, 'vo', 'narration.wav')) ? url + 'vo/narration.wav' : null });
+              return;
+            }
+          } else if (action === 'asset' || action === 'illustrate') {
+            let selectedMedia = stored ? catalog(dir).find(item => item.file === stored) : media;
+            if (action === 'illustrate') {
+              const brief = typeof instruction === 'string' ? instruction.trim() : '';
+              if (!brief || brief.length > 450) throw Object.assign(new Error('请先描述要生成的插图。'), { statusCode: 422 });
+              selectedMedia = await director.makeIllustration(directorConnection || director.configuration(), brief);
+              if (dir !== fs.realpathSync(projectDir) || activeProjects.has(dir) ||
+                  fs.readFileSync(current.storyPath, 'utf8') !== current.storyRaw ||
+                  fs.readFileSync(current.scenePath, 'utf8') !== current.sceneRaw) {
+                throw Object.assign(new Error('工程在生成期间有变化，请在当前镜头重试。'), { statusCode: 409 });
+              }
+            }
+            const kind = stored ? selectedMedia?.kind : validateLocalImage(selectedMedia) ? 'image' : validateLocalVideo(selectedMedia) ? 'video' : '';
+            if (!Object.hasOwn(icons, asset) && !kind) {
+              throw Object.assign(new Error('请选择素材库中的图标、图片或短视频。'), { statusCode: 422 });
+            }
+            const previous = current.scene.elements.find(el =>
+              (!layerId || layerId === el.id) && ['icon', 'image', 'video'].includes(el.props.kind));
+            if (!previous) throw Object.assign(new Error('本镜头没有可替换的图像图层。'), { statusCode: 422 });
+            const { asset: oldAsset, media: oldMedia, ...base } = previous.props;
+            const props = kind ? { ...base, kind, media: selectedMedia } : { ...base, kind: 'icon', asset };
+            next = { beat: current.beat, scene: { ...current.scene,
+              elements: current.scene.elements.map(el => el === previous ? { ...el, props } : el) } };
+          } else {
+            throw Object.assign(new Error('未知镜头操作。'), { statusCode: 400 });
+          }
+          const result = saveShot(dir, current, next.scene, next.beat);
+          if (action === 'undo') delete history[id];
+          else history[id] = { scene: current.scene, beat: current.beat };
+          atomicWrite(historyPath, JSON.stringify(history));
+          if (action === 'apply') clearShotDraft();
+          sendJson(res, 200, { ok: true, narrationChanged: result.narrationChanged, timingChanged: result.timingChanged,
+            pendingReview: result.pendingReview });
+          return;
+        }
+
+        // 保存实际预览定义，导入时使用同一份分镜，重试不会重复写入。
+        if (pathname === '/api/preview-project' && req.method === 'POST') {
+          const body = await parseJsonBody(req);
+          const definition = buildStoryboardDefinition(body);
+          const facts = definition.story.beats.flatMap(beat => beat.facts);
+          if (!facts.length || facts.some(fact => !fact.verified || !(fact.evidence || fact.source || fact.citation?.title))) {
+            sendJson(res, 422, { ok: false, error: '请先添加一条有出处的事实，勾选核实后再生成分镜。' });
+            return;
+          }
+          const id = crypto.randomUUID();
+          storyboardPreview = { id, definition, result: null };
+          sendJson(res, 200, { ok: true, previewId: id, ...definition });
+          return;
+        }
+
         if (pathname === '/api/create-project' && req.method === 'POST') {
           const body = await parseJsonBody(req);
-          // 医学门：verified 只能来自创作者逐条核实（_checked），服务端不再批量置 true。
-          // 患者向项目存在 verified:false 的 fact 会被 lintMedical(MED_FACT_UNVERIFIED) B 级阻断。
-          if (Array.isArray(body.facts)) {
-            body.facts = body.facts.map(f => Object.assign({}, f, { verified: f._checked === true ? true : false }));
+          const preview = body.previewId ? storyboardPreview : null;
+          if (body.previewId && preview?.id !== body.previewId) {
+            sendJson(res, 409, { ok: false, error: '这份预览已失效，请返回上一步重新生成。' });
+            return;
           }
-          const generated = buildStoryboardDefinition(body);
+          if (preview?.result) {
+            sendJson(res, 200, preview.result);
+            return;
+          }
+          const definition = preview?.definition || buildStoryboardDefinition(body);
           const targetDir = path.join(projectsDir, 'project-' + crypto.randomUUID());
-          const result = writeAndCompileGeneratedProject(targetDir, generated);
-          if (result.ok) projectDir = targetDir;
+          const result = writeAndCompileGeneratedProject(targetDir, definition, preview || undefined);
+          if (result.ok) {
+            clearShotDraft();
+            projectDir = targetDir;
+            if (preview) preview.result = result;
+            options.onProjectCreated?.(targetDir, definition.story.meta);
+          }
           sendJson(res, 200, result);
           return;
         }
@@ -321,6 +581,7 @@ function createStudioServer(options = {}) {
         // POST /api/beat/add (动态插入新分镜)
         if (pathname === '/api/beat/add' && req.method === 'POST') {
           const body = await parseJsonBody(req);
+          if (activeProjects.has(fs.realpathSync(projectDir))) throw Object.assign(new Error('请等当前配音或导出结束。'), { statusCode: 409 });
           const beat = body.beat;
           if (!beat || !beat.id) {
             sendJson(res, 400, { ok: false, error: 'beat with id is required' });
@@ -389,17 +650,19 @@ function createStudioServer(options = {}) {
           fs.writeFileSync(storyPath, JSON.stringify(story, null, 2));
 
           const comp = compileProject(projectDir);
+          const retime = story.meta.director ? invalidateTimeline(projectDir) : false;
           const updated = ir.loadProject(projectDir, LAYOUT_NAMES);
           // 结构写入成功即 ok；医学门诊断（如 MED_FACT_UNVERIFIED，源于项目里待核实的 facts）
           // 属于内容级阻断，不该让"插入普通分镜"这个结构操作报失败——compile 诊断透传给前端展示。
           const structuralErrors = (comp.errors || []).filter(e => !e.includes('MED_'));
-          sendJson(res, 200, { ok: structuralErrors.length === 0, compile: comp, project: updated });
+          sendJson(res, 200, { ok: structuralErrors.length === 0, compile: comp, project: updated, retime });
           return;
         }
 
         // POST /api/beat/delete (删除分镜)
         if (pathname === '/api/beat/delete' && req.method === 'POST') {
           const body = await parseJsonBody(req);
+          if (activeProjects.has(fs.realpathSync(projectDir))) throw Object.assign(new Error('请等当前配音或导出结束。'), { statusCode: 409 });
           const beatId = body.beatId;
           if (!beatId) {
             sendJson(res, 400, { ok: false, error: 'beatId is required' });
@@ -426,16 +689,18 @@ function createStudioServer(options = {}) {
           if (fs.existsSync(scPath)) fs.unlinkSync(scPath);
 
           const comp = compileProject(projectDir);
+          const retime = story.meta.director ? invalidateTimeline(projectDir) : false;
           const updated = ir.loadProject(projectDir, LAYOUT_NAMES);
           // 结构写入成功即 ok；医学门诊断（内容级阻断）透传 compile 字段给前端展示
           const structuralErrors = (comp.errors || []).filter(e => !e.includes('MED_'));
-          sendJson(res, 200, { ok: structuralErrors.length === 0, compile: comp, project: updated });
+          sendJson(res, 200, { ok: structuralErrors.length === 0, compile: comp, project: updated, retime });
           return;
         }
 
         // POST /api/beat/reorder (调整分镜排序)
         if (pathname === '/api/beat/reorder' && req.method === 'POST') {
           const body = await parseJsonBody(req);
+          if (activeProjects.has(fs.realpathSync(projectDir))) throw Object.assign(new Error('请等当前配音或导出结束。'), { statusCode: 409 });
           const order = body.order;
           if (!Array.isArray(order) || order.length === 0) {
             sendJson(res, 400, { ok: false, error: 'order array of beatIds is required' });
@@ -456,10 +721,11 @@ function createStudioServer(options = {}) {
           fs.writeFileSync(storyPath, JSON.stringify(story, null, 2));
 
           const comp = compileProject(projectDir);
+          const retime = story.meta.director ? invalidateTimeline(projectDir) : false;
           const updated = ir.loadProject(projectDir, LAYOUT_NAMES);
           // 结构写入成功即 ok；医学门诊断（内容级阻断）透传 compile 字段给前端展示
           const structuralErrors = (comp.errors || []).filter(e => !e.includes('MED_'));
-          sendJson(res, 200, { ok: structuralErrors.length === 0, compile: comp, project: updated });
+          sendJson(res, 200, { ok: structuralErrors.length === 0, compile: comp, project: updated, retime });
           return;
         }
 
@@ -470,6 +736,44 @@ function createStudioServer(options = {}) {
             ok: (comp.errors || []).filter(e => !e.includes('MED_')).length === 0,
             compile: comp
           });
+          return;
+        }
+
+        if (pathname === '/api/motion' && req.method === 'POST') {
+          const { motion } = await parseJsonBody(req);
+          if (!MOTION_MODES.includes(motion)) {
+            sendJson(res, 400, { ok: false, error: '请选择有效的动态编排。' });
+            return;
+          }
+          if (activeProjects.has(fs.realpathSync(projectDir))) {
+            sendJson(res, 409, { ok: false, error: '请在配音或导出完成后切换动态编排。' });
+            return;
+          }
+          const project = ir.loadProject(projectDir, LAYOUT_NAMES);
+          if (project.mode !== 'v2' || !project.scenes.some(canCompose)) {
+            sendJson(res, 400, { ok: false, error: '此项目没有可应用编排的标题或单要点分镜。' });
+            return;
+          }
+          const storyPath = projectFilePath(projectDir, 'story.json');
+          const staged = path.join(projectDir, '.motion-' + crypto.randomUUID() + '.json');
+          project.story.meta.motion = motion;
+          fs.writeFileSync(staged, JSON.stringify(project.story, null, 2), { flag: 'wx' });
+          try {
+            const result = compileProject(projectDir, { motion });
+            if (result.errors.length) {
+              sendJson(res, 422, { ok: false, error: result.errors[0] });
+              return;
+            }
+            try {
+              fs.renameSync(staged, storyPath);
+            } catch (error) {
+              compileProject(projectDir);
+              throw error;
+            }
+          } finally {
+            fs.rmSync(staged, { force: true });
+          }
+          sendJson(res, 200, { ok: true, motion });
           return;
         }
 
@@ -520,17 +824,18 @@ function createStudioServer(options = {}) {
             return;
           }
 
-          const scPath = sceneFilePath(projectDir, sc.id);
-          const story = JSON.parse(fs.readFileSync(projectFilePath(projectDir, 'story.json'), 'utf8'));
-          validateSceneUpdate(sc, story);
-          fs.mkdirSync(path.dirname(scPath), { recursive: true });
-          fs.writeFileSync(scPath, JSON.stringify(sc, null, 2));
-
-          const comp = compileProject(projectDir);
-          sendJson(res, 200, {
-            ok: (comp.errors || []).filter(e => !e.includes('MED_')).length === 0,
-            compile: comp
-          });
+          const dir = fs.realpathSync(projectDir);
+          if (activeProjects.has(dir)) throw Object.assign(new Error('请等当前配音或导出结束。'), { statusCode: 409 });
+          const current = readShot(dir, sc.id);
+          if (current.story.meta.director?.locked?.includes(sc.id)) {
+            throw Object.assign(new Error('请先解锁当前镜头。'), { statusCode: 409 });
+          }
+          const { narration, segment, ...scene } = sc;
+          if (current.scene.segment) scene.segment = current.scene.segment;
+          const result = saveShot(dir, current, { ...scene, beat: sc.id },
+            { ...current.beat, narration: typeof narration === 'string' ? narration.trim() : current.beat.narration },
+            { sharedRoute: body.sharedRoute });
+          sendJson(res, 200, { ok: true, ...result });
           return;
         }
 
@@ -548,6 +853,15 @@ function createStudioServer(options = {}) {
           const current = JSON.parse(fs.readFileSync(projectFilePath(projectDir, 'story.json'), 'utf8'));
           if (story.beats.length !== current.beats.length || story.beats.some(b => !current.beats.some(c => c.id === b.id))) {
             throw Object.assign(new Error('Use beat endpoints to change the scene list'), { statusCode: 400 });
+          }
+          if (current.meta.tts?.revision) story.meta.tts = current.meta.tts;
+          if (current.meta.director) {
+            story.meta.director = current.meta.director;
+            const changed = story.beats.filter(beat => {
+              const original = current.beats.find(b => b.id === beat.id);
+              return JSON.stringify(beat.facts) !== JSON.stringify(original.facts) || beat.narration !== original.narration;
+            });
+            updateReview(story, [...pendingShots(current), ...changed.map(beat => beat.id)]);
           }
           const storyPath = projectFilePath(projectDir, 'story.json');
           fs.writeFileSync(storyPath, JSON.stringify(story, null, 2));
@@ -567,93 +881,170 @@ function createStudioServer(options = {}) {
           return;
         }
 
-        // POST /api/tts
-        if (pathname === '/api/tts' && req.method === 'POST') {
-          const body = await parseJsonBody(req);
-          const backend = body.backend || 'local';
-          const ttsScript = path.join(__dirname, 'tts.js');
-          const buildTlScript = path.join(__dirname, 'build_timeline.js');
-
-          const proc = spawn(process.execPath, [ttsScript, '--backend', String(backend)], {
-            cwd: projectDir,
-            env: process.env
-          });
-
-          let logs = '';
-          proc.stdout.on('data', d => { logs += d.toString(); });
-          proc.stderr.on('data', d => { logs += d.toString(); });
-
-          proc.on('close', code => {
-            if (code === 0 && fs.existsSync(buildTlScript)) {
-              try {
-                const tlLog = execFileSync(process.execPath, [buildTlScript], { cwd: projectDir }).toString();
-                logs += '\n' + tlLog;
-              } catch (e) {
-                logs += '\nbuild_timeline error: ' + e.message;
+        if (pathname === '/api/tts/settings' && ['GET', 'POST'].includes(req.method)) {
+          const dir = fs.realpathSync(projectDir);
+          const body = req.method === 'POST' ? await parseJsonBody(req) : null;
+          if (req.method === 'POST' && (body?.projectDir !== projectDir || dir !== fs.realpathSync(projectDir))) {
+            sendJson(res, 409, { ok: false, error: '工程已切换，请重新打开配音设置。' });
+            return;
+          }
+          const isStory = fs.existsSync(path.join(dir, 'story.json'));
+          const file = projectFilePath(dir, isStory ? 'story.json' : 'script.json');
+          const source = JSON.parse(fs.readFileSync(file, 'utf8'));
+          const config = isStory ? source.meta : source;
+          let settings = settingsFor(config.tts);
+          let changed = false;
+          if (req.method === 'POST') {
+            settings = parseSettings(body.settings);
+            changed = JSON.stringify(settings) !== JSON.stringify(settingsFor(config.tts));
+            if (changed) {
+              if (activeProjects.has(dir)) {
+                sendJson(res, 409, { ok: false, error: '当前工程正在配音或导出，请稍后再保存。' });
+                return;
               }
+              config.tts = { ...settings, revision: crypto.randomUUID() };
+              atomicWrite(file, JSON.stringify(source, null, 2));
+              clearShotDraft();
             }
-            sendJson(res, 200, {
-              ok: code === 0,
-              code,
-              logs
-            });
-          });
+          }
+          const result = { ok: true, projectDir, settings, changed,
+            needsVoice: !!config.tts?.revision && !narrationRevisionMatches(dir, config.tts.revision) };
+          if (req.method === 'GET') result.voices = await localVoices();
+          sendJson(res, 200, result);
           return;
         }
 
-        // POST /api/export
-        if (pathname === '/api/export' && req.method === 'POST') {
-          const taskId = 'task_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
-          const taskRecord = {
-            id: taskId,
-            status: 'running',
-            progress: 10,
-            log: 'Starting export pipeline...\n'
-          };
-          tasks.set(taskId, taskRecord);
+        if (pathname === '/api/tts/audition' && req.method === 'POST') {
+          const body = await parseJsonBody(req);
+          const settings = parseSettings(body?.settings);
+          if (voiceAudition) {
+            sendJson(res, 409, { ok: false, error: '正在合成上一段试听。' });
+            return;
+          }
+          const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mg-voice-audition-'));
+          voiceAudition = true;
+          let logs = '';
+          try {
+            fs.writeFileSync(path.join(dir, 'script.json'), JSON.stringify({
+              tts: { ...settings, revision: 'audition' },
+              scenes: [{ id: 'sample', narration: '你好。接下来，我们用一段动画，把这个问题说清楚。' }]
+            }));
+            await runWorker(path.join(__dirname, 'tts.js'), [], {
+              cwd: dir, spawnProcess: options.spawnProcess, timeout: 125000, onLog: chunk => { logs += chunk; }
+            });
+            const sample = fs.readFileSync(path.join(dir, 'vo', 'sample.wav'));
+            res.writeHead(200, { 'Content-Type': 'audio/wav', 'Cache-Control': 'no-store' });
+            res.end(sample);
+          } catch (error) {
+            const message = settings.backend === 'bailian' ? '百炼试听失败。请检查 bl 登录状态、模型和音色。' :
+              '本地试听失败。请检查系统音色与 FFmpeg。';
+            sendJson(res, 422, { ok: false, error: message + ' ' + (logs.trim() || error.message).slice(-500) });
+          } finally {
+            voiceAudition = false;
+            fs.rmSync(dir, { recursive: true, force: true });
+          }
+          return;
+        }
 
-          const exportProjectDir = projectDir;
-          // 异步执行编译与导出
-          setTimeout(() => {
+        // 创片导出使用固定的工程副本，继续编辑时不会改变正在渲染的内容。
+        if ((pathname === '/api/tts' || pathname === '/api/export') && req.method === 'POST') {
+          const workDir = fs.realpathSync(projectDir);
+          const body = await parseJsonBody(req);
+          if (body.projectDir && body.projectDir !== projectDir) {
+            sendJson(res, 409, { ok: false, error: '工程已切换，请在当前工程重试。' });
+            return;
+          }
+          const storyPath = path.join(workDir, 'story.json');
+          const scriptPath = path.join(workDir, 'script.json');
+          const story = fs.existsSync(storyPath) ? JSON.parse(fs.readFileSync(storyPath, 'utf8')) : null;
+          const tts = story ? story.meta?.tts
+            : fs.existsSync(scriptPath) && JSON.parse(fs.readFileSync(scriptPath, 'utf8')).tts;
+          const backend = body.backend || tts?.backend || 'local';
+          if (!BACKENDS.includes(backend)) {
+            sendJson(res, 400, { ok: false, error: '未知配音后端' });
+            return;
+          }
+          if (tts?.revision && backend !== tts.backend) {
+            sendJson(res, 422, { ok: false, error: '请在配音设置里切换引擎。' });
+            return;
+          }
+          const isExport = pathname === '/api/export';
+          if (isExport && story && pendingShots(story).length) {
+            sendJson(res, 422, { ok: false, error: '请先核对医学内容与出处，再正式导出。' });
+            return;
+          }
+          if (activeProjects.has(workDir) || (isExport && activeExports.has(workDir))) {
+            sendJson(res, 409, { ok: false, error: '当前工程正在配音或导出' });
+            return;
+          }
+          const snapshot = isExport && story?.meta.director ? projectSnapshot(workDir) : null;
+          const busy = snapshot ? activeExports : activeProjects;
+          busy.add(workDir);
+          function run(name, args, onLog, timeout) {
+            return runWorker(path.join(__dirname, name), args, {
+              cwd: snapshot || workDir, onLog, spawnProcess: options.spawnProcess, timeout
+            });
+          }
+
+          if (pathname === '/api/tts') {
+            let logs = '';
+            const log = chunk => { logs += chunk; };
             try {
-              taskRecord.log += 'Step 1/3: Compiling project...\n';
-              const comp = compileProject(exportProjectDir);
-              if ((comp.errors || []).length) {
-                taskRecord.status = 'error';
-                taskRecord.log += 'Compilation failed:\n' + comp.errors.join('\n');
-                return;
+              await run('compile.js', [], log, 30000);
+              const script = JSON.parse(fs.readFileSync(scriptPath, 'utf8'));
+              const current = narrationRevisionMatches(workDir, tts?.revision);
+              const ttsArgs = ['--backend', backend, ...(!current || body.retime === true ? ['--reuse'] : [])];
+              const hasShotVoice = sc => fs.existsSync(path.join(workDir, 'vo', sc.id + '.wav'));
+              if (current && script.scenes.some(sc => sc.id === body.only) &&
+                  script.scenes.every(sc => sc.id === body.only || hasShotVoice(sc))) {
+                ttsArgs.push('--only', body.only);
               }
-              taskRecord.progress = 40;
-              taskRecord.log += 'Step 2/3: Checking audio & timeline...\n';
-
-              const makeSh = path.join(__dirname, 'make.sh');
-              if (fs.existsSync(makeSh)) {
-                taskRecord.log += 'Step 3/3: Running make.sh...\n';
-                const sub = (options.spawnProcess || spawn)('bash', [makeSh, path.resolve(__dirname, '..'), 'local', 'output'], { cwd: exportProjectDir, env: process.env });
-                sub.on('error', err => {
-                  taskRecord.status = 'error';
-                  taskRecord.log += '\nFailed to start export: ' + err.message;
-                });
-                sub.stdout.on('data', d => {
-                  taskRecord.log += d.toString();
-                  if (taskRecord.progress < 90) taskRecord.progress += 5;
-                });
-                sub.stderr.on('data', d => { taskRecord.log += d.toString(); });
-                sub.on('close', code => {
-                  taskRecord.status = code === 0 ? 'done' : 'error';
-                  taskRecord.progress = code === 0 ? 100 : taskRecord.progress;
-                  taskRecord.log += `\nExport finished with exit code ${code}.\n`;
-                });
-              } else {
-                taskRecord.status = 'error';
-                taskRecord.log += 'Export pipeline make.sh is missing.\n';
+              if (!current || body.retime !== true || !script.scenes.every(hasShotVoice)) {
+                await run('tts.js', ttsArgs, log, 300000);
               }
-            } catch (e) {
-              taskRecord.status = 'error';
-              taskRecord.log += 'Export error: ' + e.message;
+              await run('build_timeline.js', [], log, 30000);
+              await run('assemble_audio.js', [], log, 30000);
+              sendJson(res, 200, { ok: true, code: 0, logs });
+            } catch (error) {
+              sendJson(res, 200, { ok: false, code: 1, logs: logs + '\n' + error.message });
+            } finally {
+              activeProjects.delete(workDir);
             }
-          }, 50);
+            return;
+          }
 
+          const taskId = 'task_' + crypto.randomUUID();
+          const task = { id: taskId, status: 'running', progress: 10, log: 'Starting export pipeline...\n' };
+          tasks.set(taskId, task);
+          const log = chunk => {
+            task.log = (task.log + chunk).slice(-65536);
+            if (/==> [1-5]/.test(chunk)) task.progress = Math.min(task.progress + 10, 95);
+          };
+          run('export.js', [backend, 'output'], log)
+            .then(() => {
+              if (snapshot) {
+                const destination = path.join(workDir, 'out');
+                fs.mkdirSync(destination, { recursive: true });
+                const exportPath = path.join(destination, 'output.mp4');
+                const tempPath = path.join(destination, taskId + '.mp4.tmp');
+                try {
+                  fs.copyFileSync(path.join(snapshot, 'out', 'output.mp4'), tempPath);
+                  fs.renameSync(tempPath, exportPath);
+                } finally {
+                  fs.rmSync(tempPath, { force: true });
+                }
+              }
+              task.status = 'done';
+              task.progress = 100;
+            })
+            .catch(error => {
+              task.status = 'error';
+              log('\nExport failed: ' + error.message);
+            })
+            .finally(() => {
+              busy.delete(workDir);
+              if (snapshot) fs.rmSync(snapshot, { recursive: true, force: true });
+            });
           sendJson(res, 200, { ok: true, taskId });
           return;
         }
@@ -700,10 +1091,20 @@ function createStudioServer(options = {}) {
       return;
     }
 
-    let reqPath = decodedPath.startsWith('/') ? '.' + decodedPath : './' + decodedPath;
-    const safePath = path.resolve(projectDir, reqPath);
+    let staticRoot = projectDir;
+    if (decodedPath.startsWith('/director-preview/')) {
+      const match = /^\/director-preview\/([a-f0-9-]+)\/(scene\.html|timeline\.json|vo\/narration\.wav|assets\/[a-f0-9]{64}\.(?:png|jpg|webp|svg|mp4|webm))$/.exec(decodedPath);
+      if (!match || !shotDraft || match[1] !== shotDraft.token) {
+        sendJson(res, 404, { ok: false, error: '改版预览已关闭。' });
+        return;
+      }
+      staticRoot = shotDraft.root;
+      decodedPath = '/' + match[2];
+    }
+    const reqPath = decodedPath.startsWith('/') ? '.' + decodedPath : './' + decodedPath;
+    const safePath = path.resolve(staticRoot, reqPath);
 
-    if (safePath !== projectDir && !safePath.startsWith(projectDir + path.sep)) {
+    if (safePath !== staticRoot && !safePath.startsWith(staticRoot + path.sep)) {
       res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
       res.end('403 Forbidden: Directory traversal attempt detected.');
       return;
@@ -716,20 +1117,44 @@ function createStudioServer(options = {}) {
         return;
       }
 
-      const realRoot = fs.realpathSync(projectDir);
-      const realFile = fs.realpathSync(safePath);
+      let realRoot, realFile;
+      try {
+        realRoot = fs.realpathSync(staticRoot);
+        realFile = fs.realpathSync(safePath);
+      } catch {
+        sendJson(res, 404, { ok: false, error: '文件已移除。' });
+        return;
+      }
       if (!realFile.startsWith(realRoot + path.sep)) {
         sendJson(res, 403, { ok: false, error: 'File is outside the project' });
         return;
       }
       const ext = path.extname(safePath).toLowerCase();
       const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-      res.writeHead(200, {
+      const headers = {
         'Content-Type': contentType,
         'Content-Length': stats.size,
         'Cache-Control': 'no-cache'
-      });
-      fs.createReadStream(safePath).pipe(res);
+      };
+      const seekable = contentType.startsWith('audio/') || contentType.startsWith('video/');
+      if (seekable) headers['Accept-Ranges'] = 'bytes';
+      const range = seekable && /^bytes=(\d+)-(\d*)$/.exec(req.headers.range || '');
+      let streamRange;
+      if (range) {
+        const start = Number(range[1]);
+        const end = Math.min(stats.size - 1, range[2] ? Number(range[2]) : stats.size - 1);
+        if (!Number.isSafeInteger(start) || start > end) {
+          res.writeHead(416, { 'Content-Range': 'bytes */' + stats.size });
+          res.end();
+          return;
+        }
+        headers['Content-Length'] = end - start + 1;
+        headers['Content-Range'] = `bytes ${start}-${end}/${stats.size}`;
+        streamRange = { start, end };
+      }
+      res.writeHead(streamRange ? 206 : 200, headers);
+      if (req.method === 'HEAD') res.end();
+      else fs.createReadStream(safePath, streamRange).pipe(res);
     });
   });
 
@@ -747,7 +1172,11 @@ function createStudioServer(options = {}) {
       server.on('error', reject);
     }),
     close: () => new Promise((resolve) => {
-      server.close(resolve);
+      server.close(() => {
+        clearShotDraft();
+        if (draftAssets) fs.rmSync(draftAssets, { recursive: true, force: true });
+        resolve();
+      });
     })
   };
 }

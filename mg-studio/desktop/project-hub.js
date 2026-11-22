@@ -26,19 +26,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // 3. 打开演示工程 (Demo)
-  btnOpenDemo.addEventListener('click', async () => {
-    if (window.desktopAPI) {
-      await window.desktopAPI.switchProject({ demo: true });
-    }
-  });
-
-  // 4. 点击内置模板
-  document.querySelectorAll('.template-item').forEach(item => {
-    item.addEventListener('click', async () => {
-      const tplId = item.getAttribute('data-template');
-      if (window.desktopAPI) {
-        await window.desktopAPI.switchProject({ templateId: tplId, action: 'wizard' });
+  const sampleStatus = document.getElementById('sampleStatus');
+  const sampleButtons = [btnOpenDemo, ...document.querySelectorAll('[data-example]')];
+  sampleButtons.forEach(button => {
+    button.addEventListener('click', async () => {
+      if (!window.desktopAPI) return;
+      sampleStatus.hidden = false;
+      sampleStatus.textContent = '正在打开示例工程…';
+      sampleButtons.forEach(item => { item.disabled = true; });
+      try {
+        const result = await window.desktopAPI.switchProject({ demo: true, demoId: button.dataset.example });
+        if (!result.ok) throw new Error(result.error);
+      } catch (error) {
+        sampleStatus.textContent = `无法打开示例工程。 ${error.message}`;
+      } finally {
+        sampleButtons.forEach(item => { item.disabled = false; });
       }
     });
   });
@@ -63,11 +65,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         item.className = 'recent-item';
         item.innerHTML = `
           <div class="recent-info">
-            <h4>${p.title || '未命名工程'}</h4>
-            <p title="${p.path}">${p.path}</p>
+            <h4></h4>
+            <p></p>
           </div>
           <span class="recent-badge">${p.audience === 'patient' ? '患者科普' : p.audience === 'professional' ? '专业学术' : '通用'}</span>
         `;
+        item.querySelector('h4').textContent = p.title || '未命名工程';
+        const location = item.querySelector('p');
+        location.textContent = location.title = p.path;
         item.addEventListener('click', async () => {
           await window.desktopAPI.switchProject(p.path);
         });

@@ -8,7 +8,7 @@ const ROOT = path.join(__dirname, '..');
 
 test('tts：旁白文本作为单个 argv 元素，不经 shell 展开', () => {
   const narration = '你好 $(touch /tmp/PWNED) `id` 世界';
-  const { cmd, args, env } = buildTtsCommand({ cfg: { backend: 'local' }, sc: { id: 'a', narration }, raw: '/tmp/a.aiff' });
+  const { cmd, args, env } = buildTtsCommand({ cfg: { backend: 'local' }, sc: { id: 'a', narration }, raw: '/tmp/a.aiff', platform: 'darwin' });
   assert.equal(cmd, 'say');
   assert.ok(Array.isArray(args));
   assert.equal(args[args.length - 1], narration, '旁白必须是单个参数原样传入');
@@ -45,4 +45,14 @@ test('tts：含 $(...) 的旁白不会执行命令（端到端，macOS）', { sk
   execFileSync('node', [path.join(ROOT, 'scripts', 'tts.js'), '--backend', 'local'], { cwd: work, encoding: 'utf8', timeout: 60000 });
   assert.ok(fs.existsSync(path.join(work, 'vo', 'a.wav')), '配音文件应生成');
   assert.ok(!fs.existsSync(victim), '旁白里的 $(touch ...) 不得被执行');
+});
+
+test('Windows 配音通过标准输入传递 Unicode 旁白与输出路径', () => {
+  const narration = '中文旁白 "保留引号"';
+  const raw = 'C:\\用户\\语音 01.wav';
+  const { cmd, args, input } = buildTtsCommand({ cfg: { backend: 'local' }, sc: { narration }, raw, platform: 'win32' });
+  assert.equal(cmd, 'powershell.exe');
+  assert.ok(args.includes('-EncodedCommand'));
+  assert.ok(!args.includes(narration));
+  assert.deepEqual(JSON.parse(input.toString('utf8')), { text: narration, output: raw, chinese: true });
 });

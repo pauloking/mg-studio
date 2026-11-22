@@ -8,6 +8,9 @@ const { COMPONENTS, LAYOUT_NAMES } = require('./components');
 const { lintMotion } = require('./motion-lint');
 const { lintMedical, DISCLAIMER } = require('./medical-lint');
 const { checkElementProps } = require('./props');
+const { composeScenes } = require('./motion-plan');
+const { checkedAssetPath } = require('./project-assets');
+const { visualContext } = require('./shared-stage');
 
 function normalizeScene(sc, components = COMPONENTS) {
   const errors = [];
@@ -45,28 +48,45 @@ function normalizeScene(sc, components = COMPONENTS) {
 function buildScriptJson(project) {
   const m = project.story.meta;
   const v = m.video || {};
+  const sharedStages = m.director?.sharedStages;
   return {
     schema: 2,
-    renderContext: { tokens: project.tokens, disclaimer: m.audience === 'patient' ? DISCLAIMER : null },
+    renderContext: { tokens: project.tokens, disclaimer: m.audience === 'patient' ? DISCLAIMER : null,
+      ...(sharedStages ? { sharedStages: visualContext(sharedStages) } : {}) },
     fps: v.fps || 30, width: v.width || 1920, height: v.height || 1080,
-    options: Object.assign({ pad: 1.1, leadIn: .45, introLeadIn: .7, introMinSec: 6.5, outroMinSec: 8.5 }, m.options || {}),
+    options: Object.assign({ pad: 1.1, leadIn: .45, introLeadIn: .7, introMinSec: 6.5, outroMinSec: 8.5 },
+      m.options || {}, m.director?.framePlan ? { framePlan: m.director.framePlan } : {}),
     tts: m.tts || { backend: 'local' },
     scenes: project.scenes.map(sc => ({
       id: sc.id, minSec: sc.minSec || 0, narration: sc.narration,
       subs: sc.subsOverride || splitSubs(sc.narration),
-      beat: sc.beat, layout: sc.layout, elements: sc.elements, cues: sc.cues || []
+      beat: sc.beat, layout: sc.layout, elements: sc.elements, cues: sc.cues || [],
+      ...(sc.segment ? { segment: sc.segment } : {}),
+      ...(sc.stage ? { stage: sc.stage } : {}),
+      ...(sc.transition ? { transition: sc.transition } : {})
     }))
   };
 }
 
-function compileProject(dir) {
+function prepareRenderScenes(project) {
+  const original = project.scenes.map(sc => normalizeScene(sc));
+  return composeScenes({ ...project, scenes: original }).map((sc, i) =>
+    sc === original[i] ? sc : normalizeScene(sc));
+}
+
+function compileProject(dir, settings = {}) {
   const project = ir.loadProject(dir, LAYOUT_NAMES);
   if (project.mode === 'v1') return { mode: 'v1' };
+  if (settings.motion != null) project.story.meta.motion = settings.motion;
   const errors = [];
   const vid = project.story.meta.video;
   if (vid && ((vid.fps != null && vid.fps !== 30) || (vid.width != null && vid.width !== 1920) || (vid.height != null && vid.height !== 1080)))
     errors.push('M1 渲染核冻结 30fps/1920×1080，meta.video 不可覆盖（fps/width/height）');
   for (const sc of project.scenes) {
+    for (const layer of sc.elements) if (sc.layout === 'directed' && layer.props.media?.file) {
+      try { checkedAssetPath(dir, layer.props.media); }
+      catch (error) { errors.push(error.message); }
+    }
     if (sc.custom) errors.push(`scene ${sc.id} 使用了 custom 逃生舱（M2 实现，M1 暂不支持）`);
     if (sc.subsOverride) {
       const c = checkSubs(sc.subsOverride, sc.narration);
@@ -78,7 +98,7 @@ function compileProject(dir) {
     }
   }
   let scenes, lint = [];
-  try { scenes = project.scenes.map(sc => normalizeScene(sc, COMPONENTS)); }
+  try { scenes = prepareRenderScenes(project); }
   catch (e) { errors.push(e.message); scenes = project.scenes; }
   if (!errors.length) {
     lint = lintMotion({ scenes, tokens: project.tokens, components: COMPONENTS });
@@ -91,7 +111,9 @@ function compileProject(dir) {
   for (const sc of scenes) for (const el of sc.elements)
     if (el.type === 'waveform') el.props.colorHex = project.tokens.colors[el.props.color || 'accent'];
   const script = buildScriptJson(Object.assign({}, project, { scenes }));
-  const html = emitSceneHtml({ tokens: project.tokens, scenes, components: COMPONENTS, preRuntime: PRE_RUNTIME, disclaimer: ((project.story.meta && project.story.meta.audience) === 'patient') ? DISCLAIMER : null });
+  const html = emitSceneHtml({ tokens: project.tokens, scenes, components: COMPONENTS, preRuntime: PRE_RUNTIME,
+    sharedStages: project.story.meta.director?.sharedStages,
+    disclaimer: project.story.meta.audience === 'patient' ? DISCLAIMER : null });
   const scriptPath = path.join(dir, 'script.json');
   const htmlPath = path.join(dir, 'scene.html');
   fs.writeFileSync(scriptPath, JSON.stringify(script, null, 2));
@@ -99,4 +121,4 @@ function compileProject(dir) {
   return { mode: 'v2', scriptPath, htmlPath, lint, errors };
 }
 
-module.exports = { normalizeScene, buildScriptJson, compileProject };
+module.exports = { normalizeScene, prepareRenderScenes, buildScriptJson, compileProject };

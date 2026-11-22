@@ -207,10 +207,32 @@ test('Studio HTTP 服务端生命周期与核心路由集成测试', async () =>
     assert.equal(taskData.id, exportData.taskId);
     assert.equal(taskData.status, 'done', taskData.log);
     assert.equal(calls.length, 1);
-    assert.deepEqual(calls[0].slice(0, 2), ['bash', [path.join(ROOT, 'scripts', 'make.sh'), ROOT, 'local', 'output']]);
+    assert.deepEqual(calls[0].slice(0, 2), [process.execPath, [path.join(ROOT, 'scripts', 'export.js'), 'local', 'output']]);
     assert.equal(calls[0][2].cwd, work);
     assert.ok(taskData.log.length > 0);
 
+    const settingsUrl = baseUrl + '/api/tts/settings';
+    const profile = { backend: 'bailian', voice: 'longanlingxin', speed: 1.2, model: 'speech-model', instruction: '自然讲解' };
+    const save = (settings, dir = work) => fetch(settingsUrl, {
+      method: 'POST', body: JSON.stringify({ projectDir: dir, settings })
+    });
+    assert.equal((await save({ ...profile, speed: 0 })).status, 422);
+    assert.equal((await save(profile, path.dirname(work))).status, 409);
+    const saved = await (await save(profile)).json();
+    assert.equal(saved.needsVoice, true);
+    assert.equal(saved.changed, true);
+    const afterSave = await (await fetch(settingsUrl)).json();
+    assert.deepEqual(afterSave.settings, profile);
+    assert.equal((await (await save(profile)).json()).changed, false);
+    // A story edit from a client that loaded before the voice change must retain it.
+    assert.equal((await fetch(baseUrl + '/api/story', {
+      method: 'POST', body: JSON.stringify({ story: updatedStory })
+    })).status, 200);
+    const compiled = JSON.parse(fs.readFileSync(path.join(work, 'script.json'), 'utf8'));
+    assert.deepEqual(compiled.tts, { ...profile, revision: compiled.tts.revision });
+    assert.ok(compiled.tts.revision);
+    await fetch(baseUrl + '/api/tts', { method: 'POST', body: JSON.stringify({ only: 'hook', retime: true }) });
+    assert.deepEqual(calls[2][1], [path.join(ROOT, 'scripts', 'tts.js'), '--backend', 'bailian', '--reuse']);
   } finally {
     await app.close();
   }

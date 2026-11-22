@@ -17,6 +17,7 @@ const fs = require('fs'), path = require('path'), http = require('http');
 function loadPW() {
   if (process.env.PW_PATH) return require(process.env.PW_PATH);
   try { return require('playwright'); } catch (e) {}
+  try { return require('playwright-core'); } catch (e) {}
   try {
     const root = require('child_process').execSync('npm root -g', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
     return require(path.join(root, 'playwright'));
@@ -34,7 +35,8 @@ function launchOptions() {
 }
 function serve(root) {
   const ROOT = path.resolve(root);
-  const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.css': 'text/css' };
+  const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png',
+    '.css': 'text/css', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.mp4': 'video/mp4', '.webm': 'video/webm' };
   const server = http.createServer((req, res) => {
     let p = decodeURIComponent(req.url.split('?')[0]);
     if (p === '/') p = '/scene.html';

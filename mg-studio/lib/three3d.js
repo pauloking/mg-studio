@@ -34,7 +34,7 @@ function renderThreeScene({ threeProjectDir, outDir, frameCount, fps = 30, width
   const args = [path.join(threeProjectDir, CONTRACT), '--out', outDir, '--frames', String(frameCount),
     '--fps', String(fps), '--width', String(width), '--height', String(height)];
   if (tokensPath) args.push('--tokens', tokensPath);
-  try { execFileSync('node', args, { cwd: threeProjectDir, stdio: ['ignore', 'pipe', 'pipe'] }); }
+  try { execFileSync(process.execPath, args, { cwd: threeProjectDir, stdio: ['ignore', 'pipe', 'pipe'] }); }
   catch (e) { return { ok: false, count: 0, expected: frameCount, err: 'render_frames 执行失败: ' + ((e.message || e) + '').slice(0, 200) }; }
   const count = fs.existsSync(outDir) ? fs.readdirSync(outDir).filter(f => f.endsWith('.png')).length : 0;
   return { ok: count === frameCount, count, expected: frameCount, err: count === frameCount ? null : `帧数 ${count} != ${frameCount}` };

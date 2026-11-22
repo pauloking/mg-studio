@@ -7,6 +7,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { narrationRevisionFile } = require('../lib/voice-settings');
 const tl = require(path.join(process.cwd(), 'timeline.json'));
 const SR = 44100;
 const totalSec = tl.totalFrames / tl.fps;
@@ -45,6 +46,9 @@ for (const sc of tl.scenes) {
   for (let i = 0; i < samples.length && start + i < N; i++) vo[start + i] += samples[i] * 0.95;
 }
 writeWav(path.join(process.cwd(), 'vo', 'narration.wav'), vo);
+const revisionFile = narrationRevisionFile(process.cwd());
+if (tl.voiceRevision) fs.writeFileSync(revisionFile, tl.voiceRevision);
+else fs.rmSync(revisionFile, { force: true });
 console.log('narration.wav', totalSec.toFixed(2) + 's');
 
 if (process.env.BGM === '0') { console.log('BGM 已跳过 (BGM=0)'); return; }

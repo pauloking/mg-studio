@@ -114,6 +114,20 @@ header {
   align-items: center;
   gap: 8px;
 }
+.voice-toolbar { display: flex; }
+.voice-toolbar #btnTts { border-radius: 6px 0 0 6px; padding-right: 9px; }
+.voice-toolbar #btnVoiceSettings { border-radius: 0 6px 6px 0; border-left: 0; padding-inline: 8px; white-space: nowrap; }
+#btnVoiceSettings[data-needs-voice] { color: #fde68a; }
+@media (max-width: 1280px) {
+  header { gap: 8px; }
+  header .brand-group { min-width: 0; gap: 8px; }
+  header .action-buttons { flex-shrink: 0; gap: 5px; }
+  header button, .logo-badge { white-space: nowrap; }
+  header button { padding-inline: 8px; }
+  #topMeta, .toolbar-new-project-extra, header .style-picker label { display: none; }
+  #topTitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #styleSelect { max-width: 180px; }
+}
 button {
   background: var(--bg-card);
   color: var(--text-main);
@@ -132,6 +146,7 @@ button:hover {
   background: var(--bg-hover);
   border-color: var(--accent-light);
 }
+#btnMoreLiterature[hidden] { display: none; }
 button.primary {
   background: var(--accent);
   border-color: var(--accent);
@@ -312,6 +327,29 @@ button.primary:hover {
   display: flex;
   gap: 6px;
   z-index: 5;
+}
+.stage-motion {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.stage-motion label { display:flex; align-items:center; gap:6px; white-space:nowrap; }
+.stage-motion label[hidden] { display:none; }
+.stage-motion select { width:auto; padding:4px 7px; font-size:12px; }
+#shotRange select { max-width:clamp(84px,11vw,155px); }
+.stage-center:has(#shotRange:not([hidden])) .stage-overlays { top:56px; }
+.director-data { margin-top: 8px; }
+.director-data table { width: 100%; table-layout: fixed; border-spacing: 3px; }
+.director-data th { font-size: 11px; font-weight: 500; color: var(--text-muted); text-align: left; }
+.director-data input { min-width: 0; width: 100%; padding: 3px; font-size: 11px; }
+@media (max-width: 1120px) {
+  .stage-overlays { top: 56px; }
 }
 .overlay-toggle {
   background: rgba(24, 27, 36, 0.85);
@@ -627,6 +665,39 @@ textarea {
 .modal-mask.show {
   display: flex;
 }
+#voiceSettingsDialog {
+  margin: auto;
+  padding: 22px;
+  width: min(500px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  background: var(--bg-panel);
+  color: var(--text-main);
+}
+#voiceSettingsDialog::backdrop { background: rgba(7, 9, 15, .72); }
+#voiceSettingsDialog h2 { font-size: 18px; }
+#voiceSettingsDialog p { font-size: 13px; line-height: 1.5; color: var(--text-muted); }
+#voiceSettingsDialog form, #voiceSettingsDialog fieldset { display: grid; gap: 12px; border: 0; }
+#voiceSettingsDialog form { margin-top: 12px; }
+#voiceSettingsDialog fieldset[hidden], #voiceAuditionPlayer[hidden] { display: none; }
+#voiceSettingsDialog label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
+#voiceSpeedOutput { font-size: 13px; font-weight: 600; }
+#voiceSettingsDialog :is(input:not([type=range]), select, textarea) {
+  width: 100%;
+  padding: 8px 10px;
+  color: var(--text-main);
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  font: inherit;
+  font-weight: 400;
+}
+#voiceSettingsDialog input[type=range] { width: 100%; accent-color: var(--accent-light); }
+#voiceSettingsDialog textarea { resize: vertical; min-height: 62px; }
+.voice-dialog-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+#voiceSettingsDialog #voiceSettingsStatus[data-error] { color: #fda4af; }
+#voiceAuditionPlayer { width: 100%; height: 34px; }
 .modal-box {
   background: var(--bg-panel);
   border: 1px solid var(--border);
@@ -752,9 +823,9 @@ textarea {
   </div>
 
   <div class="action-buttons">
-    <button id="btnNewProject" class="primary" style="background: linear-gradient(135deg, #6366f1, #06b6d4); font-weight:700; border:none; box-shadow:0 2px 10px rgba(99,102,241,0.4);" title="开启 AI 视频策划与文献检索向导">
+    <button id="btnNewProject" type="button" aria-haspopup="dialog" aria-controls="creatorModal" class="primary" style="background: linear-gradient(135deg, #6366f1, #06b6d4); font-weight:700; border:none; box-shadow:0 2px 10px rgba(99,102,241,0.4);" title="开启 AI 视频策划与文献检索向导">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      新建视频 (AI 创作工坊)
+      <span>新建视频<span class="toolbar-new-project-extra"> (AI 创作工坊)</span></span>
     </button>
     <button id="btnCompile" title="重新编译 script.json 与 scene.html">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
@@ -764,10 +835,13 @@ textarea {
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
       门禁质检
     </button>
-    <button id="btnTts" title="合成场景配音与对齐字幕">
+    <div class="voice-toolbar">
+    <button id="btnTts" type="button" title="按当前设置生成配音与字幕">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
       配音
     </button>
+    <button id="btnVoiceSettings" type="button" aria-haspopup="dialog" aria-controls="voiceSettingsDialog">配音设置</button>
+    </div>
     <button id="btnExport" class="primary" title="渲染并出片 1080p MP4">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
       导出视频
@@ -786,6 +860,9 @@ textarea {
         <span class="beat-count" id="beatCount">0 BEATS</span>
       </div>
     </div>
+    <details id="directorArc" hidden style="margin:8px 12px;color:var(--text-muted);font-size:12px;">
+      <summary>故事主线</summary><div id="directorArcBody"></div>
+    </details>
     <div class="beat-list" id="beatList">
       <!-- 动态插入 Beat 卡片 -->
     </div>
@@ -793,6 +870,20 @@ textarea {
 
   <!-- 中央主舞台：1080p 画布 + 帧控制器 -->
   <section class="stage-center">
+    <div class="stage-motion">
+      <label id="motionPicker" for="motionSelect" hidden title="应用到标题和单要点分镜">
+        动态编排
+        <select id="motionSelect">
+          <option value="classic">原始布局</option>
+          <option value="flow">流程推进</option>
+          <option value="focus">焦点展开</option>
+        </select>
+      </label>
+      <button id="btnReplayScene" type="button" disabled title="从当前分镜第一帧重播">重播本镜</button>
+      <label id="shotRange" hidden>选段 <select id="shotRangeStart" aria-label="选段起始镜头"></select>
+        <span aria-hidden="true">至</span> <select id="shotRangeEnd" aria-label="选段结束镜头"></select>
+        <button id="shotRangePlay" type="button">试听选段</button></label>
+    </div>
     <div class="stage-overlays">
       <button class="overlay-toggle" id="toggleGrid">辅助网格</button>
       <button class="overlay-toggle" id="toggleSubtitleSafe">字幕盲区</button>
@@ -830,6 +921,7 @@ textarea {
         </div>
 
         <div class="time-readout">
+          <button id="btnSplitScene" type="button" hidden title="在播放头附近的字幕分界处拆分，保留原配音和运动">按字幕拆镜</button>
           <span class="current-time" id="curTimeText">00:00.00 (F: 0)</span>
           <span class="total-time" id="totalTimeText">/ 00:00.00</span>
         </div>
@@ -867,11 +959,42 @@ textarea {
       <div class="form-group">
         <label>缓动预设 (Easing Preset)</label>
         <select id="selEnterEasing">
-          <option value="eo">三次减速平滑 (eo)</option>
-          <option value="overshoot">弹簧超调回弹 (overshoot / spring)</option>
-          <option value="eio">平滑慢进慢出 (eio)</option>
+          <option value="ease">减速进入</option>
+          <option value="spring">回弹进入</option>
+          <option value="easeInOut">慢进慢出</option>
         </select>
       </div>
+      <section id="directorShotControls" hidden class="form-group">
+        <label for="directorRevision">用一句话改当前镜头</label>
+        <textarea id="directorRevision" rows="2" maxlength="450" placeholder="例如：改成同屏对照，保留旁白"></textarea>
+        <label><input type="checkbox" id="directorKeepVoice" checked> 保留旁白</label>
+        <label><input type="checkbox" id="directorKeepAssets" checked> 保留素材</label>
+        <label><input type="checkbox" id="directorKeepComposition"> 保留构图</label>
+        <label><input type="checkbox" id="directorKeepDuration"> 保留镜头时长</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 12px;">
+          <button id="directorRevise" type="button" class="primary">预览改版</button>
+          <button id="directorLock" type="button">锁定本镜</button>
+          <button id="directorUndo" type="button">撤销本镜修改</button>
+        </div>
+        <label for="directorLayer">素材图层</label>
+        <select id="directorLayer"></select>
+        <label for="directorAsset">替换本镜素材</label>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <img id="directorAssetPreview" width="28" height="28" alt="" style="background:#f1f5f9;padding:4px;border-radius:5px;">
+          <select id="directorAsset"></select>
+          <button id="directorReplace" type="button">替换</button>
+        </div>
+        <label for="directorUpload" style="margin-top:8px;">导入工程素材（单个 48 MB 以内）</label>
+        <input type="file" id="directorUpload" multiple accept="image/png,image/jpeg,image/webp,image/svg+xml,video/mp4,video/webm">
+        <details style="margin-top:6px;">
+          <summary>生成专用插图</summary>
+          <label for="directorIllustration">插图描述</label>
+          <input id="directorIllustration" maxlength="450" placeholder="描述画面主体、动作和视觉风格">
+          <button id="directorIllustrate" type="button">生成并替换</button>
+        </details>
+        <div id="directorShotStatus" role="status" style="margin-top:6px;color:var(--text-muted);font-size:12px;"></div>
+      </section>
+      <section class="form-group" id="sharedStageInspector" hidden aria-label="共享场景"></section>
       <div class="form-group" id="dynamicPropsContainer">
         <!-- 动态注入属性输入框 -->
       </div>
@@ -880,6 +1003,11 @@ textarea {
 
     <!-- Tab 2: 医学核查与免责 -->
     <div class="tab-content" id="tabMedical">
+      <div class="form-group" id="directorReviewPanel" hidden>
+        <p id="directorReviewStatus" style="margin-bottom:8px;"></p>
+        <label><input type="checkbox" id="directorReviewCheck"> 已核对本镜旁白、画面和出处</label>
+        <button type="button" id="directorReview">确认本镜</button>
+      </div>
       <div class="form-group">
         <label>受众对象 (Audience)</label>
         <input type="text" id="inpStoryAudience" readonly>
@@ -904,13 +1032,13 @@ textarea {
 </main>
 
 <!-- 模态框：AI 视频策划工坊向导 -->
-<div class="modal-mask" id="creatorModal">
+<div class="modal-mask" id="creatorModal" role="dialog" aria-modal="true" aria-labelledby="creatorTitle">
   <div class="modal-box" style="width: 740px; max-width: 95vw; max-height: 90vh; display: flex; flex-direction: column;">
     <!-- 向导顶栏 -->
     <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 16px;">
       <div style="display:flex; align-items:center; gap:10px;">
         <div style="background: linear-gradient(135deg, #6366f1, #06b6d4); color:white; padding:4px 8px; border-radius:6px; font-size:12px; font-weight:700;">AI CREATOR</div>
-        <h3 style="font-size:16px; font-weight:700;">AI 视频策划工坊 (全流程向导)</h3>
+        <h3 id="creatorTitle" style="font-size:16px; font-weight:700;">AI 视频策划工坊 (全流程向导)</h3>
       </div>
       <button id="btnCloseCreatorModal" style="padding:3px 8px; font-size:11px;">关闭</button>
     </div>
@@ -924,6 +1052,35 @@ textarea {
 
     <!-- Step 1 内容: 选题设定与参考资料上传 -->
     <div class="wz-step-content" id="step1Content" style="flex:1; overflow-y:auto; padding-right:4px;">
+      <section class="form-group" style="padding:14px;background:var(--bg-card);border:1px solid var(--border);border-radius:9px;">
+        <label for="directorBrief">一句话创片</label>
+        <textarea id="directorBrief" rows="2" maxlength="1600" placeholder="给孩子做一条城市科普动画，用一滴雨做主角。"></textarea>
+        <div style="display:flex;flex-wrap:wrap;gap:7px;margin:8px 0;">
+          <button class="primary" id="directorGenerate" type="button">生成并试听</button>
+          <div id="directorSamples" style="display:flex;flex-wrap:wrap;gap:7px;"></div>
+        </div>
+        <details id="directorConfig">
+          <summary>创作模型与参考资料</summary>
+          <label for="directorEndpoint">兼容 Chat Completions 的模型地址</label>
+          <input id="directorEndpoint" type="url" placeholder="https://服务地址/v1">
+          <label for="directorModel">模型名称</label>
+          <input id="directorModel" type="text" autocomplete="off">
+          <label for="directorImageModel">生图模型（选填）</label>
+          <input id="directorImageModel" type="text" autocomplete="off">
+          <label for="directorKey">密钥（仅本次会话）</label>
+          <input id="directorKey" type="password" autocomplete="off">
+          <button id="directorConnect" type="button" style="margin-top:6px;">保存本次配置</button>
+          <label for="directorReference">参考资料（选填）</label>
+          <textarea id="directorReference" rows="2" maxlength="3600"></textarea>
+          <label for="directorSharedTemplate">共享场景（选填）</label>
+          <select id="directorSharedTemplate"><option value="">普通分镜</option>
+            <option value="rain-catchment">街道雨水剖面</option></select>
+          <label for="directorBriefMedia">自有图片或片段（最多 8 个，单个 48 MB 以内）</label>
+          <input id="directorBriefMedia" type="file" multiple accept="image/png,image/jpeg,image/webp,image/svg+xml,video/mp4,video/webm">
+          <label><input type="checkbox" id="directorMedical"> 医学科普</label>
+          <div id="directorConnectionStatus" role="status" style="color:var(--text-muted);"></div>
+        </details>
+      </section>
       <!-- 自定义主题主输入框 -->
       <div class="form-group">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
@@ -1002,10 +1159,10 @@ textarea {
         <div class="form-group">
           <label>叙事模板 (Narrative Template)</label>
           <select id="wzTemplate">
-            <option value="science">科普模板 (Hook-Conflict-Mechanism-Evidence-Takeaway)</option>
-            <option value="teaching">教学拆解 (Objective-Steps-Summary)</option>
-            <option value="product">产品/器械发布 (Hook-Demo-Evidence-CTA)</option>
-            <option value="free">自由模式 (Free)</option>
+            <option value="science">科普讲解</option>
+            <option value="teaching">分步教学</option>
+            <option value="product">产品介绍</option>
+            <option value="free">自由叙述</option>
           </select>
         </div>
       </div>
@@ -1041,17 +1198,41 @@ textarea {
         <input type="text" id="wzSearchQuery" placeholder="搜索文献关键词..." style="flex:1;">
         <button id="btnRunSearch" class="primary" style="white-space:nowrap;">🔍 联网检索文献</button>
       </div>
-      <div id="searchStatus" style="font-size:12px; color:var(--text-muted); margin-bottom:8px;"></div>
+      <div id="searchStatus" role="status" style="font-size:12px; color:var(--text-muted); margin-bottom:8px;"></div>
       
-      <div style="font-size:12px; font-weight:700; color:var(--accent-light); margin-bottom:6px;">权威学术文献检索结果 (Europe PMC / OpenAlex)</div>
-      <div id="wzArticleList" style="max-height:140px; overflow-y:auto; background:var(--bg-card); border:1px solid var(--border); border-radius:6px; padding:8px; margin-bottom:12px;">
+      <div style="font-size:12px; font-weight:700; color:var(--accent-light); margin-bottom:6px;">文献检索结果（Europe PMC / PubMed / OpenAlex）</div>
+      <div id="wzArticleList" style="max-height:min(34vh, 300px); overflow-y:auto; background:var(--bg-card); border:1px solid var(--border); border-radius:6px; padding:8px; margin-bottom:8px;">
         <div style="color:var(--text-muted); font-size:11px;">点击【联网检索文献】后将在此呈现权威论文与指南出处。</div>
       </div>
+      <button id="btnMoreLiterature" type="button" hidden style="margin-bottom:12px;">加载更多文献</button>
 
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-        <div style="font-size:12px; font-weight:700; color:var(--accent-light);">核心医学与科学事实证据库 (Facts Checklist)</div>
+        <div style="font-size:12px; font-weight:700; color:var(--accent-light);">将进入分镜的事实</div>
         <button id="btnAddCustomFact" style="font-size:10px; padding:2px 6px;">+ 手动添加事实</button>
       </div>
+      <p style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">从上方文献添加事实，或填写自己的资料。核对原文后勾选，勾选的内容才会进入分镜。</p>
+      <form id="wzFactEditor" hidden style="padding:12px; background:var(--bg-card); border:1px solid var(--border); border-radius:8px; margin-bottom:12px;">
+        <p id="wzFactPaper" style="font-size:13px; margin-bottom:8px; overflow-wrap:anywhere;"></p>
+        <div id="wzAbstractPanel" hidden class="form-group">
+          <label for="wzAbstractText">原文摘要</label>
+          <div id="wzAbstractStatus" role="status" style="font-size:12px; color:var(--text-muted);"></div>
+          <textarea id="wzAbstractText" rows="4" readonly hidden></textarea>
+          <button id="btnUseAbstractSelection" type="button" hidden>把选中的原文放入摘录</button>
+          <label for="wzFactExcerpt">支持这条事实的原文摘录</label>
+          <textarea id="wzFactExcerpt" rows="2" maxlength="1600" placeholder="从摘要选择或从论文粘贴相关原文"></textarea>
+        </div>
+        <div id="wzFactSourceGroup" class="form-group">
+          <label for="wzFactSource">出处</label>
+          <input type="text" id="wzFactSource" maxlength="300" placeholder="如论文标题、DOI 或资料名称">
+        </div>
+        <div class="form-group">
+          <label for="wzFactText">用于画面和旁白的要点</label>
+          <textarea id="wzFactText" rows="2" maxlength="80" placeholder="用一句简明中文转述，保留研究对象和适用范围（最多 80 字）"></textarea>
+        </div>
+        <button id="btnSaveWizardFact" type="submit" class="primary">保存到事实清单</button>
+        <button id="btnCancelWizardFact" type="button">取消</button>
+        <p id="wzFactEditorStatus" role="status" style="font-size:12px; margin-top:6px;"></p>
+      </form>
       <div id="wzFactsList" style="max-height:160px; overflow-y:auto; display:flex; flex-direction:column; gap:6px;">
         <!-- 动态注入事实条目 -->
       </div>
@@ -1062,7 +1243,7 @@ textarea {
       <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:12px;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <h4 id="previewMetaTitle" style="font-size:15px; color:white;">分镜故事线规划</h4>
-          <span id="previewMetaBadges" style="font-size:11px; color:var(--accent-light);">5 BEATS</span>
+          <span id="previewMetaBadges" style="font-size:11px; color:var(--accent-light);"></span>
         </div>
       </div>
       <div id="wzBeatsPreviewFlow" style="display:flex; flex-direction:column; gap:8px;">
@@ -1070,12 +1251,15 @@ textarea {
       </div>
     </div>
 
+    <div id="wizardStatus" role="status" aria-live="polite" hidden style="font-size:13px; line-height:1.5; max-height:96px; overflow-y:auto; margin-top:10px; color:var(--text-main);"></div>
+
     <!-- 向导底栏操作 -->
     <div style="border-top:1px solid var(--border); padding-top:14px; margin-top:14px; display:flex; justify-content:space-between; align-items:center;">
       <button id="btnWzPrev" style="visibility:hidden;">上一步</button>
       <div style="display:flex; gap:8px;">
         <button id="btnWzNext" class="primary">下一步：文献检索</button>
-        <button id="btnWzCreate" class="primary" style="display:none; background:linear-gradient(135deg, #10b981, #06b6d4); border:none;">🚀 载入工作台并开始演播</button>
+        <button id="directorFromFacts" type="button" style="display:none;">用核实资料创片</button>
+        <button id="btnWzCreate" class="primary" style="display:none; background:linear-gradient(135deg, #10b981, #06b6d4); border:none;">载入工作台</button>
       </div>
     </div>
   </div>
@@ -1124,7 +1308,7 @@ textarea {
   <div class="modal-box">
     <div style="display:flex; justify-content:space-between; align-items:center;">
       <h3 style="font-size:15px; font-weight:600;">视频渲染流水线</h3>
-      <button id="btnCloseModal" style="padding:2px 8px; font-size:11px;">关闭</button>
+      <button id="btnCloseModal" style="padding:2px 8px; font-size:11px;">后台运行</button>
     </div>
     <div class="progress-bar">
       <div class="progress-fill" id="exportProgressFill"></div>
@@ -1132,6 +1316,68 @@ textarea {
     <div class="log-box" id="exportLogBox">等待出片指令...</div>
   </div>
 </div>
+
+<dialog id="directorDraft" aria-labelledby="directorDraftTitle" style="margin:auto;padding:16px;border:1px solid var(--border);border-radius:12px;background:var(--bg-panel);color:var(--text-primary);width:min(820px,calc(100vw - 32px));">
+  <h3 id="directorDraftTitle">本镜改版预览</h3>
+  <p id="directorDraftVoice" style="margin:8px 0;"></p>
+  <div id="directorDraftViewport" style="position:relative;overflow:hidden;aspect-ratio:16/9;background:#000;">
+    <iframe id="directorDraftFrame" title="改版镜头画面" style="position:absolute;left:0;top:0;border:0;transform-origin:top left;"></iframe>
+  </div>
+  <p id="directorDraftStatus" role="status" style="margin:8px 0;"></p>
+  <div style="display:flex;justify-content:flex-end;gap:8px;">
+    <button id="directorDraftReplay" type="button">重播改版</button>
+    <button id="directorDraftCancel" type="button">放弃改版</button>
+    <button id="directorDraftApply" class="primary" type="button">应用到本镜</button>
+  </div>
+</dialog>
+
+<dialog id="voiceSettingsDialog" aria-labelledby="voiceSettingsTitle">
+  <div class="voice-dialog-row">
+    <h2 id="voiceSettingsTitle">配音设置</h2>
+    <button id="btnCloseVoiceSettings" type="button">关闭</button>
+  </div>
+  <p>设置随当前工程保存，工作台预览和视频导出共用。</p>
+  <form id="voiceSettingsForm">
+    <fieldset id="voiceSettingsFields">
+      <label>引擎
+        <select name="backend">
+          <option value="local">系统语音（本地）</option>
+          <option value="bailian">阿里云百炼（通过 bl）</option>
+        </select>
+      </label>
+      <fieldset id="localVoiceFields">
+        <label>系统音色
+          <select name="localVoice"><option value="">默认中文音色</option></select>
+        </label>
+      </fieldset>
+      <fieldset id="cloudVoiceFields" hidden>
+        <p>需要在本机安装并登录百炼 bl。试听和生成配音会调用百炼，可能产生费用。</p>
+        <label>百炼模型
+          <input name="model" maxlength="120" placeholder="qwen-audio-3.0-tts-plus">
+        </label>
+        <label>百炼音色
+          <input name="cloudVoice" maxlength="160" placeholder="longanlingxin">
+        </label>
+        <label>语气指令
+          <textarea name="instruction" maxlength="500" placeholder="如：用自然、清晰的科普口吻朗读"></textarea>
+        </label>
+      </fieldset>
+      <div>
+        <div class="voice-dialog-row"><label for="voiceSpeed">语速</label><output id="voiceSpeedOutput" for="voiceSpeed"></output></div>
+        <input id="voiceSpeed" name="speed" type="range" min="0.75" max="1.5" step="0.05" value="1">
+      </div>
+    </fieldset>
+    <audio id="voiceAuditionPlayer" controls hidden></audio>
+    <p id="voiceSettingsStatus" role="status" aria-live="polite"></p>
+    <div class="voice-dialog-row">
+      <button id="btnAuditionVoice" type="button">试听</button>
+      <div style="display:flex;gap:8px;">
+        <button id="btnSaveVoiceSettings" type="button">保存</button>
+        <button id="btnSaveAndVoice" class="primary" type="submit">保存并重新配音</button>
+      </div>
+    </div>
+  </form>
+</dialog>
 
 <div id="toast">消息提示</div>
 
@@ -1160,17 +1406,32 @@ const state = {
   isPlaying: false,
   playbackSpeed: 1.0,
   playTimer: null,
+  playEnd: 0,
+  motionSceneIds: [],
   overlays: {
     grid: false,
     subtitleSafe: false,
     rects: false
   }
 };
+const previewVoice = new Audio();
+previewVoice.preload = 'auto';
+
+function setPreviewVoice(ready) {
+  previewVoice.pause();
+  if (ready) previewVoice.src = '/vo/narration.wav?t=' + Date.now();
+  else previewVoice.removeAttribute('src');
+  previewVoice.load();
+}
 
 const dom = {
   topTitle: document.getElementById('topTitle'),
   topMeta: document.getElementById('topMeta'),
   styleSelect: document.getElementById('styleSelect'),
+  motionPicker: document.getElementById('motionPicker'),
+  motionSelect: document.getElementById('motionSelect'),
+  btnReplayScene: document.getElementById('btnReplayScene'),
+  btnSplitScene: document.getElementById('btnSplitScene'),
   beatCount: document.getElementById('beatCount'),
   beatList: document.getElementById('beatList'),
   viewportContainer: document.getElementById('viewportContainer'),
@@ -1221,6 +1482,7 @@ const dom = {
   wzStyle: document.getElementById('wzStyle'),
   wzSearchQuery: document.getElementById('wzSearchQuery'),
   btnRunSearch: document.getElementById('btnRunSearch'),
+  btnMoreLiterature: document.getElementById('btnMoreLiterature'),
   searchStatus: document.getElementById('searchStatus'),
   wzArticleList: document.getElementById('wzArticleList'),
   btnAddCustomFact: document.getElementById('btnAddCustomFact'),
@@ -1262,10 +1524,39 @@ const dom = {
 const wizardState = {
   currentStep: 1,
   articles: [],
+  research: null,
+  topicAtResearchStep: '',
   facts: [],
   selectedFile: null,
-  parsedDoc: null
+  parsedDoc: null,
+  previewId: null,
+  busy: false
 };
+
+const wizardStatus = document.getElementById('wizardStatus');
+const factEditor = document.getElementById('wzFactEditor');
+const factText = document.getElementById('wzFactText');
+const factExcerpt = document.getElementById('wzFactExcerpt');
+const factSource = document.getElementById('wzFactSource');
+const factEditorStatus = document.getElementById('wzFactEditorStatus');
+const abstractText = document.getElementById('wzAbstractText');
+const copyExcerpt = document.getElementById('btnUseAbstractSelection');
+let editingFact;
+
+function setWizardStatus(message, isError = false) {
+  wizardStatus.textContent = message;
+  wizardStatus.hidden = !message;
+  wizardStatus.style.color = isError ? '#fda4af' : 'var(--text-main)';
+}
+
+async function wizardRequest(route, data) {
+  const res = await apiFetch(route, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+  });
+  const result = await res.json();
+  if (!res.ok || !result.ok) throw new Error(result.error || result.compile?.errors?.join('；') || '请求未完成，请重试。');
+  return result;
+}
 
 function showToast(msg) {
   dom.toast.textContent = msg;
@@ -1327,6 +1618,10 @@ function updateTimelineUI(f) {
     } else {
       dom.curSubBubble.textContent = foundScene ? `[${foundScene.id}] (环境/无台词)` : '准备就绪';
     }
+    if (foundScene && foundScene.id !== state.activeSceneId) {
+      const index = state.project?.scenes?.findIndex(scene => scene.id === foundScene.id) ?? -1;
+      if (index >= 0) selectScene(index, false);
+    }
 
     // 更新分镜进度条的高亮段
     const segments = dom.timelineScenesBar.children;
@@ -1345,7 +1640,7 @@ function seekFrame(f) {
   updateTimelineUI(f);
   try {
     const win = dom.sceneIframe.contentWindow;
-    if (win && typeof win.__frame === 'function') {
+    if (win?.__ready && typeof win.__frame === 'function') {
       win.__frame(f);
     }
   } catch (e) {
@@ -1362,24 +1657,39 @@ function togglePlay() {
   }
 }
 
-function play() {
+function play(end = state.totalFrames) {
+  if (state.currentFrame >= end - 1) seekFrame(0);
   state.isPlaying = true;
+  state.playEnd = end;
   dom.playIcon.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
-  const intervalMs = Math.round(1000 / (state.fps * state.playbackSpeed));
-  clearInterval(state.playTimer);
-  state.playTimer = setInterval(() => {
-    let nextF = state.currentFrame + 1;
-    if (nextF >= state.totalFrames) {
+  const first = state.currentFrame;
+  const start = performance.now();
+  const framesPerMs = state.fps * state.playbackSpeed / 1000;
+  let useVoice = previewVoice.hasAttribute('src');
+  if (useVoice) {
+    previewVoice.currentTime = first / state.fps;
+    previewVoice.playbackRate = state.playbackSpeed;
+    previewVoice.play().catch(() => { useVoice = false; });
+  }
+  cancelAnimationFrame(state.playTimer);
+  function tick(now) {
+    const next = useVoice ? Math.floor(previewVoice.currentTime * state.fps)
+      : first + Math.max(0, Math.floor((now - start) * framesPerMs));
+    if (next >= end || (useVoice && previewVoice.ended)) {
+      seekFrame(end - 1);
       pause();
       return;
     }
-    seekFrame(nextF);
-  }, intervalMs);
+    if (next !== state.currentFrame) seekFrame(next);
+    state.playTimer = requestAnimationFrame(tick);
+  }
+  state.playTimer = requestAnimationFrame(tick);
 }
 
 function pause() {
   state.isPlaying = false;
-  clearInterval(state.playTimer);
+  previewVoice.pause();
+  cancelAnimationFrame(state.playTimer);
   dom.playIcon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"/>';
 }
 
@@ -1392,14 +1702,27 @@ async function loadProjectData() {
       showToast('加载失败: ' + data.error);
       return;
     }
+    pause();
     state.project = data.project;
+    state.projectDir = data.projectDir;
+    setDirectorAssets(data.assets || []);
+    setPreviewVoice(data.hasNarration);
+    showVoiceUpdate(data.voiceNeedsUpdate);
+    state.motionSceneIds = data.motionSceneIds || [];
+    dom.motionPicker.hidden = state.motionSceneIds.length === 0;
+    dom.btnReplayScene.disabled = !data.project?.scenes?.length;
 
     // 顶栏更新
     const story = data.project && data.project.story;
     const tokens = data.project && data.project.tokens;
+    const arc = story?.meta?.director?.arc;
+    document.getElementById('directorArc').hidden = !arc;
+    document.getElementById('directorArcBody').textContent = arc ? [arc.question, arc.visualMotif, ...(arc.beats || []), arc.payoff].join(' → ') : '';
+    updateShotRangeOptions(story);
     dom.topTitle.textContent = (story && story.meta && story.meta.title) || '未命名分镜工程';
     const curStyle = (tokens && tokens.style) || (story && story.meta && story.meta.style) || 'deep-tech';
     dom.styleSelect.value = curStyle;
+    dom.motionSelect.value = story?.meta?.motion || 'classic';
 
     // 渲染分镜列表
     renderBeatList(data.project);
@@ -1414,6 +1737,7 @@ async function loadProjectData() {
 
     // 检查并运行质检
     runLintCheck();
+    return data.projectDir;
   } catch (err) {
     showToast('通信错误: ' + err.message);
   }
@@ -1430,6 +1754,7 @@ async function loadTimelineData() {
 
     dom.timelineScrubber.max = state.totalFrames - 1;
     dom.totalTimeText.textContent = `/ ${formatTime(state.totalFrames, state.fps)}`;
+    dom.totalTimeText.title = tl.fit ? `目标 ${tl.fit.target} 秒，实配 ${tl.fit.actual.toFixed(2)} 秒，旁白至少需要 ${tl.fit.speechFloor.toFixed(2)} 秒` : '';
 
     // 渲染时间轴上的场景分布条
     dom.timelineScenesBar.innerHTML = '';
@@ -1478,7 +1803,7 @@ function renderBeatList(project) {
 
     card.innerHTML = `
       <div class="beat-card-header">
-        <span class="beat-id">${sc.id}</span>
+        <span class="beat-id">${escHtml(sc.layout === 'directed' ? b.intent || sc.id : sc.id)}</span>
         <div style="display:flex; align-items:center; gap:4px;">
           <span class="role-badge ${roleClass}">${b.role || 'beat'}</span>
           <button class="beat-action-btn btn-beat-up" title="上移分镜" ${isFirst ? 'disabled style="opacity:0.3;cursor:not-allowed;"' : ''}>↑</button>
@@ -1489,6 +1814,7 @@ function renderBeatList(project) {
       <div class="beat-meta-row">
         <span class="emotion-badge">情绪: ${b.emotion ? '★'.repeat(b.emotion) : '-'}</span>
         ${factsHtml}
+        ${project.story?.meta.director?.pendingShots?.includes(sc.id) ? '<span class="facts-badge unverified">待核对</span>' : ''}
       </div>
       <div class="beat-narration">${escHtml(sc.narration || '(无旁白)')}</div>
     `;
@@ -1530,18 +1856,26 @@ function renderBeatList(project) {
 
 // 分镜重排序
 async function reorderBeat(beatId, direction) {
+  const order = state.project?.story?.beats.map(beat => beat.id) || [];
+  const from = order.indexOf(beatId);
+  const to = from + (direction === 'up' ? -1 : 1);
+  if (from < 0 || to < 0 || to >= order.length) return;
+  [order[from], order[to]] = [order[to], order[from]];
   try {
     showToast(`正在${direction === 'up' ? '上移' : '下移'}分镜 ${beatId}...`);
     const res = await apiFetch('/api/beat/reorder', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ beatId, direction })
+      body: JSON.stringify({ order })
     });
     const r = await res.json();
     if (r.ok) {
       showToast('分镜顺序已调整并重新编译！');
       await loadProjectData();
-      reloadIframe();
+      if (r.retime) await prepareVoice(undefined, true);
+      else await reloadIframe();
+      const index = state.project.scenes.findIndex(shot => shot.id === beatId);
+      if (index >= 0) selectScene(index);
     } else {
       showToast('调整失败: ' + (r.error || (r.compile && r.compile.errors.join('; '))));
     }
@@ -1563,7 +1897,8 @@ async function deleteBeat(beatId) {
     if (r.ok) {
       showToast(`分镜 [${beatId}] 已删除并重新编译！`);
       await loadProjectData();
-      reloadIframe();
+      if (r.retime) await prepareVoice(undefined, true);
+      else await reloadIframe();
     } else {
       showToast('删除失败: ' + (r.error || (r.compile && r.compile.errors.join('; '))));
     }
@@ -1573,7 +1908,7 @@ async function deleteBeat(beatId) {
 }
 
 // 选中某个场景
-function selectScene(idx) {
+function selectScene(idx, seek = true) {
   state.activeSceneIndex = idx;
   const cards = dom.beatList.querySelectorAll('.beat-card');
   cards.forEach((c, i) => {
@@ -1587,10 +1922,11 @@ function selectScene(idx) {
   state.activeSceneId = sc.id;
 
   // 定位到该场景的时间起点
-  if (state.timeline && state.timeline.scenes) {
+  if (seek && state.timeline?.scenes) {
     const scTl = state.timeline.scenes.find(s => s.id === sc.id);
     if (scTl) {
-      seekFrame(scTl.start);
+      pause();
+      seekFrame(scTl.start + Math.min(Math.round(state.fps * 1.35), Math.floor((scTl.end - scTl.start) / 2)));
     }
   }
 
@@ -1598,15 +1934,147 @@ function selectScene(idx) {
   populateInspector(sc);
 }
 
+function updateMotionInspector(sc) {
+  const automatic = dom.motionSelect.value !== 'classic' && state.motionSceneIds.includes(sc.id);
+  const directed = sc.layout === 'directed';
+  dom.inpSceneLayout.value = directed ? '导演图层' : automatic ? '动态图解' : sc.layout || 'custom';
+  dom.selEnterEasing.disabled = automatic || directed;
+  dom.selEnterEasing.title = directed ? '当前动作由导演图层控制' : automatic ? '当前入场由动态编排控制' : '';
+}
+
+const directorColumns = {
+  track: [['t', '进度 %', 100, 0], ['x', '横向 %', 1, 3], ['y', '纵向 %', 1, 3],
+    ['scale', '缩放', 1, 1], ['rotation', '旋转°', 1, 0]],
+  series: [['label', '标签'], ['value', '数值', 1, 0]]
+};
+
+function directorDataEditor(layer, key) {
+  const editor = document.createElement('details');
+  editor.className = 'director-data';
+  editor.dataset.el = layer.id;
+  editor.dataset.collection = key;
+  const name = key === 'track' ? '运动关键帧' : '图表数据';
+  const columns = directorColumns[key];
+  editor.innerHTML = `<summary>${name}</summary><table><thead><tr>${columns.map(([, title]) => '<th>' + title + '</th>').join('')}</tr></thead><tbody></tbody></table>`;
+  const body = editor.querySelector('tbody');
+  function addRow(values, index = -1) {
+    const row = body.insertRow(index);
+    for (const [id, label, scale, fallback] of columns) {
+      const input = document.createElement('input');
+      input.setAttribute('aria-label', label);
+      input.type = scale ? 'number' : 'text';
+      input.step = 'any';
+      input.value = scale ? (values[id] ?? fallback) * scale : values[id] || '';
+      row.insertCell().append(input);
+    }
+  }
+  const rows = layer.props[key] || [];
+  rows.forEach(values => addRow(values));
+  const add = document.createElement('button');
+  const remove = document.createElement('button');
+  add.type = remove.type = 'button';
+  add.textContent = key === 'track' ? '新增关键帧' : '新增一行';
+  remove.textContent = '删除末行';
+  function updateButtons() {
+    add.disabled = body.rows.length >= (key === 'track' ? 12 : 6);
+    remove.disabled = body.rows.length <= (key === 'track' ? 0 : 2);
+  }
+  add.addEventListener('click', () => {
+    if (key === 'track' && !body.rows.length) {
+      const { x, y } = layer.props;
+      addRow({ t: 0, x, y });
+      addRow({ t: 1, x, y });
+    } else if (key === 'track') {
+      const last = body.rows.length - 1;
+      const before = body.rows[last - 1].querySelectorAll('input');
+      const after = body.rows[last].querySelectorAll('input');
+      addRow(Object.fromEntries(columns.map(([id, , scale], i) =>
+        [id, (Number(before[i].value) + Number(after[i].value)) / (2 * scale)])), last);
+    } else {
+      addRow({});
+    }
+    updateButtons();
+  });
+  remove.addEventListener('click', () => {
+    body.deleteRow(-1);
+    if (key === 'track' && body.rows.length === 1) body.deleteRow(-1);
+    updateButtons();
+  });
+  editor.append(add, remove);
+  updateButtons();
+  return editor;
+}
+
+const stageFields = {
+  camera: ['取景关键帧', [['t', '镜内 %', 100], ['x', '中心 X'], ['y', '中心 Y'], ['zoom', '缩放']]],
+  flow: ['水流进度', [['t', '镜内 %', 100], ['value', '水路 %', 100]]],
+  reveal: ['地下剖面显露', [['t', '镜内 %', 100], ['value', '可见 %', 100]]],
+  labels: ['跟随场景的标注', [['text', '文案'], ['x', 'X'], ['y', 'Y'], ['from', '起 %', 100], ['to', '止 %', 100]]],
+  puddle: ['积水可见度', [['t', '镜内 %', 100], ['value', '可见 %', 100]]],
+  soil: ['土壤可见度', [['t', '镜内 %', 100], ['value', '可见 %', 100]]],
+  water: ['水滴可见度', [['t', '镜内 %', 100], ['value', '可见 %', 100]]]
+};
+const stageInspector = document.getElementById('sharedStageInspector');
+stageInspector.addEventListener('focusin', pause);
+
+function populateSharedStage(scene) {
+  const stage = scene.stage;
+  const world = state.project?.story?.meta?.director?.sharedStages?.[stage?.id];
+  stageInspector.hidden = !world;
+  if (!world) { stageInspector.replaceChildren(); return; }
+  const tracks = Object.entries(stageFields).filter(([key]) => stage[key]).map(([key, [title, fields]]) => {
+    const headers = fields.map(([, label]) => '<th>' + label + '</th>').join('');
+    const rows = stage[key].map((point, index) => '<tr>' + fields.map(([field, label, scale = 1]) => {
+      const numeric = field !== 'text';
+      const value = numeric ? +(point[field] * scale).toFixed(5) : point[field];
+      return `<td><input type="${numeric ? 'number' : 'text'}" ${numeric ? 'step="any"' : 'maxlength="16"'}
+        data-stage-track="${key}" data-index="${index}" data-field="${field}"
+        aria-label="${title} 第 ${index + 1} 行 ${label}" value="${escHtml(value)}"></td>`;
+    }).join('') + '</tr>').join('');
+    return `<details class="director-data"${key === 'camera' ? ' open' : ''}><summary>${title}</summary>
+      <table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table></details>`;
+  }).join('');
+  const routeFields = ['X', 'Y', '控制 X', '控制 Y'];
+  const activeRoute = stage.route && stage.route !== 'main' ? world.routes[stage.route] : world.route;
+  const coordinates = activeRoute.map((point, i) => '<tr>' + routeFields.map((field, j) =>
+    `<td><input type="number" step="any" value="${point[j] ?? ''}" ${i === 0 && j > 1 ? 'disabled' : ''}
+     aria-label="水路第 ${i + 1} 点 ${field}"></td>`).join('') + '</tr>').join('');
+  stageInspector.innerHTML = `<label>共享场景</label>${tracks}
+    <details class="director-data"><summary>编辑共享水路</summary>
+      <p style="font-size:11px;color:var(--text-muted);margin:5px 0;">直线路段的控制点可留空。保存后更新使用此水路的全部镜头。</p>
+      <table id="sharedRoute"><thead><tr>${routeFields.map(field => '<th>' + field + '</th>').join('')}</tr></thead>
+      <tbody>${coordinates}</tbody></table>
+    </details>`;
+}
+
+function readSharedStage(scene) {
+  if (!scene.stage) return undefined;
+  for (const input of stageInspector.querySelectorAll('[data-stage-track]')) {
+    const { stageTrack, index, field } = input.dataset;
+    const scale = stageFields[stageTrack][1].find(([key]) => key === field)[2] || 1;
+    if (field !== 'text' && !Number.isFinite(input.valueAsNumber)) throw new Error('场景关键帧需要填写完整的数字。');
+    scene.stage[stageTrack][index][field] = field === 'text' ? input.value.trim() : input.valueAsNumber / scale;
+  }
+  return [...stageInspector.querySelectorAll('#sharedRoute tbody tr')].map(row => {
+    const [x, y, cx, cy] = row.querySelectorAll('input');
+    const fields = cx.value || cy.value ? [x, y, cx, cy] : [x, y];
+    if (fields.some(field => !Number.isFinite(field.valueAsNumber))) throw new Error('请填写完整的共享水路坐标。');
+    return fields.map(field => field.valueAsNumber);
+  });
+}
+
 // 填充右侧检视器
 function populateInspector(sc) {
   dom.inpSceneId.value = sc.id;
-  dom.inpSceneLayout.value = sc.layout || 'custom';
+  updateMotionInspector(sc);
   dom.inpSceneNarration.value = sc.narration || '';
+  updateDirectorControls(sc);
+  populateSharedStage(sc);
 
   // 缓动
   const firstEl = (sc.elements && sc.elements[0]) || {};
-  dom.selEnterEasing.value = (firstEl.enter && firstEl.enter.easing) || 'eo';
+  const easing = firstEl.enter?.easing || 'ease';
+  dom.selEnterEasing.value = easing === 'overshoot' ? 'spring' : easing;
 
   // 动态属性输入
   dom.dynamicPropsContainer.innerHTML = '';
@@ -1632,6 +2100,10 @@ function populateInspector(sc) {
         }
       }
       field.innerHTML = inner;
+      if (sc.layout === 'directed') {
+        field.append(directorDataEditor(el, 'track'));
+        if (el.props.kind === 'chart') field.append(directorDataEditor(el, 'series'));
+      }
       dom.dynamicPropsContainer.appendChild(field);
     });
   }
@@ -1651,7 +2123,8 @@ function populateInspector(sc) {
           <input type="checkbox" id="chkFact_${fIdx}" ${f.verified ? 'checked' : ''}>
           <label for="chkFact_${fIdx}" class="fact-text">${escHtml(f.statement || f.claim || f.text || '事实描述')}</label>
         </div>
-        ${f.evidence ? `<div class="fact-evidence">证据来源: ${escHtml(f.evidence)}</div>` : ''}
+        ${f.evidence || f.citation ? `<div class="fact-evidence">出处　${factSourceMarkup(f)}</div>` : ''}
+        ${f.excerpt ? `<details class="fact-evidence"><summary>查看原文摘录</summary>${escHtml(f.excerpt)}</details>` : ''}
       `;
       const chk = item.querySelector('input[type="checkbox"]');
       chk.addEventListener('change', (e) => {
@@ -1667,7 +2140,8 @@ function populateInspector(sc) {
 // 保存场景图元修改
 dom.btnSaveScene.addEventListener('click', async () => {
   if (!state.activeSceneId || !state.project) return;
-  const sc = state.project.scenes.find(s => s.id === state.activeSceneId);
+  const original = state.project.scenes.find(s => s.id === state.activeSceneId);
+  const sc = original && structuredClone(original);
   if (!sc) return;
 
   // 更新旁白
@@ -1675,35 +2149,50 @@ dom.btnSaveScene.addEventListener('click', async () => {
 
   // 更新缓动
   const easing = dom.selEnterEasing.value;
-  if (sc.elements) {
+  if (sc.elements && !dom.selEnterEasing.disabled) {
     sc.elements.forEach(el => {
       if (el.enter) el.enter.easing = easing;
     });
   }
 
   // 更新 props
-  const inputs = dom.dynamicPropsContainer.querySelectorAll('input[data-el]');
-  inputs.forEach(inp => {
+  const inputs = dom.dynamicPropsContainer.querySelectorAll('input[data-el][data-prop]');
+  for (const inp of inputs) {
     const elId = inp.dataset.el;
     const propKey = inp.dataset.prop;
     const el = sc.elements && sc.elements.find(e => e.id === elId);
     if (el && el.props) {
-      el.props[propKey] = inp.value;
+      el.props[propKey] = typeof el.props[propKey] === 'number' ? Number(inp.value) : inp.value;
     }
-  });
+  }
+  for (const editor of dom.dynamicPropsContainer.querySelectorAll('[data-collection]')) {
+    const { el: id, collection } = editor.dataset;
+    const layer = sc.elements.find(el => el.id === id);
+    const rows = [...editor.querySelectorAll('tbody tr')];
+    if (!rows.length) delete layer.props[collection];
+    else layer.props[collection] = rows.map(row => Object.fromEntries(directorColumns[collection].map(([key, , scale], i) => {
+      const input = row.cells[i].firstElementChild;
+      return [key, scale ? (input.value === '' ? NaN : Number(input.value) / scale) : input.value.trim()];
+    })));
+  }
 
   try {
+    const sharedRoute = readSharedStage(sc);
     const res = await apiFetch('/api/scene', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ scene: sc })
+      body: JSON.stringify({ scene: sc, sharedRoute })
     });
     const r = await res.json();
     if (r.ok) {
       showToast('分镜保存并重新编译成功！');
-      reloadIframe();
+      const id = sc.id;
+      await loadProjectData();
+      if (r.narrationChanged && (state.project?.story?.meta?.director || previewVoice.hasAttribute('src'))) await prepareVoice(id);
+      selectScene(state.project.scenes.findIndex(scene => scene.id === id));
+      await reloadIframe();
     } else {
-      showToast('保存出错: ' + (r.compile ? r.compile.errors.join('; ') : '未知错误'));
+      showToast('保存出错: ' + (r.error || (r.compile ? r.compile.errors.join('; ') : '未知错误')));
     }
   } catch (e) {
     showToast('保存异常: ' + e.message);
@@ -1722,8 +2211,10 @@ dom.btnSaveFacts.addEventListener('click', async () => {
     const r = await res.json();
     if (r.ok) {
       showToast('医学事实核查状态已同步保存！');
-      renderBeatList(state.project);
-      runLintCheck();
+      const id = state.activeSceneId;
+      await loadProjectData();
+      const index = state.project.scenes.findIndex(scene => scene.id === id);
+      if (index >= 0) selectScene(index);
     } else {
       showToast('同步失败');
     }
@@ -1733,14 +2224,90 @@ dom.btnSaveFacts.addEventListener('click', async () => {
 });
 
 // 重载 iframe
-function reloadIframe() {
-  const curF = state.currentFrame;
-  dom.sceneIframe.src = 'scene.html?t=' + Date.now();
-  dom.sceneIframe.onload = () => {
-    autoScaleViewport();
-    setTimeout(() => seekFrame(curF), 100);
-  };
+async function waitForPreview() {
+  const src = dom.sceneIframe.src;
+  const deadline = performance.now() + 5000;
+  while (dom.sceneIframe.src === src && performance.now() < deadline) {
+    const frame = dom.sceneIframe.contentWindow;
+    if (frame?.location.href === src && frame.__ready) return true;
+    await new Promise(resolve => setTimeout(resolve, 32));
+  }
+  return false;
 }
+
+async function reloadIframe() {
+  dom.sceneIframe.src = 'scene.html?t=' + Date.now();
+  if (!(await waitForPreview())) return false;
+  autoScaleViewport();
+  seekFrame(state.currentFrame);
+  return true;
+}
+
+async function replayScene() {
+  const scene = state.timeline?.scenes.find(sc => sc.id === state.activeSceneId);
+  if (!scene) return;
+  pause();
+  if (!(await waitForPreview())) {
+    showToast('分镜画面尚未就绪，请编译后重播。');
+    return;
+  }
+  seekFrame(scene.start);
+  play(scene.end);
+}
+
+dom.btnReplayScene.addEventListener('click', replayScene);
+const rangeStart = document.getElementById('shotRangeStart');
+const rangeEnd = document.getElementById('shotRangeEnd');
+function updateShotRangeOptions(story) {
+  const beats = story?.meta?.director ? story.beats : [];
+  document.getElementById('shotRange').hidden = !beats.length;
+  for (const select of [rangeStart, rangeEnd]) {
+    const previous = select.value;
+    select.replaceChildren(...beats.map((beat, index) => new Option(`${index + 1}. ${beat.intent || beat.id}`, beat.id)));
+    select.value = beats.some(beat => beat.id === previous) ? previous
+      : beats[select === rangeStart ? 0 : beats.length - 1]?.id || '';
+  }
+}
+rangeStart.addEventListener('change', () => {
+  if (rangeStart.selectedIndex > rangeEnd.selectedIndex) rangeEnd.value = rangeStart.value;
+});
+rangeEnd.addEventListener('change', () => {
+  if (rangeEnd.selectedIndex < rangeStart.selectedIndex) rangeStart.value = rangeEnd.value;
+});
+document.getElementById('shotRangePlay').addEventListener('click', async () => {
+  const start = state.timeline?.scenes.find(shot => shot.id === rangeStart.value);
+  const end = state.timeline?.scenes.find(shot => shot.id === rangeEnd.value);
+  if (!start || !end || !(await waitForPreview())) return;
+  pause();
+  seekFrame(start.start);
+  play(end.end);
+});
+dom.motionSelect.addEventListener('change', async () => {
+  const story = state.project?.story;
+  if (!story) return;
+  const previous = story.meta.motion || 'classic';
+  const motion = dom.motionSelect.value;
+  dom.motionSelect.disabled = true;
+  pause();
+  try {
+    const res = await apiFetch('/api/motion', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ motion })
+    });
+    const result = await res.json();
+    if (!result.ok) throw new Error(result.error);
+    story.meta.motion = motion;
+    const scene = state.project.scenes.find(sc => sc.id === state.activeSceneId);
+    if (scene) updateMotionInspector(scene);
+    if (await reloadIframe()) replayScene();
+    else showToast('编排已保存，画面加载超时。请重新编译或打开工程。');
+    runLintCheck();
+  } catch (error) {
+    dom.motionSelect.value = previous;
+    showToast(error.message || '切换动态编排失败。');
+  } finally {
+    dom.motionSelect.disabled = false;
+  }
+});
 
 // 风格切换
 dom.styleSelect.addEventListener('change', async (e) => {
@@ -1823,30 +2390,180 @@ document.getElementById('btnCompile').addEventListener('click', async () => {
 });
 
 // 配音合成
-document.getElementById('btnTts').addEventListener('click', async () => {
-  showToast('正在调用配音引擎...');
+async function prepareVoice(only, retime = false, report = showToast) {
+  const projectDir = state.projectDir;
+  pause();
+  report('正在合成配音并对齐字幕…');
   try {
     const res = await apiFetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ backend: 'local' })
+      body: JSON.stringify({ only, retime, projectDir })
     });
     const r = await res.json();
+    if (projectDir !== state.projectDir) return false;
     if (r.ok) {
-      showToast('配音合成及时间轴重建完成！');
       await loadTimelineData();
-      reloadIframe();
+      setPreviewVoice(true);
+      showVoiceUpdate(false);
+      await reloadIframe();
+      report('配音和字幕已更新。');
+      return true;
     } else {
-      showToast('配音失败: ' + r.logs);
+      report('配音失败。' + (r.error || r.logs || '').trim().slice(-420), true);
     }
   } catch (e) {
-    showToast('配音异常: ' + e.message);
+    report('配音失败。' + e.message, true);
   }
+  return false;
+}
+document.getElementById('btnTts').addEventListener('click', () => prepareVoice());
+
+const voiceDialog = document.getElementById('voiceSettingsDialog');
+const voiceForm = document.getElementById('voiceSettingsForm');
+const voiceSettingsButton = document.getElementById('btnVoiceSettings');
+const voiceFields = document.getElementById('voiceSettingsFields');
+const voiceStatus = document.getElementById('voiceSettingsStatus');
+const voicePlayer = document.getElementById('voiceAuditionPlayer');
+const closeVoiceSettings = document.getElementById('btnCloseVoiceSettings');
+const auditionVoice = document.getElementById('btnAuditionVoice');
+const saveVoice = document.getElementById('btnSaveVoiceSettings');
+const applyVoice = document.getElementById('btnSaveAndVoice');
+let voiceProjectDir;
+let voiceSampleUrl;
+
+function showVoiceUpdate(needsVoice) {
+  voiceSettingsButton.toggleAttribute('data-needs-voice', !!needsVoice);
+  voiceSettingsButton.title = needsVoice ? '配音设置已更改，请重新生成旁白' : '设置当前工程的配音';
+}
+function setVoiceStatus(message, isError = false) {
+  voiceStatus.textContent = message;
+  voiceStatus.toggleAttribute('data-error', isError);
+}
+function setVoiceBusy(busy) {
+  closeVoiceSettings.disabled = busy;
+  voiceFields.disabled = auditionVoice.disabled = saveVoice.disabled = applyVoice.disabled = busy || !voiceProjectDir;
+  voiceForm.setAttribute('aria-busy', String(busy));
+}
+function voiceSettingsLayout() {
+  const local = voiceForm.elements.backend.value === 'local';
+  document.getElementById('localVoiceFields').hidden = !local;
+  document.getElementById('cloudVoiceFields').hidden = local;
+  document.getElementById('voiceSpeedOutput').value = Number(voiceForm.elements.speed.value).toFixed(2) + '×';
+}
+function clearVoiceSample() {
+  if (!voiceSampleUrl) return;
+  voicePlayer.pause();
+  voicePlayer.removeAttribute('src');
+  voicePlayer.load();
+  voicePlayer.hidden = true;
+  URL.revokeObjectURL(voiceSampleUrl);
+  voiceSampleUrl = undefined;
+}
+function voiceSettingsValues() {
+  const { backend, speed, localVoice, cloudVoice, model, instruction } = voiceForm.elements;
+  return { backend: backend.value, speed: Number(speed.value), voice: (backend.value === 'local' ? localVoice : cloudVoice).value,
+    model: model.value, instruction: instruction.value };
+}
+voiceForm.addEventListener('input', () => {
+  voiceSettingsLayout();
+  if (voiceSampleUrl) {
+    clearVoiceSample();
+    setVoiceStatus('设置已调整，可重新试听。');
+  }
+});
+closeVoiceSettings.addEventListener('click', () => voiceDialog.close());
+voiceDialog.addEventListener('cancel', event => {
+  if (closeVoiceSettings.disabled) event.preventDefault();
+});
+voiceDialog.addEventListener('close', clearVoiceSample);
+voiceSettingsButton.addEventListener('click', async () => {
+  voiceProjectDir = undefined;
+  setVoiceBusy(true);
+  setVoiceStatus('正在读取当前工程的设置…');
+  voiceSettingsLayout();
+  voiceDialog.showModal();
+  try {
+    const response = await apiFetch('/api/tts/settings');
+    const { ok, error, projectDir, settings, needsVoice, voices } = await response.json();
+    if (!ok) throw new Error(error);
+    const inputs = voiceForm.elements;
+    inputs.backend.value = settings.backend;
+    const localVoice = settings.backend === 'local' ? settings.voice : '';
+    inputs.localVoice.replaceChildren(new Option('默认中文音色', ''), ...voices.map(voice =>
+      new Option(voice.name + ' · ' + voice.locale, voice.name)));
+    if (localVoice && !voices.some(voice => voice.name === localVoice)) inputs.localVoice.add(new Option(localVoice, localVoice));
+    inputs.localVoice.value = localVoice;
+    inputs.cloudVoice.value = settings.backend === 'bailian' ? settings.voice : '';
+    inputs.speed.value = settings.speed;
+    inputs.model.value = settings.model;
+    inputs.instruction.value = settings.instruction;
+    voiceProjectDir = projectDir;
+    voiceSettingsLayout();
+    setVoiceStatus(needsVoice ? '配音设置已更改，请重新生成旁白。' : '');
+  } catch (error) {
+    setVoiceStatus('无法读取配音设置。' + error.message, true);
+  } finally {
+    setVoiceBusy(false);
+  }
+});
+auditionVoice.addEventListener('click', async () => {
+  pause();
+  clearVoiceSample();
+  setVoiceBusy(true);
+  setVoiceStatus('正在合成试听…');
+  try {
+    const response = await apiFetch('/api/tts/audition', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ settings: voiceSettingsValues() })
+    });
+    if (!response.ok) throw new Error((await response.json()).error);
+    voiceSampleUrl = URL.createObjectURL(await response.blob());
+    voicePlayer.src = voiceSampleUrl;
+    voicePlayer.hidden = false;
+    setVoiceStatus('试听已就绪。');
+    voicePlayer.play().catch(() => {});
+  } catch (error) {
+    setVoiceStatus(error.message, true);
+  } finally {
+    setVoiceBusy(false);
+  }
+});
+async function saveVoiceOptions(regenerate) {
+  clearVoiceSample();
+  setVoiceBusy(true);
+  setVoiceStatus('正在保存…');
+  try {
+    const result = await wizardRequest('/api/tts/settings', { projectDir: voiceProjectDir, settings: voiceSettingsValues() });
+    if (result.needsVoice) {
+      pause();
+      setPreviewVoice(false);
+    }
+    showVoiceUpdate(result.needsVoice);
+    const report = (message, failed) => setVoiceStatus(failed ? '设置已保存。' + message : message, failed);
+    if (regenerate && !await prepareVoice(undefined, false, report)) return;
+    voiceDialog.close();
+    showToast(regenerate ? '配音和字幕已更新。' : result.needsVoice ? '设置已保存。点击「配音」更新旁白。' : '配音设置已保存。');
+  } catch (error) {
+    setVoiceStatus(error.message, true);
+  } finally {
+    setVoiceBusy(false);
+  }
+}
+saveVoice.addEventListener('click', () => saveVoiceOptions(false));
+voiceForm.addEventListener('submit', event => {
+  event.preventDefault();
+  if (!applyVoice.disabled) saveVoiceOptions(true);
 });
 
 // 视频导出流水线
+let exportInProgress = false;
 document.getElementById('btnExport').addEventListener('click', async () => {
   dom.exportModal.classList.add('show');
+  if (exportInProgress) return;
+  exportInProgress = true;
+  dom.btnCloseModal.textContent = '后台运行';
+  dom.exportProgressFill.style.background = '';
   dom.exportProgressFill.style.width = '10%';
   dom.exportLogBox.textContent = '正在启动导出任务...\n';
 
@@ -1854,6 +2571,8 @@ document.getElementById('btnExport').addEventListener('click', async () => {
     const res = await apiFetch('/api/export', { method: 'POST' });
     const r = await res.json();
     if (!r.ok || !r.taskId) {
+      exportInProgress = false;
+      dom.btnCloseModal.textContent = '关闭';
       dom.exportLogBox.textContent += '无法创建导出任务: ' + (r.error || '未知错误');
       return;
     }
@@ -1869,6 +2588,8 @@ document.getElementById('btnExport').addEventListener('click', async () => {
           dom.exportLogBox.scrollTop = dom.exportLogBox.scrollHeight;
         } else if (sData.status === 'done') {
           clearInterval(pollTimer);
+          exportInProgress = false;
+          dom.btnCloseModal.textContent = '关闭';
           dom.exportProgressFill.style.width = '100%';
           dom.exportLogBox.textContent = (sData.log || '') + '\n🎉 出片流程圆满完成！';
           dom.exportLogBox.scrollTop = dom.exportLogBox.scrollHeight;
@@ -1877,16 +2598,22 @@ document.getElementById('btnExport').addEventListener('click', async () => {
           }
         } else {
           clearInterval(pollTimer);
+          exportInProgress = false;
+          dom.btnCloseModal.textContent = '关闭';
           dom.exportProgressFill.style.background = 'var(--danger)';
           dom.exportLogBox.textContent = (sData.log || '') + '\n❌ 导出任务异常中断。';
           dom.exportLogBox.scrollTop = dom.exportLogBox.scrollHeight;
         }
       } catch (pollErr) {
         clearInterval(pollTimer);
+        exportInProgress = false;
+        dom.btnCloseModal.textContent = '关闭';
         dom.exportLogBox.textContent += '\n轮询状态失败: ' + pollErr.message;
       }
     }, 1000);
   } catch (e) {
+    exportInProgress = false;
+    dom.btnCloseModal.textContent = '关闭';
     dom.exportLogBox.textContent += '启动失败: ' + e.message;
   }
 });
@@ -1955,14 +2682,15 @@ document.querySelectorAll('.speed-btn').forEach(btn => {
     btn.classList.add('active');
     state.playbackSpeed = parseFloat(btn.dataset.speed);
     if (state.isPlaying) {
-      play(); // 重置计时器
+      play(state.playEnd);
     }
   });
 });
 
 // 键盘快捷键（空格播放/暂停，左右键步进）
 window.addEventListener('keydown', (e) => {
-  if (['input', 'textarea'].includes(document.activeElement.tagName.toLowerCase())) return;
+  if (voiceDialog.open) return;
+  if (['input', 'textarea', 'select', 'button'].includes(document.activeElement.tagName.toLowerCase())) return;
   if (e.code === 'Space') {
     e.preventDefault();
     togglePlay();
@@ -1983,9 +2711,12 @@ window.addEventListener('keydown', (e) => {
 
 // 打开 AI 创作工坊
 async function openCreatorModal() {
-  wizardState.currentStep = 1;
+  if (dom.creatorModal.classList.contains('show')) return;
   setWizardStep(1);
+  setWizardStatus('');
   dom.creatorModal.classList.add('show');
+  dom.wzTopic.focus();
+  loadDirectorCatalog();
 
   // 加载推荐选题 chips
   if (dom.hotTopicChips.children.length === 0) {
@@ -2018,6 +2749,7 @@ async function openCreatorModal() {
 // 切换向导步骤
 function setWizardStep(step) {
   wizardState.currentStep = step;
+  document.getElementById('directorFromFacts').style.display = step === 2 ? 'inline-flex' : 'none';
 
   // 步骤指示灯
   dom.pillStep1.classList.toggle('active', step === 1);
@@ -2049,170 +2781,577 @@ function setWizardStep(step) {
 }
 
 // 检索学术文献
-async function runLiteratureSearch(query) {
-  dom.searchStatus.textContent = '正在检索 Europe PMC 与 OpenAlex 权威学术库...';
-  dom.wzArticleList.innerHTML = '<div style="color:var(--text-muted); font-size:11px;">🔍 检索中，请稍候...</div>';
-
+async function runLiteratureSearch(query, page = null) {
+  if (dom.btnRunSearch.disabled) return;
+  dom.btnRunSearch.disabled = dom.btnMoreLiterature.disabled = true;
+  dom.searchStatus.textContent = page ? '正在加载更多文献…' : '正在联网检索文献…';
+  if (!page) {
+    wizardState.research = null;
+    wizardState.articles = [];
+    dom.btnMoreLiterature.hidden = true;
+    dom.wzArticleList.textContent = '检索中，请稍候…';
+  }
   try {
     const res = await apiFetch('/api/research', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, limit: 5 })
+      body: JSON.stringify({ query, page })
     });
     const data = await res.json();
-    if (!data.ok) {
-      dom.searchStatus.textContent = '检索失败: ' + (data.error || '未知错误');
-      return;
+    if (!res.ok || !data.ok) throw new Error(data.error || '文献检索失败，请重试。');
+
+    wizardState.research = { query, nextPage: data.nextPage };
+    dom.btnMoreLiterature.hidden = !data.nextPage;
+    const key = art => art.doi?.toLowerCase() || art.id;
+    const seen = new Set(wizardState.articles.map(key));
+    const articles = data.articles.filter(art => {
+      if (seen.has(key(art))) return false;
+      seen.add(key(art));
+      return true;
+    });
+    wizardState.articles.push(...articles);
+    const total = Number.isInteger(data.total) ? ` · 数据库命中 ${data.total.toLocaleString('zh-CN')} 篇` : '';
+    const summary = wizardState.articles.length
+      ? `${data.provider} · 按相关性 · 已显示 ${wizardState.articles.length} 篇${total}。点击「引用这篇」查看摘要。`
+      : data.message || '未查询到相关文献。';
+    const translated = data.searchQuery && data.searchQuery !== query ? ` 检索式：${data.searchQuery}` : '';
+    dom.searchStatus.textContent = summary + translated;
+    if (!page) dom.wzArticleList.textContent = articles.length ? '' : '未查询到相关文献。';
+    const firstNewItemIndex = dom.wzArticleList.children.length;
+    for (const art of articles) {
+      const item = document.createElement('div');
+      item.style.marginBottom = '6px';
+      item.style.paddingBottom = '6px';
+      item.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+      item.innerHTML = `
+        <div style="font-size:12px; font-weight:600; color:white;">
+          <a href="${escHtml(/^https?:\/\//.test(art.url || '') ? art.url : '#')}" target="_blank" rel="noopener noreferrer" style="color:var(--accent-light); text-decoration:none;">📄 ${escHtml(art.title)}</a>
+        </div>
+        <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">
+          ${escHtml(Array.isArray(art.authors) ? art.authors.slice(0, 3).join(', ') : (art.authors || ''))} ${escHtml(art.journal ? '· ' + art.journal : '')} (${escHtml(art.year || '')}) [来源: ${escHtml(art.source || 'Pub')}]
+        </div>
+      `;
+      const use = document.createElement('button');
+      use.type = 'button';
+      use.textContent = '引用这篇';
+      use.addEventListener('click', () => editWizardFact({ citation: art }));
+      item.appendChild(use);
+      dom.wzArticleList.appendChild(item);
     }
-
-    wizardState.articles = data.articles || [];
-    wizardState.facts = data.extractedFacts || [];
-
-    dom.searchStatus.textContent = data.message || `找到 ${wizardState.articles.length} 篇文献目录，请阅读原文后添加并核实事实。`;
-
-    // 渲染文献列表
-    dom.wzArticleList.innerHTML = '';
-    if (wizardState.articles.length === 0) {
-      dom.wzArticleList.innerHTML = '<div style="color:var(--text-muted); font-size:11px;">未查询到相关文献。</div>';
-    } else {
-      wizardState.articles.forEach(art => {
-        const item = document.createElement('div');
-        item.style.marginBottom = '6px';
-        item.style.paddingBottom = '6px';
-        item.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
-        item.innerHTML = `
-          <div style="font-size:12px; font-weight:600; color:white;">
-            <a href="${escHtml(/^https?:\/\//.test(art.url || '') ? art.url : '#')}" target="_blank" style="color:var(--accent-light); text-decoration:none;">📄 ${escHtml(art.title)}</a>
-          </div>
-          <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">
-            ${escHtml(Array.isArray(art.authors) ? art.authors.slice(0, 3).join(', ') : (art.authors || ''))} ${escHtml(art.journal ? '· ' + art.journal : '')} (${escHtml(art.year || '')}) [来源: ${escHtml(art.source || 'Pub')}]
-          </div>
-        `;
-        dom.wzArticleList.appendChild(item);
-      });
+    if (page && articles.length) {
+      const firstNewItem = dom.wzArticleList.children[firstNewItemIndex];
+      const delta = firstNewItem.getBoundingClientRect().top - dom.wzArticleList.getBoundingClientRect().top;
+      dom.wzArticleList.scrollTop += delta;
     }
-
-    renderWizardFacts();
-  } catch (err) {
-    dom.searchStatus.textContent = '检索请求出错: ' + err.message;
+  } catch (error) {
+    dom.searchStatus.textContent = page ? '加载更多失败。当前结果已保留，可重试加载或重新检索。' : error.message;
+    if (!page) dom.wzArticleList.textContent = '未能加载文献结果。';
+  } finally {
+    dom.btnRunSearch.disabled = dom.btnMoreLiterature.disabled = false;
   }
 }
 
-// 渲染事实清单
-function renderWizardFacts() {
-  dom.wzFactsList.innerHTML = '';
-  if (!wizardState.facts || wizardState.facts.length === 0) {
-    dom.wzFactsList.innerHTML = '<div style="color:var(--text-muted); font-size:11px;">暂无医学事实条目，可点击上方按钮手动添加。</div>';
+function factSourceMarkup(fact) {
+  if (!fact?.citation) return escHtml(fact?.evidence || '');
+  const citation = fact.citation;
+  const title = escHtml(citation.title);
+  if (!/^https?:\/\//i.test(citation.url || '')) return title;
+  return `<a href="${escHtml(citation.url)}" target="_blank" rel="noopener noreferrer" style="color:var(--accent-light);">${title}</a>`;
+}
+
+async function editWizardFact({ citation, index = -1 } = {}) {
+  const fact = index >= 0 ? wizardState.facts[index] : null;
+  citation = fact?.citation || citation;
+  const edit = { index, citation };
+  editingFact = edit;
+  factEditor.hidden = false;
+  factEditorStatus.textContent = '';
+  document.getElementById('wzFactPaper').textContent = citation ? citation.title : '添加来源与事实';
+  document.getElementById('wzFactSourceGroup').hidden = Boolean(citation);
+  document.getElementById('wzAbstractPanel').hidden = !citation;
+  factSource.value = fact?.evidence || '';
+  factText.value = fact?.claim || fact?.statement || '';
+  factExcerpt.value = fact?.excerpt || '';
+  abstractText.value = '';
+  abstractText.hidden = copyExcerpt.hidden = true;
+  factEditor.scrollIntoView({ block: 'nearest' });
+  factText.focus({ preventScroll: true });
+  if (!citation) return;
+
+  const status = document.getElementById('wzAbstractStatus');
+  status.textContent = '正在获取摘要…也可以打开文献原文并粘贴摘录。';
+  try {
+    const data = await wizardRequest('/api/article-abstract', { id: citation.id });
+    if (editingFact !== edit) return;
+    if (!data.abstract) {
+      status.textContent = '来源未提供摘要。请打开文献原文，粘贴支持这条事实的段落。';
+      return;
+    }
+    abstractText.value = data.abstract;
+    abstractText.hidden = copyExcerpt.hidden = false;
+    status.textContent = '选中相关原文后可填入摘录，再写适合视频的表述。';
+  } catch (error) {
+    if (editingFact === edit) status.textContent = error.message;
+  }
+}
+
+function closeFactEditor() {
+  editingFact = null;
+  factEditor.hidden = true;
+}
+document.getElementById('btnCancelWizardFact').addEventListener('click', closeFactEditor);
+copyExcerpt.addEventListener('click', () => {
+  const selected = abstractText.value.slice(abstractText.selectionStart, abstractText.selectionEnd).trim();
+  if (!selected || selected.length > factExcerpt.maxLength) {
+    factEditorStatus.textContent = '请先在摘要中选中一段原文（最多 1600 字）。';
     return;
   }
+  factExcerpt.value = selected;
+  factEditorStatus.textContent = '';
+  factText.focus();
+});
+factEditor.addEventListener('submit', (event) => {
+  event.preventDefault();
+  if (!editingFact) return;
+  const { citation, index } = editingFact;
+  const claim = factText.value.trim();
+  const evidence = citation?.title || factSource.value.trim();
+  const excerpt = citation ? factExcerpt.value.trim() : '';
+  if (!claim || claim.length > Number(factText.maxLength) || !evidence || (citation && !excerpt)) {
+    factEditorStatus.textContent = '请填写出处和简明要点。引用文献时也请保留支持它的原文摘录。';
+    return;
+  }
+  const fact = { claim, statement: claim, evidence, citation, excerpt, _checked: false, verified: false };
+  if (index >= 0) wizardState.facts[index] = fact;
+  else wizardState.facts.push(fact);
+  closeFactEditor();
+  renderWizardFacts();
+  setWizardStatus('事实已保存。请核对原文及适用范围，再勾选使用。');
+});
 
+function renderWizardFacts() {
+  dom.wzFactsList.innerHTML = '';
+  if (!wizardState.facts.length) {
+    dom.wzFactsList.textContent = '暂无事实。可引用上方文献，或手动添加已有资料。';
+    return;
+  }
   wizardState.facts.forEach((fact, idx) => {
     const item = document.createElement('div');
-    item.style.display = 'flex';
-    item.style.alignItems = 'flex-start';
-    item.style.gap = '8px';
-    item.style.padding = '6px 8px';
-    item.style.background = 'var(--bg-card)';
-    item.style.borderRadius = '4px';
-    item.style.border = fact.isUserDoc ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid var(--border)';
-
-    let badgeHtml = '';
-    if (fact.isUserDoc) {
-      badgeHtml = `<span style="font-size:10px; color:#10b981; background:rgba(16,185,129,0.15); padding:1px 6px; border-radius:3px; font-weight:600; margin-left:6px;">[用户资料]</span>`;
-    } else {
-      badgeHtml = `<span style="font-size:10px; color:var(--accent-light); background:var(--bg-hover); padding:1px 6px; border-radius:3px; font-weight:600; margin-left:6px;">[文献检索库]</span>`;
-    }
-
+    item.style.cssText = 'padding:8px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;overflow-wrap:anywhere;';
     item.innerHTML = `
-      <input type="checkbox" id="wzFactChk_${idx}" ${fact._checked ? 'checked' : ''} style="margin-top:3px;">
-      <div style="flex:1;">
-        <div style="font-size:12px; color:white; line-height:1.4;">
-          ${escHtml(fact.statement || fact.claim)}
-          ${badgeHtml}
-        </div>
-        ${fact.evidence ? `<div style="font-size:10px; color:var(--text-muted); margin-top:2px;">出处: ${escHtml(fact.evidence)}</div>` : ''}
-      </div>
-    `;
-
-    const chk = item.querySelector('input');
-    chk.addEventListener('change', (e) => {
-      fact._checked = e.target.checked;
-      fact.verified = e.target.checked;
+      <div style="font-size:13px; margin-bottom:6px;">${escHtml(fact.claim || fact.statement)}</div>
+      <div style="font-size:12px;color:var(--text-muted);">${factSourceMarkup(fact)}</div>
+      ${fact.excerpt ? `<details style="font-size:12px;margin:4px 0;"><summary>查看原文摘录</summary>${escHtml(fact.excerpt)}</details>` : ''}
+      <label style="font-size:12px;"><input type="checkbox" id="wzFactChk_${idx}" ${fact._checked === true ? 'checked' : ''}> 已核对原文及适用范围，纳入分镜</label>
+      <button type="button" class="edit-fact" style="margin-left:8px;">编辑</button>`;
+    item.querySelector('input').addEventListener('change', e => {
+      fact._checked = fact.verified = e.target.checked;
+      setWizardStatus('');
     });
-    // 默认不勾选：verified 只能来自创作者显式核实（医学门 MED_FACT_UNVERIFIED）
-    fact._checked = fact._checked === true;
-    fact.verified = fact.verified === true;
-    chk.checked = fact._checked;
-
+    item.querySelector('.edit-fact').addEventListener('click', () => editWizardFact({ index: idx }));
     dom.wzFactsList.appendChild(item);
   });
 }
 
-// 准备 Step 3 故事线与分镜流预览
-function prepareStep3Preview() {
-  const topic = dom.wzTopic.value.trim();
-  const audience = dom.wzAudience.value;
-  const template = dom.wzTemplate.value;
-  const duration = parseInt(dom.wzDuration.value, 10);
-  const style = dom.wzStyle.value;
-
-  dom.previewMetaTitle.textContent = `${topic} · ${template.toUpperCase()} 分镜规划`;
-  dom.previewMetaBadges.textContent = `目标: ${duration}s | 受众: ${audience} | 风格: ${style}`;
-
-  let roles = ['hook', 'conflict', 'mechanism', 'evidence', 'takeaway'];
-  if (template === 'teaching') {
-    roles = ['objective', 'prerequisite', 'steps', 'evidence', 'summary'];
-  } else if (template === 'product') {
-    roles = ['hook', 'context', 'demo', 'evidence', 'cta'];
-  }
-
-  const roleLayoutMap = {
-    hook: { layout: 'title-card', title: '主题介绍', desc: '明确主题与阅读范围' },
-    objective: { layout: 'title-card', title: '学习目标', desc: '明确主题与阅读范围' },
-    conflict: { layout: 'points', title: '资料要点', desc: '呈现作者选用的原文事实' },
-    context: { layout: 'points', title: '资料要点', desc: '呈现作者选用的原文事实' },
-    prerequisite: { layout: 'points', title: '资料要点', desc: '呈现作者选用的原文事实' },
-    mechanism: { layout: 'points', title: '进一步了解', desc: '呈现原文内容，不推断医学机制' },
-    steps: { layout: 'points', title: '进一步了解', desc: '呈现原文内容，不补写操作指令' },
-    demo: { layout: 'points', title: '进一步了解', desc: '呈现原文内容，不推断产品效果' },
-    evidence: { layout: 'points', title: '证据与结论', desc: '呈现原文内容，不生成示例疗效数字' },
-    takeaway: { layout: 'points', title: '回顾与核实', desc: '提示核对来源与适用条件' },
-    cta: { layout: 'points', title: '回顾与核实', desc: '提示核对来源与适用条件' },
-    summary: { layout: 'points', title: '回顾与核实', desc: '提示核对来源与适用条件' }
-  };
-
+function renderStoryboardPreview({ story, scenes, motionShots = [], templateAdjusted }) {
+  const count = story.beats.reduce((sum, beat) => sum + beat.facts.length, 0);
+  const audience = { patient: '患者科普', professional: '专业受众', general: '大众通用' };
+  dom.previewMetaTitle.textContent = story.meta.title;
+  dom.previewMetaBadges.textContent = `${scenes.length} 镜头 · ${count} 条已核实事实 · ${audience[story.meta.audience]} · 目标 ${story.meta.durationTarget} 秒`;
   dom.wzBeatsPreviewFlow.innerHTML = '';
-  roles.forEach((r, idx) => {
-    const info = roleLayoutMap[r] || { layout: 'points', title: r, desc: '内容阐述' };
-    const beatCard = document.createElement('div');
-    beatCard.style.padding = '10px 12px';
-    beatCard.style.background = 'var(--bg-card)';
-    beatCard.style.border = '1px solid var(--border)';
-    beatCard.style.borderRadius = '6px';
-    beatCard.style.display = 'flex';
-    beatCard.style.gap = '12px';
-    beatCard.style.alignItems = 'center';
-
-    beatCard.innerHTML = `
-      <div style="font-size:16px; font-weight:800; color:var(--accent); min-width:30px;">#${idx + 1}</div>
-      <div style="flex:1;">
-        <div style="display:flex; align-items:center; gap:8px;">
-          <strong style="font-size:13px; color:white;">分镜: ${r}</strong>
-          <span class="role-badge role-${['hook','conflict','mechanism','evidence','takeaway'].includes(r)?r:'other'}">${r}</span>
-          <span style="font-size:11px; color:var(--text-muted); background:var(--bg-input); padding:1px 6px; border-radius:4px;">组件: ${info.layout}</span>
-        </div>
-        <div style="font-size:12px; color:var(--text-muted); margin-top:4px;">${info.title} - ${info.desc}</div>
-      </div>
-      <div style="font-size:11px; color:var(--accent-light); font-weight:600;">约 ${Math.round(duration / roles.length)}s</div>
-    `;
-    dom.wzBeatsPreviewFlow.appendChild(beatCard);
+  if (templateAdjusted) {
+    const hint = document.createElement('p');
+    hint.style.cssText = 'font-size:12px;color:var(--text-muted);';
+    hint.textContent = '当前事实较少，按开场、资料要点和小结生成精简分镜。';
+    dom.wzBeatsPreviewFlow.appendChild(hint);
+  }
+  story.beats.forEach((beat, i) => {
+    const card = document.createElement('article');
+    card.style.cssText = 'padding:10px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;line-height:1.55;overflow-wrap:anywhere;';
+    const lines = scenes[i].elements.flatMap(({ props }) => [props.content, props.title, props.desc].filter(Boolean));
+    const refs = beat.facts.map(factSourceMarkup).filter(Boolean);
+    const shot = motionShots[i];
+    const motion = shot && ({
+      opening: '标题遮罩揭示',
+      chain: shot.nodes?.join(' → '),
+      comparison: shot.nodes?.join(' / '),
+      metric: `${shot.number} ${shot.unit}环形揭示`,
+      statement: '逐段强调原文要点',
+      recap: '线条汇聚并收束'
+    })[shot.kind];
+    card.innerHTML = `
+      <strong>${escHtml(beat.intent)}</strong>
+      <span style="font-size:12px;color:var(--text-muted);"> · 建议至少 ${scenes[i].minSec} 秒</span>
+      <div style="font-size:13px; margin-top:4px;"><strong>画面</strong>　${lines.map(escHtml).join(' · ')}</div>
+      ${motion ? `<div style="font-size:13px;"><strong>动效</strong>　${escHtml(motion)}</div>` : ''}
+      <div style="font-size:13px;"><strong>旁白</strong>　${escHtml(beat.narration)}</div>
+      ${refs.length ? `<div style="font-size:12px;color:var(--text-muted);">出处　${refs.join('；')}</div>` : ''}`;
+    dom.wzBeatsPreviewFlow.appendChild(card);
   });
 }
 
+const directorUI = Object.fromEntries(['Brief','Endpoint','Model','ImageModel','Key','Reference','SharedTemplate','BriefMedia','Medical','Samples','Generate','FromFacts',
+  'Config','Connect','ConnectionStatus','ShotControls','Revision','KeepVoice','KeepAssets','KeepComposition','KeepDuration',
+  'Revise','Lock','Undo','Asset','Replace','AssetPreview','Layer','Upload','Illustration','Illustrate','ShotStatus',
+  'ReviewPanel','ReviewCheck','ReviewStatus','Review','Draft','DraftVoice','DraftViewport','DraftFrame','DraftStatus',
+  'DraftReplay','DraftCancel','DraftApply'].map(name => [name, document.getElementById('director' + name)]));
+let directorCatalog;
+let directorBusy = false;
+let directorAssets = [];
+let directorDraft;
+let draftAnimation;
+const draftAudio = new Audio();
+
+async function loadDirectorCatalog() {
+  if (directorCatalog) return directorCatalog;
+  try {
+    const response = await apiFetch('/api/director');
+    const data = await response.json();
+    if (!data.ok) throw new Error(data.error);
+    directorCatalog = data;
+    directorUI.ConnectionStatus.textContent = data.connected ? '已配置。' : '配置模型后可自由创作。内置样例可直接试听。';
+    for (const sample of data.samples) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = '试做 ' + sample.label;
+      button.addEventListener('click', () => generateDirector(sample));
+      directorUI.Samples.append(button);
+    }
+    setDirectorAssets(directorAssets);
+    return data;
+  } catch (error) {
+    directorUI.ConnectionStatus.textContent = error.message || '创片配置加载失败。';
+  }
+}
+
+function setDirectorAssets(entries) {
+  directorAssets = entries;
+  const select = directorUI.Asset;
+  const previous = select.value;
+  select.replaceChildren();
+  if (entries.length) {
+    const local = document.createElement('optgroup');
+    local.label = '工程素材';
+    local.append(...entries.map(asset => new Option(asset.name, 'local:' + asset.file)));
+    select.add(local);
+  }
+  if (directorCatalog?.assets?.length) {
+    const icons = document.createElement('optgroup');
+    icons.label = '内置素材';
+    icons.append(...directorCatalog.assets.map(asset => new Option(asset.title, asset.id)));
+    select.add(icons);
+  }
+  if ([...select.options].some(option => option.value === previous)) select.value = previous;
+  updateAssetPreview();
+}
+
+function updateAssetPreview() {
+  const selected = directorCatalog?.assets.find(asset => asset.id === directorUI.Asset.value);
+  const local = directorAssets.find(asset => 'local:' + asset.file === directorUI.Asset.value);
+  const src = selected?.preview || (local?.kind === 'image' ? '/' + local.file : '');
+  directorUI.AssetPreview.hidden = !src;
+  if (src) directorUI.AssetPreview.src = src;
+  else directorUI.AssetPreview.removeAttribute('src');
+}
+directorUI.Asset.addEventListener('change', updateAssetPreview);
+function directorConnectionValues() {
+  return { endpoint: directorUI.Endpoint.value.trim(), model: directorUI.Model.value.trim(),
+    imageModel: directorUI.ImageModel.value.trim(), key: directorUI.Key.value };
+}
+async function uploadDirectorMedia(file, scope) {
+  if (file.size > 48 * 1024 * 1024) throw new Error(file.name + ' 超过 48 MB。');
+  const result = await apiFetch('/api/director/media?' + new URLSearchParams({ scope, name: file.name }),
+    { method: 'POST', body: file }).then(response => response.json());
+  if (!result.ok) throw new Error(result.error);
+  return result.media;
+}
+directorUI.Connect.addEventListener('click', async () => {
+  try {
+    await wizardRequest('/api/director/config', directorConnectionValues());
+    directorUI.Key.value = '';
+    if (directorCatalog) directorCatalog.connected = true;
+    directorUI.ConnectionStatus.textContent = '配置已保存在当前会话。';
+  } catch (error) {
+    directorUI.ConnectionStatus.textContent = error.message;
+  }
+});
+
+async function generateDirector(sample, withFacts = false) {
+  if (wizardState.busy) return;
+  const brief = sample ? sample.brief : directorUI.Brief.value.trim() || (withFacts ? dom.wzTopic.value.trim() : '');
+  if (!brief) { setWizardStatus('先写一句想做什么样的短片。', true); directorUI.Brief.focus(); return; }
+  if (sample) directorUI.Brief.value = brief;
+  const facts = withFacts ? wizardState.facts.filter(fact => fact._checked) : [];
+  if (withFacts && !facts.length) { setWizardStatus('请先勾选可用于创作的核实资料。', true); return; }
+
+  wizardState.busy = directorUI.Generate.disabled = directorUI.FromFacts.disabled = dom.btnWzNext.disabled = true;
+  setWizardStatus('正在构思故事和镜头…');
+  try {
+    const connection = directorUI.Key.value || (directorUI.Endpoint.value && !directorCatalog?.connected)
+      ? directorConnectionValues() : undefined;
+    const files = [];
+    if (!sample) {
+      if (directorUI.BriefMedia.files.length > 8) throw new Error('一次创片最多选择 8 个参考素材。');
+      for (const file of directorUI.BriefMedia.files) files.push((await uploadDirectorMedia(file, 'draft')).file);
+    }
+    const data = await wizardRequest('/api/director/plan', { brief, sample: sample?.id, reference: directorUI.Reference.value,
+      sharedTemplate: sample ? '' : directorUI.SharedTemplate.value,
+      audience: directorUI.Medical.checked || (withFacts && dom.wzAudience.value !== 'general') ? 'patient' : 'general',
+      style: dom.wzStyle.value, duration: Number(dom.wzDuration.value), facts, ...(sample ? {} : { connection, files }) });
+    directorUI.Key.value = '';
+    if (connection && directorCatalog) directorCatalog.connected = true;
+    wizardState.previewId = data.previewId;
+    renderStoryboardPreview(data);
+    setWizardStep(3);
+    setWizardStatus('正在准备可试听的初稿…');
+  } catch (error) {
+    setWizardStatus(error.message, true);
+    return;
+  } finally {
+    wizardState.busy = directorUI.Generate.disabled = directorUI.FromFacts.disabled = dom.btnWzNext.disabled = false;
+  }
+  await importStoryboard(true);
+}
+directorUI.Generate.addEventListener('click', () => generateDirector());
+directorUI.FromFacts.addEventListener('click', () => generateDirector(null, true));
+
+function updateDirectorControls(scene) {
+  const meta = state.project?.story?.meta?.director;
+  const directed = Boolean(meta && scene.layout === 'directed');
+  directorUI.ShotControls.hidden = !directed;
+  const pending = meta?.pendingShots || [];
+  const needsReview = pending.includes(scene.id);
+  directorUI.ReviewPanel.hidden = !needsReview;
+  directorUI.ReviewStatus.textContent = `本镜待核对，工程还剩 ${pending.length} 镜。`;
+  if (directorUI.ReviewCheck.dataset.id !== scene.id) {
+    directorUI.ReviewCheck.checked = false;
+    directorUI.ReviewCheck.dataset.id = scene.id;
+  }
+  if (directed) loadDirectorCatalog();
+  const locked = Boolean(directed && meta.locked?.includes(scene.id));
+  dom.btnSplitScene.hidden = !directed;
+  dom.btnSplitScene.disabled = locked || directorBusy;
+  if (directed) {
+    const selected = directorUI.Layer.value;
+    directorUI.Layer.replaceChildren(...scene.elements.filter(el => ['icon', 'image', 'video'].includes(el.props.kind))
+      .map(el => new Option(el.props.media?.name || directorCatalog?.assets.find(asset => asset.id === el.props.asset)?.title || el.props.asset, el.id)));
+    if ([...directorUI.Layer.options].some(option => option.value === selected)) directorUI.Layer.value = selected;
+  }
+  directorUI.Lock.textContent = locked ? '解锁本镜' : '锁定本镜';
+  for (const control of [directorUI.Revise, directorUI.Undo, directorUI.Replace, directorUI.Upload, dom.btnSaveScene]) {
+    control.disabled = locked || directorBusy;
+  }
+  for (const control of [directorUI.Replace, directorUI.Illustrate]) {
+    control.disabled = locked || directorBusy || !directorUI.Layer.value;
+  }
+  directorUI.Upload.disabled = directorBusy;
+  directorUI.Lock.disabled = directorBusy;
+}
+
+async function changeDirectedShot(action, details = {}) {
+  if (directorBusy) return;
+  const scene = state.project?.scenes.find(sc => sc.id === state.activeSceneId);
+  if (!scene) return;
+  const id = scene.id;
+  directorBusy = true;
+  updateDirectorControls(scene);
+  pause();
+  directorUI.ShotStatus.textContent = action === 'preview' ? '正在重新编排当前镜头…' : '正在保存…';
+  try {
+    const result = await wizardRequest('/api/director/shot', { id, action, ...details });
+    if (action === 'split' || result.splitUndo) {
+      await loadProjectData();
+      const voiceReady = !result.revoice || await prepareVoice(result.id);
+      if (await reloadIframe()) seekFrame(result.frame);
+      directorUI.ShotStatus.textContent = result.splitUndo
+        ? (voiceReady ? '已合并回拆分前的镜头。' : '镜头已合并，请重新配音。')
+        : '已拆分镜头，保留原配音与动效。';
+      showToast(result.splitUndo ? '已撤销拆镜。' : '已在 ' + formatTime(result.frame, state.fps) + ' 的字幕分界处拆分。');
+      return;
+    }
+    if (action === 'preview') {
+      showDirectorDraft(result);
+      directorUI.ShotStatus.textContent = '改版可试听。';
+      return;
+    }
+    if (action === 'apply') closeDirectorDraft();
+    if (action === 'lock') {
+      const meta = state.project.story.meta.director;
+      const locked = new Set(meta.locked || []);
+      if (result.locked) locked.add(id); else locked.delete(id);
+      meta.locked = [...locked];
+      directorUI.ShotStatus.textContent = result.locked ? '本镜头已锁定。' : '本镜头已解锁。';
+      return;
+    }
+    await loadProjectData();
+    if (result.narrationChanged || result.timingChanged) await prepareVoice(id, !result.narrationChanged);
+    const index = state.project.scenes.findIndex(sc => sc.id === id);
+    if (index >= 0) selectScene(index);
+    await reloadIframe();
+    directorUI.ShotStatus.textContent = action === 'undo' ? '已恢复上一次编排。' : '当前镜头已更新。';
+  } catch (error) {
+    directorUI.ShotStatus.textContent = error.message;
+    if (action === 'split') showToast(error.message);
+    if (action === 'apply') directorUI.DraftStatus.textContent = error.message;
+  } finally {
+    directorBusy = false;
+    const selected = state.project?.scenes.find(sc => sc.id === state.activeSceneId);
+    if (selected) updateDirectorControls(selected);
+  }
+}
+
+function resizeDirectorDraft() {
+  if (!directorDraft) return;
+  const { width, height } = directorDraft;
+  const scale = Math.min(directorUI.DraftViewport.clientWidth / width, directorUI.DraftViewport.clientHeight / height);
+  Object.assign(directorUI.DraftFrame.style, { width: width + 'px', height: height + 'px', transform: `scale(${scale})` });
+}
+new ResizeObserver(resizeDirectorDraft).observe(directorUI.DraftViewport);
+
+function playDirectorDraft() {
+  const candidate = directorDraft;
+  const frame = directorUI.DraftFrame.contentWindow;
+  if (!candidate || !frame?.__ready) return;
+  cancelAnimationFrame(draftAnimation);
+  const { start, end } = candidate.range;
+  const now = performance.now();
+  let withAudio = Boolean(candidate.audio);
+  if (withAudio) {
+    draftAudio.currentTime = start / candidate.fps;
+    draftAudio.play().catch(() => { withAudio = false; });
+  }
+  function tick(t) {
+    if (directorDraft !== candidate) return;
+    const f = withAudio ? Math.floor(draftAudio.currentTime * candidate.fps) : start + Math.floor((t - now) * candidate.fps / 1000);
+    frame.__frame(Math.min(end - 1, Math.max(start, f)));
+    if (f < end && (!withAudio || !draftAudio.ended)) draftAnimation = requestAnimationFrame(tick);
+    else draftAudio.pause();
+  }
+  draftAnimation = requestAnimationFrame(tick);
+}
+
+function showDirectorDraft(candidate) {
+  directorDraft = candidate;
+  directorUI.DraftVoice.textContent = candidate.narration;
+  directorUI.DraftStatus.textContent = '正在准备改版画面…';
+  directorUI.DraftReplay.disabled = directorUI.DraftApply.disabled = true;
+  if (candidate.audio) draftAudio.src = candidate.audio;
+  directorUI.DraftFrame.src = candidate.url;
+  directorUI.Draft.showModal();
+  resizeDirectorDraft();
+  const deadline = performance.now() + 10000;
+  function ready() {
+    if (directorDraft !== candidate) return;
+    const frame = directorUI.DraftFrame.contentWindow;
+    if (frame.location.href === directorUI.DraftFrame.src && frame.__ready) {
+      directorUI.DraftReplay.disabled = directorUI.DraftApply.disabled = false;
+      directorUI.DraftStatus.textContent = candidate.audio ? '正在试听本镜改版。' : candidate.audioError || '正在预览画面。';
+      playDirectorDraft();
+    } else if (performance.now() < deadline) {
+      requestAnimationFrame(ready);
+    } else {
+      directorUI.DraftStatus.textContent = '改版画面加载超时。请放弃后重试。';
+    }
+  }
+  requestAnimationFrame(ready);
+}
+
+function closeDirectorDraft() {
+  directorDraft = undefined;
+  cancelAnimationFrame(draftAnimation);
+  draftAudio.pause();
+  draftAudio.removeAttribute('src');
+  draftAudio.load();
+  directorUI.DraftFrame.removeAttribute('src');
+  directorUI.Draft.close();
+}
+
+function discardDirectorDraft() {
+  if (!directorDraft) return;
+  const { id, token } = directorDraft;
+  closeDirectorDraft();
+  directorUI.ShotStatus.textContent = '已放弃改版。';
+  wizardRequest('/api/director/shot', { id, token, action: 'discard' }).catch(error => showToast(error.message));
+}
+directorUI.Draft.addEventListener('cancel', event => { event.preventDefault(); discardDirectorDraft(); });
+directorUI.DraftReplay.addEventListener('click', playDirectorDraft);
+directorUI.DraftCancel.addEventListener('click', discardDirectorDraft);
+directorUI.DraftApply.addEventListener('click', async () => {
+  directorUI.DraftApply.disabled = directorUI.DraftCancel.disabled = true;
+  try {
+    await changeDirectedShot('apply', { id: directorDraft.id, token: directorDraft.token });
+  } finally {
+    directorUI.DraftApply.disabled = directorUI.DraftCancel.disabled = false;
+  }
+});
+directorUI.Revise.addEventListener('click', () => changeDirectedShot('preview', {
+  instruction: directorUI.Revision.value.trim(), keepNarration: directorUI.KeepVoice.checked,
+  keepAssets: directorUI.KeepAssets.checked, keepComposition: directorUI.KeepComposition.checked, keepDuration: directorUI.KeepDuration.checked
+}));
+dom.btnSplitScene.addEventListener('click', () => changeDirectedShot('split', { frame: state.currentFrame }));
+directorUI.Lock.addEventListener('click', () => changeDirectedShot('lock'));
+directorUI.Undo.addEventListener('click', () => changeDirectedShot('undo'));
+directorUI.Replace.addEventListener('click', () => {
+  const selection = directorUI.Asset.value;
+  changeDirectedShot('asset', { ...(selection.startsWith('local:') ? { stored: selection.slice(6) } : { asset: selection }), layerId: directorUI.Layer.value });
+});
+directorUI.Illustrate.addEventListener('click', () => changeDirectedShot('illustrate', {
+  instruction: directorUI.Illustration.value, layerId: directorUI.Layer.value
+}));
+directorUI.Upload.addEventListener('change', async () => {
+  const files = [...directorUI.Upload.files];
+  if (!files.length) return;
+  directorUI.Upload.value = '';
+  const folder = state.projectDir;
+  directorUI.Upload.disabled = true;
+  directorUI.ShotStatus.textContent = '正在导入工程素材…';
+  const entries = new Map(directorAssets.map(asset => [asset.file, asset]));
+  let imported = 0;
+  const errors = [];
+  for (const file of files) {
+    if (state.projectDir !== folder) break;
+    try {
+      const media = await uploadDirectorMedia(file, 'project');
+      entries.set(media.file, media);
+      imported++;
+    } catch (error) {
+      errors.push(file.name + '：' + error.message);
+    }
+  }
+  if (state.projectDir === folder) {
+    setDirectorAssets([...entries.values()]);
+    directorUI.ShotStatus.textContent = [`已导入 ${imported} 个工程素材。`, ...errors].join(' ');
+  }
+  directorUI.Upload.disabled = false;
+});
+directorUI.Review.addEventListener('click', async () => {
+  try {
+    const id = state.activeSceneId;
+    const result = await wizardRequest('/api/director/review', { id, confirmed: directorUI.ReviewCheck.checked });
+    const meta = state.project.story.meta.director;
+    meta.pendingShots = result.pendingShots;
+    meta.pendingReview = result.pendingShots.length > 0;
+    directorUI.ReviewCheck.checked = false;
+    renderBeatList(state.project);
+    const scene = state.project.scenes.find(shot => shot.id === state.activeSceneId);
+    if (scene) updateDirectorControls(scene);
+    showToast(result.pendingShots.length ? `已记录本镜，剩余 ${result.pendingShots.length} 镜待核对。` : '全部镜头已完成核对。');
+  } catch (error) { showToast(error.message); }
+});
+
 // 绑定向导事件
 dom.btnNewProject.addEventListener('click', openCreatorModal);
-dom.btnCloseCreatorModal.addEventListener('click', () => {
+function closeCreatorModal() {
+  if (wizardState.busy) return;
   dom.creatorModal.classList.remove('show');
+  dom.btnNewProject.focus();
+}
+dom.btnCloseCreatorModal.addEventListener('click', closeCreatorModal);
+dom.creatorModal.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeCreatorModal();
+  }
 });
 
 // M8: 自定义选题清空
@@ -2368,106 +3507,106 @@ dom.btnApplyParsedDoc.addEventListener('click', () => {
 });
 
 dom.btnWzPrev.addEventListener('click', () => {
-  if (wizardState.currentStep > 1) {
+  if (!wizardState.busy && wizardState.currentStep > 1) {
+    setWizardStatus('');
     setWizardStep(wizardState.currentStep - 1);
   }
 });
 
-dom.btnWzNext.addEventListener('click', () => {
+dom.btnWzNext.addEventListener('click', async () => {
+  if (wizardState.busy) return;
   if (wizardState.currentStep === 1) {
     const topic = dom.wzTopic.value.trim();
     if (!topic) {
-      showToast('请先输入视频主题或点击上方推荐选题！');
+      setWizardStatus('请先填写视频主题。', true);
       return;
     }
-    dom.wzSearchQuery.value = topic;
+    const changed = wizardState.topicAtResearchStep && wizardState.topicAtResearchStep !== topic;
+    if (!wizardState.topicAtResearchStep || changed) dom.wzSearchQuery.value = topic;
+    wizardState.topicAtResearchStep = topic;
+    setWizardStatus('');
     setWizardStep(2);
-    if (wizardState.articles.length === 0 && wizardState.facts.length === 0) {
-      runLiteratureSearch(topic);
+    if (changed || (wizardState.articles.length === 0 && wizardState.facts.length === 0)) {
+      runLiteratureSearch(dom.wzSearchQuery.value.trim() || topic);
     }
   } else if (wizardState.currentStep === 2) {
-    prepareStep3Preview();
-    setWizardStep(3);
+    const facts = wizardState.facts.filter(fact => fact._checked === true);
+    if (!facts.length) {
+      setWizardStatus('请先引用一篇文献或手动添加事实，核对原文并勾选后再生成分镜。', true);
+      return;
+    }
+    if (editingFact) {
+      setWizardStatus('请先保存或取消正在编辑的事实。', true);
+      return;
+    }
+    wizardState.busy = dom.btnWzNext.disabled = dom.btnWzPrev.disabled = true;
+    setWizardStatus('正在生成分镜预览…');
+    try {
+      const data = await wizardRequest('/api/preview-project', {
+        topic: dom.wzTopic.value.trim(), audience: dom.wzAudience.value,
+        template: dom.wzTemplate.value, durationTarget: Number(dom.wzDuration.value),
+        style: dom.wzStyle.value, facts
+      });
+      wizardState.previewId = data.previewId;
+      renderStoryboardPreview(data);
+      setWizardStep(3);
+      dom.step3Content.scrollTop = 0;
+      setWizardStatus('');
+    } catch (error) {
+      setWizardStatus(error.message, true);
+    } finally {
+      wizardState.busy = dom.btnWzNext.disabled = dom.btnWzPrev.disabled = false;
+    }
   }
 });
 
 dom.btnRunSearch.addEventListener('click', () => {
   const q = dom.wzSearchQuery.value.trim() || dom.wzTopic.value.trim();
-  if (q) {
-    runLiteratureSearch(q);
-  }
+  if (q) runLiteratureSearch(q);
 });
-
-dom.btnAddCustomFact.addEventListener('click', () => {
-  const claim = prompt('请输入新的医学/科学事实断言:');
-  if (claim && claim.trim()) {
-    const evidence = prompt('请输入该事实的参考文献或证据出处 (可选):') || '专家临床共识';
-    // 自定义事实默认待核实；verified/_checked 由创作者在事实列表里勾选驱动
-    wizardState.facts.push({
-      claim: claim.trim(),
-      statement: claim.trim(),
-      evidence: evidence.trim(),
-      verified: false,
-      _checked: false
-    });
-    renderWizardFacts();
-    showToast('自定义事实已添加');
-  }
+dom.wzSearchQuery.addEventListener('keydown', event => {
+  if (event.key === 'Enter') dom.btnRunSearch.click();
 });
+dom.btnMoreLiterature.addEventListener('click', () => {
+  const research = wizardState.research;
+  if (research?.nextPage) runLiteratureSearch(research.query, research.nextPage);
+});
+dom.btnAddCustomFact.addEventListener('click', () => editWizardFact());
 
-// 一键创建并载入工作台
-dom.btnWzCreate.addEventListener('click', async () => {
-  const topic = dom.wzTopic.value.trim();
-  const audience = dom.wzAudience.value;
-  const template = dom.wzTemplate.value;
-  const targetDuration = parseInt(dom.wzDuration.value, 10);
-  const style = dom.wzStyle.value;
-  const facts = wizardState.facts.filter(f => f._checked !== false);
-
+async function importStoryboard(withVoice = false) {
+  if (wizardState.busy || !wizardState.previewId) return;
+  wizardState.busy = dom.btnWzCreate.disabled = dom.btnWzPrev.disabled = true;
+  dom.btnWzCreate.textContent = '正在载入…';
+  setWizardStatus('正在保存并编译分镜…');
+  let loaded = false;
   try {
-    dom.btnWzCreate.disabled = true;
-    dom.btnWzCreate.textContent = '正在全自动生成分镜与代码...';
-    showToast('AI 正在构建分镜骨架、编写排版组件并全量编译...');
-
-    const res = await apiFetch('/api/create-project', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        topic,
-        audience,
-        template,
-        durationTarget: targetDuration,
-        style,
-        facts
-      })
-    });
-
-    const data = await res.json();
-    if (!data.ok) {
-      showToast('创建失败: ' + (data.error || (data.compile && data.compile.errors.join('; '))));
-      dom.btnWzCreate.disabled = false;
-      dom.btnWzCreate.textContent = '🚀 载入工作台并开始演播';
-      return;
+    const data = await wizardRequest('/api/create-project', { previewId: wizardState.previewId });
+    pause();
+    if (await loadProjectData() !== data.projectDir) throw new Error('工程已保存，但工作台载入失败。请再次点击载入工作台。');
+    seekFrame(Math.min(Math.round(state.fps * 1.2), state.totalFrames - 1));
+    await reloadIframe();
+    if (withVoice) {
+      const ok = await prepareVoice();
+      if (ok) {
+        seekFrame(0);
+        play();
+      }
     }
-
-    showToast('🎉 新工程创建并全量编译成功！正在载入工作台...');
-    dom.creatorModal.classList.remove('show');
-    dom.btnWzCreate.disabled = false;
-    dom.btnWzCreate.textContent = '🚀 载入工作台并开始演播';
-
-    if (window.desktopAPI) {
-      await window.desktopAPI.switchProject(data.projectDir);
-      return;
-    }
-    await loadProjectData();
-    reloadIframe();
-    seekFrame(0);
-  } catch (err) {
-    showToast('创建异常: ' + err.message);
-    dom.btnWzCreate.disabled = false;
-    dom.btnWzCreate.textContent = '🚀 载入工作台并开始演播';
+    loaded = true;
+    wizardState.previewId = null;
+  } catch (error) {
+    setWizardStatus(`载入失败：${error.message}`, true);
+  } finally {
+    wizardState.busy = dom.btnWzCreate.disabled = dom.btnWzPrev.disabled = false;
+    dom.btnWzCreate.textContent = '载入工作台';
   }
-});
+  if (loaded) {
+    setWizardStatus('');
+    closeCreatorModal();
+    showToast('新工程已载入工作台。');
+  }
+}
+dom.btnWzCreate.addEventListener('click', () => importStoryboard());
 
 // 添加新分镜弹窗事件
 dom.btnAddBeat.addEventListener('click', () => {
@@ -2496,14 +3635,15 @@ dom.btnConfirmAddBeat.addEventListener('click', async () => {
     const res = await apiFetch('/api/beat/add', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, role, layout, narration })
+      body: JSON.stringify({ beat: { id, role, narration }, layout })
     });
     const r = await res.json();
     if (r.ok) {
       showToast(`新分镜 [${id}] 添加成功！`);
       dom.addBeatModal.classList.remove('show');
       await loadProjectData();
-      reloadIframe();
+      if (r.retime) await prepareVoice(undefined, true);
+      else await reloadIframe();
     } else {
       showToast('添加失败: ' + (r.error || (r.compile && r.compile.errors.join('; '))));
     }
@@ -2515,7 +3655,11 @@ dom.btnConfirmAddBeat.addEventListener('click', async () => {
 // 初始化启动
 function initApp() {
   autoScaleViewport();
-  loadProjectData();
+  const action = new URLSearchParams(window.location.search).get('action');
+  const loaded = loadProjectData();
+  loaded.then(async projectDir => {
+    if (projectDir && await waitForPreview()) seekFrame(state.currentFrame);
+  });
 
   // Desktop 原生客户端增强
   if (window.desktopAPI) {
@@ -2529,8 +3673,7 @@ function initApp() {
   }
 
   // 检查是否需要自动弹出 AI 创作工坊
-  const urlParams = new URLSearchParams(window.location.search);
-  if (urlParams.get('action') === 'wizard') {
+  if (action === 'wizard') {
     setTimeout(() => {
       if (typeof openCreatorModal === 'function') openCreatorModal();
     }, 400);
