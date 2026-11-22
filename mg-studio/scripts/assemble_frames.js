@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 'use strict';
+require('../lib/cli-help').help('用法: node assemble_frames.js [项目目录]\n按时间轴硬链接拼接各场景帧 → frames/all/f_%04d.png。');
 /* assemble_frames.js — 按 timeline 顺序把各 scene 帧硬链接拼到 frames/all/f_%04d.png
  * 用法: node assemble_frames.js [项目目录]
  */

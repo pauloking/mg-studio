@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 'use strict';
+require('../lib/cli-help').help('用法: node doctor.js [--json | --quiet]\n环境自检：Node/依赖/Chrome/ffmpeg/TTS/Python；--quiet 仅退出码。');
 /* doctor.js — 运行环境诊断与依赖自检
  *
  * 检查项:

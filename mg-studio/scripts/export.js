@@ -26,7 +26,9 @@ function exportVideo(backend = 'local', outputName = 'output') {
     node('lint_story.js', '.');
   }
   console.log(`==> 1/5 配音 (${backend})`);
-  node('tts.js', '--backend', backend, '--reuse');
+  const ttsArgs = ['--backend', backend, '--reuse'];
+  if (process.argv.includes('--yes') || process.env.MG_TTS_YES === '1') ttsArgs.push('--yes');
+  node('tts.js', ...ttsArgs);
   console.log('==> 2/5 时间轴');
   node('build_timeline.js');
   if (isV2) node('lint_scene.js', '.');

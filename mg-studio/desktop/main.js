@@ -119,7 +119,7 @@ async function startStudioForProject(projectDir) {
       if (story.meta && story.meta.title) title = story.meta.title;
       if (story.meta && story.meta.audience) audience = story.meta.audience;
     }
-  } catch (e) {}
+  } catch (e) { logError('读取工程信息', e); }
 
   currentProjectInfo = {
     title,
@@ -166,7 +166,7 @@ function createMainWindow() {
       if (stat.isDirectory() && fs.existsSync(path.join(candidateDir, 'story.json'))) {
         initialProject = candidateDir;
       }
-    } catch (e) {}
+    } catch (e) { logError('探测初始工程', e); }
   }
 
   if (initialProject) {
@@ -482,7 +482,7 @@ app.on('window-all-closed', async () => {
   if (currentServer) {
     try {
       await currentServer.close();
-    } catch (e) {}
+    } catch (e) { logError('关闭本地服务', e); }
   }
   if (process.platform !== 'darwin') {
     app.quit();
