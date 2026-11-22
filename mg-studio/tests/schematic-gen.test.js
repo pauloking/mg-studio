@@ -54,6 +54,11 @@ test('generateSchematicScene：diagram 无 labels 时从旁白自动提取节点
   const sc = generateSchematicScene({ beat: b });
   assert.deepEqual(sc.elements[0].props.labels, ['V6 确认夺获', 'V1 区分类型', '腔内电图核实']);
 });
+test('generateSchematicScene：diagram "三个环节" 终止词不带冗余尾巴', () => {
+  const b = { id: 'd2', narration: '城市内涝依次经过硬化地表、管网不足、调蓄缺失三个环节。', intent: '成因' };
+  const sc = generateSchematicScene({ beat: b });
+  assert.deepEqual(sc.elements[0].props.labels, ['硬化地表', '管网不足', '调蓄缺失']);
+});
 test('generateSchematicScene：comparison 无 labels 时自动提取对比项', () => {
   const b = { id: 'c', narration: '对比选择性与非选择性夺获。', intent: '对比' };
   const sc = generateSchematicScene({ beat: b });
