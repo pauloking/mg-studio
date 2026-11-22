@@ -22,6 +22,14 @@ test('generatePanoramaScene：panorama → 干净2D分区示意（非primitive3D
 test('generatePanoramaScene：非 panorama 返回 null', () => {
   assert.equal(generatePanoramaScene({ beat: { id: 'a', narration: '室间隔剖面。' } }), null);
 });
+test('generatePanoramaScene：匹配原创插画→directed 组合全景（图片设计+全景设计）', () => {
+  const b = { id: 'city', narration: '海绵城市全景：建筑、道路、绿地三类源头协同。', intent: '城市全景' };
+  const sc = generatePanoramaScene({ beat: b });
+  assert.equal(sc.layout, 'directed');
+  const icons = sc.elements.filter(e => e.props.kind === 'icon').map(e => e.props.asset);
+  assert.deepEqual(icons, ['rain-roof', 'rain-street', 'rain-soil']);
+  assert.ok(sc.elements.some(e => e.props.kind === 'text' && e.props.content === '建筑屋顶'));
+});
 test('generatePanoramaScene：确定性', () => {
   assert.deepEqual(generatePanoramaScene({ beat: panBeat }), generatePanoramaScene({ beat: panBeat }));
 });

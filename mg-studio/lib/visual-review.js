@@ -6,6 +6,7 @@
  * 批准记录存于 scenes/<id>.json 的 visualReview:{reference,reviewer,approved}。
  */
 const fs = require('fs'), path = require('path');
+const { ANATOMY, DEVICE } = require('./visual-intent');
 const ANATOMICAL = ['three3d'];
 
 /** 参考图完整性：占位图（<2KB 或 PNG <64×64）不能充当"专家对照参考"，否则人工门可被stub绕过。 */
@@ -25,7 +26,9 @@ function needsReview(sc) {
   if (ANATOMICAL.includes(sc.layout)) return true;
   if (sc.layout === 'topic-visual') return true;
   const bt = sc.visualBrief && sc.visualBrief.type;
-  if (bt && ['anatomy', 'device', 'panorama'].includes(bt)) return true;
+  if (bt === 'anatomy' || bt === 'device') return true;
+  // 全景仅当含解剖/器械主体时才需医学目检；城市/工程等非医学全景不触发医学门
+  if (bt === 'panorama') return (sc.visualBrief.structures || []).some(s => ANATOMY.includes(s) || DEVICE.includes(s));
   return (sc.elements || []).some(e => e && e.props && e.props.visualReview === true);
 }
 
