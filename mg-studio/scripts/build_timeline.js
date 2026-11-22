@@ -25,10 +25,12 @@ function durOf(file) {
 }
 
 const fit = Number.isFinite(opt.fitDuration) && opt.fitDuration > 0;
+const voiceRevision = s.tts?.revision;
 function frameTiming(shot, dur) {
   const segment = shot.segment;
-  if (segment && shot.minSec === segment.durationFrames / FPS && preservedVoice(ROOT, shot)) return segment;
-  const pinned = opt.fitDuration === opt.framePlan?.target ? opt.framePlan?.shots?.[shot.id] : null;
+  if (segment && shot.minSec === segment.durationFrames / FPS && preservedVoice(ROOT, shot, voiceRevision)) return segment;
+  const plan = opt.framePlan;
+  const pinned = plan && plan.target === opt.fitDuration && plan.voiceRevision === voiceRevision ? plan.shots?.[shot.id] : null;
   if (validFrameTiming(pinned) && pinned.narration === shot.narration && pinned.minSec === shot.minSec &&
       pinned.dur === +dur.toFixed(2) && pinned.leadSamples / SAMPLE_RATE + dur <= pinned.durationFrames / FPS + 0.001) return pinned;
   return null;
@@ -85,6 +87,7 @@ const scenes = s.scenes.map((sc, idx) => {
 });
 
 const tl = { fps: FPS, width: s.width || 1920, height: s.height || 1080, totalFrames: cursor, scenes };
+if (voiceRevision) tl.voiceRevision = voiceRevision;
 if (fit) tl.fit = { target: opt.fitDuration, actual: cursor / FPS, speechFloor: speechFrames / FPS };
 fs.writeFileSync(path.join(ROOT, 'timeline.json'), JSON.stringify(tl, null, 1));
 

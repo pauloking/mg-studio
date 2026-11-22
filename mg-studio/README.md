@@ -379,6 +379,7 @@ node scripts/studio.js ../my-film --port 3000 --open
 ```
 
 ### 7.2 核心特性与架构安全
+* **工程配音设置**：在工作台顶栏点「配音设置」，选择系统语音或百炼并调整语速。百炼还支持填写模型、音色和语气指令。可先点「试听」，再点「保存并重新配音」，同时更新旁白和字幕时间轴。工程设置也用于导出。
 * **网络与路径安全**：服务严格绑定至本地回环地址 `127.0.0.1`，静态文件伺服采用严格的 `path.resolve` 边界核验，主动防御目录穿越探测（测试覆盖 403 阻断）。
 * **虚拟时间轴平滑回退**：工程初创或尚未调用配音生成时，Studio 服务端自动按文字长度与分镜时长预估生成虚拟时间轴（Synthesized Timeline），让创作者在撰写分镜时即可秒级预览画面与动效，无需等待语音合成。
 * **8 大视觉风格一键切换**：顶栏下拉即时切换 `deep-tech`、`clean-medical`、`warm-editorial`、`swiss-modern`、`vital-energy`、`cyber-neon`、`ink-zen`、`aurora-glass`，实时级联深合并与增量编译。
@@ -399,6 +400,8 @@ node scripts/studio.js ../my-film --port 3000 --open
 | `/api/compile` | `POST` | 全量重新编译 `script.json` 与 `scene.html` |
 | `/api/lint` | `GET` | 聚合叙事、脚本、医学、动效三大门禁全量诊断 |
 | `/api/tts` | `POST` | 调用配音脚本与时间轴构建器 |
+| `/api/tts/settings` | `GET / POST` | 读取与保存当前工程的配音设置 |
+| `/api/tts/audition` | `POST` | 使用表单中的配音选项返回一段试听 WAV |
 | `/api/export` | `POST` | 启动后台出片流水线，返回异步 `taskId` |
 | `/api/task-status` | `GET` | 轮询后台出片进度与日志（`?taskId=...`） |
 | `/api/topics` | `GET` | 获取医学/科学推荐权威选题与模板 |

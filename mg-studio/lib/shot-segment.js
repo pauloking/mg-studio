@@ -32,9 +32,9 @@ function takePath(dir, take) {
   return path.join(dir, 'takes', take + '.wav');
 }
 
-function preservedVoice(dir, scene) {
+function preservedVoice(dir, scene, revision) {
   const clip = scene.segment;
-  if (!validSegment(clip) || clip.narration !== scene.narration) return null;
+  if (!validSegment(clip) || clip.narration !== scene.narration || clip.voiceRevision !== revision) return null;
   const file = takePath(dir, clip.take);
   if (!fs.existsSync(file) || !fs.lstatSync(file).isFile() ||
       !fs.realpathSync(file).startsWith(fs.realpathSync(dir) + path.sep)) {

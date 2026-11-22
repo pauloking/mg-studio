@@ -9,6 +9,7 @@ const { pendingShots, updateReview } = require('./director-review');
 const { projectFilePath, sceneFilePath } = require('./project-files');
 const { atomicWrite, readShot } = require('./save-shot');
 const { FPS, SAMPLE_RATE, SAMPLES_PER_FRAME, wavSamples, pcmWav, takePath, preservedVoice, placeSubtitles } = require('./shot-segment');
+const { hasCurrentNarration } = require('./voice-settings');
 
 function unavailable(message) {
   return Object.assign(new Error(message), { statusCode: 422 });
@@ -58,7 +59,8 @@ function splitShot(dir, current, frame) {
   const { story, index, scene, beat, storyPath, scenePath } = current;
   const timelinePath = projectFilePath(dir, 'timeline.json');
   const audioDir = path.join(dir, 'vo');
-  if (!fs.existsSync(timelinePath) || !fs.existsSync(path.join(audioDir, 'narration.wav'))) {
+  const voiceRevision = story.meta.tts?.revision;
+  if (!fs.existsSync(timelinePath) || !hasCurrentNarration(dir, voiceRevision)) {
     throw unavailable('请先给当前工程配音，拆镜会保留现有旁白和字幕。');
   }
   if (!fs.lstatSync(audioDir).isDirectory()) throw unavailable('工程配音目录无效。');
@@ -95,7 +97,7 @@ function splitShot(dir, current, frame) {
     const timing = relativeTiming(shot, start, end, subs);
     const segment = { ...timing, from: phase(start), frames: phase(end) - phase(start),
       total: scene.segment?.total || shot.end - shot.start,
-      take: randomUUID().replaceAll('-', ''), narration };
+      take: randomUUID().replaceAll('-', ''), narration, voiceRevision };
     return { beat: { ...beat, id, narration }, scene: { ...scene, id, beat: id, minSec: (end - start) / FPS,
       segment, subsOverride: subs.map(cue => cue.text) },
       timeline: { ...shot, id, start, end, audioStart: (start * SAMPLES_PER_FRAME + timing.leadSamples) / SAMPLE_RATE,
@@ -116,6 +118,7 @@ function splitShot(dir, current, frame) {
   // Rebuilding unchanged speech for export must retain the same neighboring timings as the workbench.
   story.meta.director.framePlan = {
     target: compiled.options?.fitDuration,
+    voiceRevision,
     shots: Object.fromEntries(timeline.scenes.filter(part => part.id !== scene.id).map(part => {
       const input = compiled.scenes.find(item => item.id === part.id);
       return [part.id, { ...relativeTiming(part), narration: input.narration, minSec: input.minSec, dur: part.dur }];
@@ -165,26 +168,32 @@ function undoSplit(dir, leftId, history, historyPath) {
     throw unavailable('两段有修改、已锁定或不再相邻，无法撤销这次拆镜。');
   }
   const timelinePath = projectFilePath(dir, 'timeline.json');
-  if (!fs.existsSync(timelinePath)) throw unavailable('请先重建时间轴。');
-  const timeline = JSON.parse(fs.readFileSync(timelinePath, 'utf8'));
-  const first = timeline.scenes[left.index];
-  const second = timeline.scenes[left.index + 1];
-  if (first?.id !== leftId || second?.id !== rightId || second.end - first.start !== timing.durationFrames) {
-    throw unavailable('当前时间轴与拆分后的镜头不一致。');
+  const timeline = fs.existsSync(timelinePath) ? JSON.parse(fs.readFileSync(timelinePath, 'utf8')) : null;
+  const first = timeline?.scenes[left.index];
+  const second = timeline?.scenes[left.index + 1];
+  const start = first?.id === leftId ? first.start : 0;
+  const revision = story.meta.tts?.revision;
+  const revoice = left.scene.segment.voiceRevision !== revision;
+  let audio = null;
+  if (!revoice) {
+    if (first?.id !== leftId || second?.id !== rightId || second.end - first.start !== timing.durationFrames) {
+      throw unavailable('当前时间轴与拆分后的镜头不一致。');
+    }
+    const merge = [left, right].map(part =>
+      preservedVoice(dir, { ...part.scene, narration: part.beat.narration }, revision));
+    audio = pcmWav(Buffer.concat(merge.map(file => wavSamples(fs.readFileSync(file)))));
+    timeline.scenes.splice(left.index, 2, { id: leftId, start, end: second.end, dur,
+      audioStart: (start * SAMPLES_PER_FRAME + timing.leadSamples) / SAMPLE_RATE,
+      subs: placeSubtitles(timing.subs, start / FPS) });
   }
-  const start = first.start;
-  const merge = [left, right].map(part => preservedVoice(dir, { ...part.scene, narration: part.beat.narration }));
-  const audio = pcmWav(Buffer.concat(merge.map(file => wavSamples(fs.readFileSync(file)))));
-  timeline.scenes.splice(left.index, 2, { id: leftId, start, end: second.end, dur,
-    audioStart: (start * SAMPLES_PER_FRAME + timing.leadSamples) / SAMPLE_RATE,
-    subs: placeSubtitles(timing.subs, start / FPS) });
   const pending = pendingShots(story).filter(id => id !== leftId && id !== rightId);
   story.beats.splice(left.index, 2, original.beat);
   updateReview(story, neededReview ? [...pending, leftId] : pending);
   const plan = story.meta.director.framePlan?.shots;
   if (plan) {
     delete plan[rightId];
-    plan[leftId] = { ...timing, narration: original.beat.narration, minSec: original.scene.minSec, dur };
+    if (revoice) delete plan[leftId];
+    else plan[leftId] = { ...timing, narration: original.beat.narration, minSec: original.scene.minSec, dur };
   }
   delete history[leftId];
   delete history[rightId];
@@ -192,13 +201,14 @@ function undoSplit(dir, leftId, history, historyPath) {
     [left.scenePath, JSON.stringify(original.scene, null, 2)],
     [right.scenePath, null],
     [left.storyPath, JSON.stringify(story, null, 2)],
-    [timelinePath, JSON.stringify(timeline, null, 1)],
+    [timelinePath, revoice ? null : JSON.stringify(timeline, null, 1)],
+    ...(revoice ? [[path.join(dir, 'vo', 'narration.wav'), null]] : []),
     [path.join(dir, 'vo', leftId + '.wav'), audio],
     [path.join(dir, 'vo', rightId + '.wav'), null],
     [historyPath, JSON.stringify(history)],
-    ...merge.map(file => [file, null])
+    ...[left, right].map(part => [takePath(dir, part.scene.segment.take), null])
   ]);
-  return { id: leftId, frame: start };
+  return { id: leftId, frame: start, revoice };
 }
 
 module.exports = { splitShot, undoSplit };

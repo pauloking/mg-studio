@@ -33,7 +33,7 @@ test('playhead split preserves source PCM and after export rebuild, and can be u
   const studio = createStudioServer({ projectDir: dir, port: 0 });
   const { port } = await studio.start();
   t.after(() => studio.close());
-  const send = async body => (await studioFetch(studio)('http://127.0.0.1:' + port + '/api/director/shot', {
+  const send = async (body, endpoint = '/api/director/shot') => (await studioFetch(studio)('http://127.0.0.1:' + port + endpoint, {
     method: 'POST', body: JSON.stringify(body)
   })).json();
   assert.equal((await send({ id: original.id, action: 'split', frame: original.start - 1 })).ok, false);
@@ -59,4 +59,17 @@ test('playhead split preserves source PCM and after export rebuild, and can be u
   assert.deepEqual(read(original.id), voice);
   assert.deepEqual(tl().scenes.map(shot => [shot.id, shot.start, shot.end]), before.scenes.map(shot => [shot.id, shot.start, shot.end]));
   assert.equal(fs.existsSync(path.join(dir, 'scenes', split.id + '.json')), false);
+
+  const resplit = await send({ id: original.id, action: 'split', frame: original.start + 75 });
+  assert.ok(resplit.ok, resplit.error);
+  const saved = await send({ projectDir: dir, settings: { backend: 'local', speed: 1.2 } }, '/api/tts/settings');
+  assert.ok(saved.ok, saved.error);
+  assert.equal(saved.needsVoice, true);
+  const revoicedUndo = await send({ id: resplit.id, action: 'undo' });
+  assert.ok(revoicedUndo.splitUndo, revoicedUndo.error);
+  assert.equal(revoicedUndo.revoice, true);
+  assert.equal(fs.existsSync(path.join(dir, 'vo/narration.wav')), false);
+  assert.equal(fs.existsSync(path.join(dir, 'vo', original.id + '.wav')), false);
+  const script = JSON.parse(fs.readFileSync(path.join(dir, 'script.json')));
+  assert.equal(script.tts.speed, 1.2);
 });

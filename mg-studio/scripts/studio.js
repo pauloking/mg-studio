@@ -33,6 +33,7 @@ const { catalog, uploadAsset } = require('../lib/project-assets');
 const { pendingShots, updateReview } = require('../lib/director-review');
 const { projectSnapshot, previewSnapshot } = require('../lib/project-snapshot');
 const { extractRawText, analyzeDocumentText } = require('../lib/doc-parser');
+const { BACKENDS, settingsFor, parseSettings, localVoices, narrationRevisionMatches, hasCurrentNarration } = require('../lib/voice-settings');
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -205,6 +206,7 @@ function createStudioServer(options = {}) {
   let directorConnection;
   let draftAssets;
   let shotDraft;
+  let voiceAudition = false;
   function clearShotDraft() {
     if (!shotDraft) return;
     fs.rmSync(shotDraft.root, { recursive: true, force: true });
@@ -279,6 +281,7 @@ function createStudioServer(options = {}) {
           const hasScript = fs.existsSync(path.join(projectDir, 'script.json'));
           const hasSceneHtml = fs.existsSync(path.join(projectDir, 'scene.html'));
           const hasTimeline = fs.existsSync(path.join(projectDir, 'timeline.json'));
+          const tts = projectData?.story?.meta.tts || projectData?.script?.tts;
 
           sendJson(res, 200, {
             ok: !loadError,
@@ -289,7 +292,8 @@ function createStudioServer(options = {}) {
             hasScript,
             hasSceneHtml,
             hasTimeline,
-            hasNarration: fs.existsSync(path.join(projectDir, 'vo', 'narration.wav')),
+            hasNarration: hasCurrentNarration(projectDir, tts?.revision),
+            voiceNeedsUpdate: !!tts?.revision && !narrationRevisionMatches(projectDir, tts.revision),
             motionSceneIds: projectData?.mode === 'v2' ? projectData.scenes.filter(canCompose).map(sc => sc.id) : [],
             project: projectData,
             assets: projectData?.story?.meta.director ? catalog(projectDir) : []
@@ -468,7 +472,7 @@ function createStudioServer(options = {}) {
             }
             if (action === 'preview') {
               const sameTiming = next.beat.narration === current.beat.narration && next.scene.minSec === current.scene.minSec;
-              const root = previewSnapshot(dir, next, sameTiming);
+              const root = previewSnapshot(dir, next, sameTiming && hasCurrentNarration(dir, current.story.meta.tts?.revision));
               let audioError;
               if (!fs.existsSync(path.join(root, 'vo', 'narration.wav'))) {
                 const backend = current.story.meta.tts?.backend === 'bailian' ? 'bailian' : 'local';
@@ -850,6 +854,7 @@ function createStudioServer(options = {}) {
           if (story.beats.length !== current.beats.length || story.beats.some(b => !current.beats.some(c => c.id === b.id))) {
             throw Object.assign(new Error('Use beat endpoints to change the scene list'), { statusCode: 400 });
           }
+          if (current.meta.tts?.revision) story.meta.tts = current.meta.tts;
           if (current.meta.director) {
             story.meta.director = current.meta.director;
             const changed = story.beats.filter(beat => {
@@ -876,18 +881,91 @@ function createStudioServer(options = {}) {
           return;
         }
 
+        if (pathname === '/api/tts/settings' && ['GET', 'POST'].includes(req.method)) {
+          const dir = fs.realpathSync(projectDir);
+          const body = req.method === 'POST' ? await parseJsonBody(req) : null;
+          if (req.method === 'POST' && (body?.projectDir !== projectDir || dir !== fs.realpathSync(projectDir))) {
+            sendJson(res, 409, { ok: false, error: '工程已切换，请重新打开配音设置。' });
+            return;
+          }
+          const isStory = fs.existsSync(path.join(dir, 'story.json'));
+          const file = projectFilePath(dir, isStory ? 'story.json' : 'script.json');
+          const source = JSON.parse(fs.readFileSync(file, 'utf8'));
+          const config = isStory ? source.meta : source;
+          let settings = settingsFor(config.tts);
+          let changed = false;
+          if (req.method === 'POST') {
+            settings = parseSettings(body.settings);
+            changed = JSON.stringify(settings) !== JSON.stringify(settingsFor(config.tts));
+            if (changed) {
+              if (activeProjects.has(dir)) {
+                sendJson(res, 409, { ok: false, error: '当前工程正在配音或导出，请稍后再保存。' });
+                return;
+              }
+              config.tts = { ...settings, revision: crypto.randomUUID() };
+              atomicWrite(file, JSON.stringify(source, null, 2));
+              clearShotDraft();
+            }
+          }
+          const result = { ok: true, projectDir, settings, changed,
+            needsVoice: !!config.tts?.revision && !narrationRevisionMatches(dir, config.tts.revision) };
+          if (req.method === 'GET') result.voices = await localVoices();
+          sendJson(res, 200, result);
+          return;
+        }
+
+        if (pathname === '/api/tts/audition' && req.method === 'POST') {
+          const body = await parseJsonBody(req);
+          const settings = parseSettings(body?.settings);
+          if (voiceAudition) {
+            sendJson(res, 409, { ok: false, error: '正在合成上一段试听。' });
+            return;
+          }
+          const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mg-voice-audition-'));
+          voiceAudition = true;
+          let logs = '';
+          try {
+            fs.writeFileSync(path.join(dir, 'script.json'), JSON.stringify({
+              tts: { ...settings, revision: 'audition' },
+              scenes: [{ id: 'sample', narration: '你好。接下来，我们用一段动画，把这个问题说清楚。' }]
+            }));
+            await runWorker(path.join(__dirname, 'tts.js'), [], {
+              cwd: dir, spawnProcess: options.spawnProcess, timeout: 125000, onLog: chunk => { logs += chunk; }
+            });
+            const sample = fs.readFileSync(path.join(dir, 'vo', 'sample.wav'));
+            res.writeHead(200, { 'Content-Type': 'audio/wav', 'Cache-Control': 'no-store' });
+            res.end(sample);
+          } catch (error) {
+            const message = settings.backend === 'bailian' ? '百炼试听失败。请检查 bl 登录状态、模型和音色。' :
+              '本地试听失败。请检查系统音色与 FFmpeg。';
+            sendJson(res, 422, { ok: false, error: message + ' ' + (logs.trim() || error.message).slice(-500) });
+          } finally {
+            voiceAudition = false;
+            fs.rmSync(dir, { recursive: true, force: true });
+          }
+          return;
+        }
+
         // 创片导出使用固定的工程副本，继续编辑时不会改变正在渲染的内容。
         if ((pathname === '/api/tts' || pathname === '/api/export') && req.method === 'POST') {
           const workDir = fs.realpathSync(projectDir);
           const body = await parseJsonBody(req);
+          if (body.projectDir && body.projectDir !== projectDir) {
+            sendJson(res, 409, { ok: false, error: '工程已切换，请在当前工程重试。' });
+            return;
+          }
           const storyPath = path.join(workDir, 'story.json');
           const scriptPath = path.join(workDir, 'script.json');
           const story = fs.existsSync(storyPath) ? JSON.parse(fs.readFileSync(storyPath, 'utf8')) : null;
-          const backend = body.backend || (story
-            ? story.meta?.tts?.backend
-            : fs.existsSync(scriptPath) && JSON.parse(fs.readFileSync(scriptPath, 'utf8')).tts?.backend) || 'local';
-          if (!['local', 'bailian'].includes(backend)) {
+          const tts = story ? story.meta?.tts
+            : fs.existsSync(scriptPath) && JSON.parse(fs.readFileSync(scriptPath, 'utf8')).tts;
+          const backend = body.backend || tts?.backend || 'local';
+          if (!BACKENDS.includes(backend)) {
             sendJson(res, 400, { ok: false, error: '未知配音后端' });
+            return;
+          }
+          if (tts?.revision && backend !== tts.backend) {
+            sendJson(res, 422, { ok: false, error: '请在配音设置里切换引擎。' });
             return;
           }
           const isExport = pathname === '/api/export';
@@ -914,12 +992,14 @@ function createStudioServer(options = {}) {
             try {
               await run('compile.js', [], log, 30000);
               const script = JSON.parse(fs.readFileSync(scriptPath, 'utf8'));
-              const ttsArgs = ['--backend', backend, ...(body.retime === true ? ['--reuse'] : [])];
-              if (script.scenes.some(sc => sc.id === body.only) &&
-                  script.scenes.every(sc => sc.id === body.only || fs.existsSync(path.join(workDir, 'vo', sc.id + '.wav')))) {
+              const current = narrationRevisionMatches(workDir, tts?.revision);
+              const ttsArgs = ['--backend', backend, ...(!current || body.retime === true ? ['--reuse'] : [])];
+              const hasShotVoice = sc => fs.existsSync(path.join(workDir, 'vo', sc.id + '.wav'));
+              if (current && script.scenes.some(sc => sc.id === body.only) &&
+                  script.scenes.every(sc => sc.id === body.only || hasShotVoice(sc))) {
                 ttsArgs.push('--only', body.only);
               }
-              if (body.retime !== true || !script.scenes.every(sc => fs.existsSync(path.join(workDir, 'vo', sc.id + '.wav')))) {
+              if (!current || body.retime !== true || !script.scenes.every(hasShotVoice)) {
                 await run('tts.js', ttsArgs, log, 300000);
               }
               await run('build_timeline.js', [], log, 30000);

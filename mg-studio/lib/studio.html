@@ -114,6 +114,20 @@ header {
   align-items: center;
   gap: 8px;
 }
+.voice-toolbar { display: flex; }
+.voice-toolbar #btnTts { border-radius: 6px 0 0 6px; padding-right: 9px; }
+.voice-toolbar #btnVoiceSettings { border-radius: 0 6px 6px 0; border-left: 0; padding-inline: 8px; white-space: nowrap; }
+#btnVoiceSettings[data-needs-voice] { color: #fde68a; }
+@media (max-width: 1280px) {
+  header { gap: 8px; }
+  header .brand-group { min-width: 0; gap: 8px; }
+  header .action-buttons { flex-shrink: 0; gap: 5px; }
+  header button, .logo-badge { white-space: nowrap; }
+  header button { padding-inline: 8px; }
+  #topMeta, .toolbar-new-project-extra, header .style-picker label { display: none; }
+  #topTitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #styleSelect { max-width: 180px; }
+}
 button {
   background: var(--bg-card);
   color: var(--text-main);
@@ -651,6 +665,39 @@ textarea {
 .modal-mask.show {
   display: flex;
 }
+#voiceSettingsDialog {
+  margin: auto;
+  padding: 22px;
+  width: min(500px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  background: var(--bg-panel);
+  color: var(--text-main);
+}
+#voiceSettingsDialog::backdrop { background: rgba(7, 9, 15, .72); }
+#voiceSettingsDialog h2 { font-size: 18px; }
+#voiceSettingsDialog p { font-size: 13px; line-height: 1.5; color: var(--text-muted); }
+#voiceSettingsDialog form, #voiceSettingsDialog fieldset { display: grid; gap: 12px; border: 0; }
+#voiceSettingsDialog form { margin-top: 12px; }
+#voiceSettingsDialog fieldset[hidden], #voiceAuditionPlayer[hidden] { display: none; }
+#voiceSettingsDialog label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
+#voiceSpeedOutput { font-size: 13px; font-weight: 600; }
+#voiceSettingsDialog :is(input:not([type=range]), select, textarea) {
+  width: 100%;
+  padding: 8px 10px;
+  color: var(--text-main);
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  font: inherit;
+  font-weight: 400;
+}
+#voiceSettingsDialog input[type=range] { width: 100%; accent-color: var(--accent-light); }
+#voiceSettingsDialog textarea { resize: vertical; min-height: 62px; }
+.voice-dialog-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+#voiceSettingsDialog #voiceSettingsStatus[data-error] { color: #fda4af; }
+#voiceAuditionPlayer { width: 100%; height: 34px; }
 .modal-box {
   background: var(--bg-panel);
   border: 1px solid var(--border);
@@ -778,7 +825,7 @@ textarea {
   <div class="action-buttons">
     <button id="btnNewProject" type="button" aria-haspopup="dialog" aria-controls="creatorModal" class="primary" style="background: linear-gradient(135deg, #6366f1, #06b6d4); font-weight:700; border:none; box-shadow:0 2px 10px rgba(99,102,241,0.4);" title="开启 AI 视频策划与文献检索向导">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      新建视频 (AI 创作工坊)
+      <span>新建视频<span class="toolbar-new-project-extra"> (AI 创作工坊)</span></span>
     </button>
     <button id="btnCompile" title="重新编译 script.json 与 scene.html">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
@@ -788,10 +835,13 @@ textarea {
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
       门禁质检
     </button>
-    <button id="btnTts" title="合成场景配音与对齐字幕">
+    <div class="voice-toolbar">
+    <button id="btnTts" type="button" title="按当前设置生成配音与字幕">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
       配音
     </button>
+    <button id="btnVoiceSettings" type="button" aria-haspopup="dialog" aria-controls="voiceSettingsDialog">配音设置</button>
+    </div>
     <button id="btnExport" class="primary" title="渲染并出片 1080p MP4">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
       导出视频
@@ -1281,6 +1331,54 @@ textarea {
   </div>
 </dialog>
 
+<dialog id="voiceSettingsDialog" aria-labelledby="voiceSettingsTitle">
+  <div class="voice-dialog-row">
+    <h2 id="voiceSettingsTitle">配音设置</h2>
+    <button id="btnCloseVoiceSettings" type="button">关闭</button>
+  </div>
+  <p>设置随当前工程保存，工作台预览和视频导出共用。</p>
+  <form id="voiceSettingsForm">
+    <fieldset id="voiceSettingsFields">
+      <label>引擎
+        <select name="backend">
+          <option value="local">系统语音（本地）</option>
+          <option value="bailian">阿里云百炼（通过 bl）</option>
+        </select>
+      </label>
+      <fieldset id="localVoiceFields">
+        <label>系统音色
+          <select name="localVoice"><option value="">默认中文音色</option></select>
+        </label>
+      </fieldset>
+      <fieldset id="cloudVoiceFields" hidden>
+        <p>需要在本机安装并登录百炼 bl。试听和生成配音会调用百炼，可能产生费用。</p>
+        <label>百炼模型
+          <input name="model" maxlength="120" placeholder="qwen-audio-3.0-tts-plus">
+        </label>
+        <label>百炼音色
+          <input name="cloudVoice" maxlength="160" placeholder="longanlingxin">
+        </label>
+        <label>语气指令
+          <textarea name="instruction" maxlength="500" placeholder="如：用自然、清晰的科普口吻朗读"></textarea>
+        </label>
+      </fieldset>
+      <div>
+        <div class="voice-dialog-row"><label for="voiceSpeed">语速</label><output id="voiceSpeedOutput" for="voiceSpeed"></output></div>
+        <input id="voiceSpeed" name="speed" type="range" min="0.75" max="1.5" step="0.05" value="1">
+      </div>
+    </fieldset>
+    <audio id="voiceAuditionPlayer" controls hidden></audio>
+    <p id="voiceSettingsStatus" role="status" aria-live="polite"></p>
+    <div class="voice-dialog-row">
+      <button id="btnAuditionVoice" type="button">试听</button>
+      <div style="display:flex;gap:8px;">
+        <button id="btnSaveVoiceSettings" type="button">保存</button>
+        <button id="btnSaveAndVoice" class="primary" type="submit">保存并重新配音</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
 <div id="toast">消息提示</div>
 
 <script>
@@ -1609,6 +1707,7 @@ async function loadProjectData() {
     state.projectDir = data.projectDir;
     setDirectorAssets(data.assets || []);
     setPreviewVoice(data.hasNarration);
+    showVoiceUpdate(data.voiceNeedsUpdate);
     state.motionSceneIds = data.motionSceneIds || [];
     dom.motionPicker.hidden = state.motionSceneIds.length === 0;
     dom.btnReplayScene.disabled = !data.project?.scenes?.length;
@@ -2291,31 +2390,171 @@ document.getElementById('btnCompile').addEventListener('click', async () => {
 });
 
 // 配音合成
-async function prepareVoice(only, retime = false) {
+async function prepareVoice(only, retime = false, report = showToast) {
+  const projectDir = state.projectDir;
   pause();
-  showToast('正在调用配音引擎...');
+  report('正在合成配音并对齐字幕…');
   try {
     const res = await apiFetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ only, retime })
+      body: JSON.stringify({ only, retime, projectDir })
     });
     const r = await res.json();
+    if (projectDir !== state.projectDir) return false;
     if (r.ok) {
-      showToast('配音合成及时间轴重建完成！');
       await loadTimelineData();
       setPreviewVoice(true);
+      showVoiceUpdate(false);
       await reloadIframe();
+      report('配音和字幕已更新。');
       return true;
     } else {
-      showToast('配音失败: ' + (r.logs || r.error));
+      report('配音失败。' + (r.error || r.logs || '').trim().slice(-420), true);
     }
   } catch (e) {
-    showToast('配音异常: ' + e.message);
+    report('配音失败。' + e.message, true);
   }
   return false;
 }
 document.getElementById('btnTts').addEventListener('click', () => prepareVoice());
+
+const voiceDialog = document.getElementById('voiceSettingsDialog');
+const voiceForm = document.getElementById('voiceSettingsForm');
+const voiceSettingsButton = document.getElementById('btnVoiceSettings');
+const voiceFields = document.getElementById('voiceSettingsFields');
+const voiceStatus = document.getElementById('voiceSettingsStatus');
+const voicePlayer = document.getElementById('voiceAuditionPlayer');
+const closeVoiceSettings = document.getElementById('btnCloseVoiceSettings');
+const auditionVoice = document.getElementById('btnAuditionVoice');
+const saveVoice = document.getElementById('btnSaveVoiceSettings');
+const applyVoice = document.getElementById('btnSaveAndVoice');
+let voiceProjectDir;
+let voiceSampleUrl;
+
+function showVoiceUpdate(needsVoice) {
+  voiceSettingsButton.toggleAttribute('data-needs-voice', !!needsVoice);
+  voiceSettingsButton.title = needsVoice ? '配音设置已更改，请重新生成旁白' : '设置当前工程的配音';
+}
+function setVoiceStatus(message, isError = false) {
+  voiceStatus.textContent = message;
+  voiceStatus.toggleAttribute('data-error', isError);
+}
+function setVoiceBusy(busy) {
+  closeVoiceSettings.disabled = busy;
+  voiceFields.disabled = auditionVoice.disabled = saveVoice.disabled = applyVoice.disabled = busy || !voiceProjectDir;
+  voiceForm.setAttribute('aria-busy', String(busy));
+}
+function voiceSettingsLayout() {
+  const local = voiceForm.elements.backend.value === 'local';
+  document.getElementById('localVoiceFields').hidden = !local;
+  document.getElementById('cloudVoiceFields').hidden = local;
+  document.getElementById('voiceSpeedOutput').value = Number(voiceForm.elements.speed.value).toFixed(2) + '×';
+}
+function clearVoiceSample() {
+  if (!voiceSampleUrl) return;
+  voicePlayer.pause();
+  voicePlayer.removeAttribute('src');
+  voicePlayer.load();
+  voicePlayer.hidden = true;
+  URL.revokeObjectURL(voiceSampleUrl);
+  voiceSampleUrl = undefined;
+}
+function voiceSettingsValues() {
+  const { backend, speed, localVoice, cloudVoice, model, instruction } = voiceForm.elements;
+  return { backend: backend.value, speed: Number(speed.value), voice: (backend.value === 'local' ? localVoice : cloudVoice).value,
+    model: model.value, instruction: instruction.value };
+}
+voiceForm.addEventListener('input', () => {
+  voiceSettingsLayout();
+  if (voiceSampleUrl) {
+    clearVoiceSample();
+    setVoiceStatus('设置已调整，可重新试听。');
+  }
+});
+closeVoiceSettings.addEventListener('click', () => voiceDialog.close());
+voiceDialog.addEventListener('cancel', event => {
+  if (closeVoiceSettings.disabled) event.preventDefault();
+});
+voiceDialog.addEventListener('close', clearVoiceSample);
+voiceSettingsButton.addEventListener('click', async () => {
+  voiceProjectDir = undefined;
+  setVoiceBusy(true);
+  setVoiceStatus('正在读取当前工程的设置…');
+  voiceSettingsLayout();
+  voiceDialog.showModal();
+  try {
+    const response = await apiFetch('/api/tts/settings');
+    const { ok, error, projectDir, settings, needsVoice, voices } = await response.json();
+    if (!ok) throw new Error(error);
+    const inputs = voiceForm.elements;
+    inputs.backend.value = settings.backend;
+    const localVoice = settings.backend === 'local' ? settings.voice : '';
+    inputs.localVoice.replaceChildren(new Option('默认中文音色', ''), ...voices.map(voice =>
+      new Option(voice.name + ' · ' + voice.locale, voice.name)));
+    if (localVoice && !voices.some(voice => voice.name === localVoice)) inputs.localVoice.add(new Option(localVoice, localVoice));
+    inputs.localVoice.value = localVoice;
+    inputs.cloudVoice.value = settings.backend === 'bailian' ? settings.voice : '';
+    inputs.speed.value = settings.speed;
+    inputs.model.value = settings.model;
+    inputs.instruction.value = settings.instruction;
+    voiceProjectDir = projectDir;
+    voiceSettingsLayout();
+    setVoiceStatus(needsVoice ? '配音设置已更改，请重新生成旁白。' : '');
+  } catch (error) {
+    setVoiceStatus('无法读取配音设置。' + error.message, true);
+  } finally {
+    setVoiceBusy(false);
+  }
+});
+auditionVoice.addEventListener('click', async () => {
+  pause();
+  clearVoiceSample();
+  setVoiceBusy(true);
+  setVoiceStatus('正在合成试听…');
+  try {
+    const response = await apiFetch('/api/tts/audition', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ settings: voiceSettingsValues() })
+    });
+    if (!response.ok) throw new Error((await response.json()).error);
+    voiceSampleUrl = URL.createObjectURL(await response.blob());
+    voicePlayer.src = voiceSampleUrl;
+    voicePlayer.hidden = false;
+    setVoiceStatus('试听已就绪。');
+    voicePlayer.play().catch(() => {});
+  } catch (error) {
+    setVoiceStatus(error.message, true);
+  } finally {
+    setVoiceBusy(false);
+  }
+});
+async function saveVoiceOptions(regenerate) {
+  clearVoiceSample();
+  setVoiceBusy(true);
+  setVoiceStatus('正在保存…');
+  try {
+    const result = await wizardRequest('/api/tts/settings', { projectDir: voiceProjectDir, settings: voiceSettingsValues() });
+    if (result.needsVoice) {
+      pause();
+      setPreviewVoice(false);
+    }
+    showVoiceUpdate(result.needsVoice);
+    const report = (message, failed) => setVoiceStatus(failed ? '设置已保存。' + message : message, failed);
+    if (regenerate && !await prepareVoice(undefined, false, report)) return;
+    voiceDialog.close();
+    showToast(regenerate ? '配音和字幕已更新。' : result.needsVoice ? '设置已保存。点击「配音」更新旁白。' : '配音设置已保存。');
+  } catch (error) {
+    setVoiceStatus(error.message, true);
+  } finally {
+    setVoiceBusy(false);
+  }
+}
+saveVoice.addEventListener('click', () => saveVoiceOptions(false));
+voiceForm.addEventListener('submit', event => {
+  event.preventDefault();
+  if (!applyVoice.disabled) saveVoiceOptions(true);
+});
 
 // 视频导出流水线
 let exportInProgress = false;
@@ -2450,6 +2689,7 @@ document.querySelectorAll('.speed-btn').forEach(btn => {
 
 // 键盘快捷键（空格播放/暂停，左右键步进）
 window.addEventListener('keydown', (e) => {
+  if (voiceDialog.open) return;
   if (['input', 'textarea', 'select', 'button'].includes(document.activeElement.tagName.toLowerCase())) return;
   if (e.code === 'Space') {
     e.preventDefault();
@@ -2921,8 +3161,11 @@ async function changeDirectedShot(action, details = {}) {
     const result = await wizardRequest('/api/director/shot', { id, action, ...details });
     if (action === 'split' || result.splitUndo) {
       await loadProjectData();
+      const voiceReady = !result.revoice || await prepareVoice(result.id);
       if (await reloadIframe()) seekFrame(result.frame);
-      directorUI.ShotStatus.textContent = result.splitUndo ? '已合并回拆分前的镜头。' : '已拆分镜头，保留原配音与动效。';
+      directorUI.ShotStatus.textContent = result.splitUndo
+        ? (voiceReady ? '已合并回拆分前的镜头。' : '镜头已合并，请重新配音。')
+        : '已拆分镜头，保留原配音与动效。';
       showToast(result.splitUndo ? '已撤销拆镜。' : '已在 ' + formatTime(result.frame, state.fps) + ' 的字幕分界处拆分。');
       return;
     }

@@ -62,9 +62,11 @@ function loadScript(dir) {
 function configFor(s, argBackend) {
   const cfg = Object.assign({ backend: 'local', voice: null, model: null, instruction: null }, s.tts || {});
   if (argBackend) cfg.backend = argBackend;
-  cfg.voice = process.env.TTS_VOICE || cfg.voice;
-  cfg.model = process.env.TTS_MODEL || cfg.model;
-  cfg.instruction = process.env.TTS_INSTRUCTION || cfg.instruction;
+  if (!cfg.revision) {
+    cfg.voice = process.env.TTS_VOICE || cfg.voice;
+    cfg.model = process.env.TTS_MODEL || cfg.model;
+    cfg.instruction = process.env.TTS_INSTRUCTION || cfg.instruction;
+  }
   return cfg;
 }
 
@@ -110,7 +112,7 @@ function buildTtsCommand({ cfg, sc, raw, platform = process.platform }) {
     };
   }
   const args = ['-v', cfg.voice || 'Tingting'];
-  if (process.env.TTS_RATE) args.push('-r', String(process.env.TTS_RATE));
+  if (!cfg.revision && process.env.TTS_RATE) args.push('-r', String(process.env.TTS_RATE));
   args.push('-o', raw, sc.narration);
   return { cmd: 'say', args, env: Object.assign({}, process.env) };
 }
@@ -134,7 +136,7 @@ function run({ dir: argvDir, backend, only, reuse }) {
 
   for (const sc of scenes) {
     const wav = path.join(dir, 'vo', sc.id + '.wav');
-    const take = preservedVoice(dir, sc);
+    const take = preservedVoice(dir, sc, cfg.revision);
     if (take) {
       const tmp = wav + '.tmp.wav';
       try {
@@ -153,7 +155,10 @@ function run({ dir: argvDir, backend, only, reuse }) {
     // 各后端原生产物：say 出 aiff、百炼出 wav，随后统一转 44100 单声道
     const rawSrc = path.join(dir, 'vo', sc.id + (cfg.backend === 'bailian' || process.platform === 'win32' ? '_raw.wav' : '_raw.aiff'));
     const { cmd, args, env, input } = buildTtsCommand({ cfg, sc, raw: rawSrc });
-    const signature = createHash('sha256').update(JSON.stringify([cmd, args.map(arg => arg === rawSrc ? '<output>' : arg), input])).digest('hex');
+    const filter = cfg.speed && cfg.speed !== 1 ? ['-af', 'atempo=' + cfg.speed] : [];
+    const signatureInput = input && { ...JSON.parse(input), output: '<output>' };
+    const signature = createHash('sha256')
+      .update(JSON.stringify([cmd, args.map(arg => arg === rawSrc ? '<output>' : arg), signatureInput, ...filter])).digest('hex');
     if (reuse && voices[sc.id] === signature && fs.existsSync(wav)) {
       console.log('复用配音', sc.id);
       continue;
@@ -161,7 +166,7 @@ function run({ dir: argvDir, backend, only, reuse }) {
     const converted = wav + '.tmp.wav';
     try {
       execFileSync(cmd, args, { env, input, timeout: 120000, windowsHide: true, stdio: [input ? 'pipe' : 'ignore', 'pipe', 'pipe'] });
-      execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', rawSrc, '-ar', '44100', '-ac', '1', converted], { stdio: ['ignore', 'pipe', 'pipe'] });
+      execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', rawSrc, ...filter, '-ar', '44100', '-ac', '1', converted], { stdio: ['ignore', 'pipe', 'pipe'] });
       fs.renameSync(converted, wav);
     } finally {
       fs.rmSync(rawSrc, { force: true });
