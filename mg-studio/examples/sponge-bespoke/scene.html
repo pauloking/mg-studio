@@ -1,0 +1,115 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:1920px;height:1080px;overflow:hidden;background:#0a1226;font-family:"PingFang SC","Noto Sans SC",sans-serif}
+#cv{position:absolute;inset:0}
+#ui{position:absolute;left:110px;top:120px;width:760px;z-index:5}
+#title{color:#f2f6ff;font-size:88px;font-weight:750;line-height:1.15;letter-spacing:2px;text-wrap:balance}
+#tag{color:#93a9c8;font-size:40px;font-weight:560;margin-top:26px;line-height:1.5}
+#chips{position:absolute;left:110px;bottom:150px;display:flex;gap:22px;z-index:5}
+.chip{padding:18px 30px;border-radius:18px;background:rgba(20,32,58,.85);border:1px solid rgba(90,140,220,.35);color:#f2f6ff;font-size:34px;font-weight:640;opacity:0;transform:translateY(24px)}
+.chip small{display:block;color:#93a9c8;font-size:24px;font-weight:500;margin-top:6px}
+#sub{position:absolute;left:50%;bottom:64px;transform:translateX(-50%);max-width:1500px;padding:16px 42px;border-radius:16px;background:rgba(8,12,26,.72);border:1px solid rgba(120,140,220,.18);color:#f2f5ff;font-size:40px;font-weight:500;letter-spacing:1px;text-align:center;white-space:nowrap;opacity:0;z-index:9}
+</style></head><body>
+<canvas id="cv" width="1920" height="1080"></canvas>
+<div id="ui"><div id="title"></div><div id="tag"></div></div>
+<div id="chips"></div><div id="sub"></div>
+<script>
+'use strict';
+const clamp01=v=>Math.max(0,Math.min(1,v));
+const seg=(t,a,b)=>clamp01((t-a)/(b-a));
+const eo=p=>1-Math.pow(1-clamp01(p),3);
+const eio=p=>{p=clamp01(p);return p<.5?4*p*p*p:1-Math.pow(-2*p+2,3)/2;};
+const lerp=(a,b,p)=>a+(b-a)*p;
+const srand=i=>{const x=Math.sin(i*127.1+311.7)*43758.5453;return x-Math.floor(x);};
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const W=1920,H=1080;
+const INK='#f2f6ff',MUT='#93a9c8',WATER='#35d0ff',GREEN='#3ddc97',AMBER='#ffb454';
+const SCENES={
+ hook:{title:'城市为什么看海？',tag:'海绵城市入门',chips:[]},
+ cause:{title:'内涝成因',tag:'雨水无处可去',chips:[['硬化地表','下渗被阻断'],['管网不足','排不走'],['调蓄缺失','存不下']]},
+ sponge:{title:'海绵城市全景',tag:'三类源头 · 三道防线',chips:[['建筑屋顶','源头减排'],['道路雨水口','过程控制'],['绿地剖面','系统治理']]},
+ compare:{title:'快排 vs 缓排',tag:'两种雨水哲学',chips:[['传统快排','一路排走'],['海绵缓排','渗滞蓄用']]},
+ takeaway:{title:'六字方针',tag:'渗滞蓄 · 净用排',chips:[['渗','下渗'],['滞','延缓'],['蓄','储存'],['净','净化'],['用','利用'],['排','排放']]},
+ cta:{title:'科普示意',tag:'不构成工程设计建议',chips:[]}
+};
+let TL=null,cur=-1;
+function rgba(hex,a){const n=parseInt(hex.slice(1),16);return 'rgba('+(n>>16&255)+','+(n>>8&255)+','+(n&255)+','+a+')';}
+function rain(t,x0,x1,y0,y1,n,color){ctx.strokeStyle=color;ctx.lineWidth=3;ctx.lineCap='round';
+ for(let i=0;i<n;i++){const sp=140+srand(i)*120;const y=(y0+((t*sp+srand(i+9)*400)%(y1-y0)));const x=x0+srand(i+3)*(x1-x0);
+  ctx.globalAlpha=.25+.35*srand(i+5);ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-6,y+26);ctx.stroke();}ctx.globalAlpha=1;}
+function buildings(t,x0,baseY){for(let i=0;i<9;i++){const bw=90+srand(i)*70,bh=180+srand(i+2)*260,x=x0+i*105;
+  ctx.fillStyle='#101c38';ctx.fillRect(x,baseY-bh,bw,bh);
+  for(let wy=0;wy<bh-30;wy+=34)for(let wx=8;wx<bw-14;wx+=26){const on=srand(i*97+wy*7+wx)>.62;
+   ctx.fillStyle=on?rgba('#ffd98a',.5+.3*Math.sin(t*.7+i+wx)):rgba('#2a3c66',.5);ctx.fillRect(x+wx,baseY-bh+14+wy,12,16);}}}
+function drop(x,y,r,color,a){ctx.globalAlpha=a;ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,6.29);ctx.fill();ctx.globalAlpha=1;}
+function label(x,y,txt,size,color,align,a){ctx.globalAlpha=a==null?1:a;ctx.fillStyle=color;ctx.font='640 '+size+'px "PingFang SC",sans-serif';ctx.textAlign=align||'center';ctx.textBaseline='middle';ctx.fillText(txt,x,y);ctx.globalAlpha=1;}
+function arrow(x1,y1,x2,y2,color,w,a){ctx.globalAlpha=a;ctx.strokeStyle=color;ctx.lineWidth=w;ctx.lineCap='round';
+ ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+ const ang=Math.atan2(y2-y1,x2-x1);ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-14*Math.cos(ang-.5),y2-14*Math.sin(ang-.5));ctx.moveTo(x2,y2);ctx.lineTo(x2-14*Math.cos(ang+.5),y2-14*Math.sin(ang+.5));ctx.stroke();ctx.globalAlpha=1;}
+function spongeBlock(x,y,w,h,t,fill){const breathe=1+.03*Math.sin(t*1.6);
+ ctx.save();ctx.translate(x+w/2,y+h/2);ctx.scale(breathe,breathe);ctx.translate(-(x+w/2),-(y+h/2));
+ ctx.fillStyle=rgba(GREEN,.18+.12*fill);ctx.strokeStyle=rgba(GREEN,.7);ctx.lineWidth=3;
+ ctx.beginPath();ctx.roundRect(x,y,w,h,20);ctx.fill();ctx.stroke();
+ for(let i=0;i<26;i++){const px=x+12+srand(i)*(w-24),py=y+12+srand(i+4)*(h-24);
+  ctx.fillStyle=rgba(GREEN,.25+.3*fill);ctx.beginPath();ctx.arc(px,py,3+srand(i+7)*5,0,6.29);ctx.fill();}
+ ctx.restore();}
+function drawHook(lt,t){const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#0a1226');g.addColorStop(1,'#0d1a3a');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+ buildings(t,900,880);rain(t,860,1860,60,860,70,rgba(WATER,.8));
+ const lvl=eo(seg(lt,1,5))*60;ctx.fillStyle=rgba(WATER,.22);ctx.fillRect(860,880-lvl,1000,lvl+40);
+ for(let i=0;i<4;i++){const rp=seg(lt,1+i*.8,2.6+i*.8);if(rp>0&&rp<1){ctx.strokeStyle=rgba(WATER,(1-rp)*.6);ctx.lineWidth=3;ctx.beginPath();ctx.ellipse(1100+i*180,880-lvl,20+rp*70,6+rp*18,0,0,6.29);ctx.stroke();}}}
+function drawCause(lt,t){ctx.fillStyle='#0a1226';ctx.fillRect(0,0,W,H);
+ const cx=1250;ctx.fillStyle='#1a2440';ctx.fillRect(cx-360,420,720,60);ctx.fillStyle='#232f52';ctx.fillRect(cx-360,480,720,240);
+ rain(t,cx-340,cx+340,80,400,50,rgba(WATER,.8));
+ const flow=eo(seg(lt,.6,3));arrow(cx-300,400,cx-300+560*flow,400,WATER,8,.9);
+ arrow(cx+260,400,cx+260,560,WATER,8,.9);
+ const over=eo(seg(lt,2.5,4.5));ctx.fillStyle=rgba(AMBER,.3+.3*over);ctx.beginPath();ctx.ellipse(cx+260,600,40+60*over,16+20*over,0,0,6.29);ctx.fill();
+ label(cx+260,660,'管网溢流',30,AMBER,'center',over);
+ label(cx-300,360,'硬化地表 · 下渗≈0',30,MUT,'center',eo(seg(lt,.3,1)));
+ const vol=eo(seg(lt,1,5));ctx.fillStyle=rgba(WATER,.25);ctx.fillRect(cx-340,720-140*vol,680,140*vol);ctx.strokeStyle=rgba(WATER,.5);ctx.strokeRect(cx-340,580,680,140);label(cx,760,'地表积水上升',30,MUT);}
+function drawSponge(lt,t){ctx.fillStyle='#0a1226';ctx.fillRect(0,0,W,H);
+ const gy=760;ctx.fillStyle='#141f3c';ctx.fillRect(900,gy,960,260);
+ // green roof building
+ const a0=eo(seg(lt,.2,1));ctx.globalAlpha=a0;ctx.fillStyle='#101c38';ctx.fillRect(940,420,240,340);ctx.fillStyle=rgba(GREEN,.5);ctx.fillRect(940,400,240,26);
+ for(let i=0;i<5;i++){ctx.strokeStyle=GREEN;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(960+i*45,400);ctx.quadraticCurveTo(970+i*45,370,985+i*45,378);ctx.stroke();}
+ ctx.globalAlpha=1;label(1060,800,'建筑屋顶',30,MUT,'center',a0);
+ // permeable road
+ const a1=eo(seg(lt,.8,1.6));ctx.globalAlpha=a1;ctx.fillStyle='#232f52';ctx.fillRect(1240,560,240,40);ctx.fillStyle=rgba(WATER,.4);for(let i=0;i<6;i++)ctx.fillRect(1250+i*38,570,20,20);ctx.globalAlpha=1;label(1360,800,'道路雨水口',30,MUT,'center',a1);
+ // rain garden sponge
+ const a2=eo(seg(lt,1.4,2.2));ctx.globalAlpha=a2;spongeBlock(1540,480,280,280,t,eo(seg(lt,2,5)));ctx.globalAlpha=1;label(1680,800,'绿地剖面',30,MUT,'center',a2);
+ rain(t,920,1840,60,380,44,rgba(WATER,.7));
+ const inf=eo(seg(lt,2,5));for(let i=0;i<8;i++){const dy=(t*90+srand(i)*200)%260;drop(1560+srand(i+2)*240,480+dy*inf,5,WATER,.5*inf);}
+ arrow(1060,700,1060,740,GREEN,6,a0);arrow(1360,620,1360,740,WATER,6,a1);arrow(1680,760,1680,780,GREEN,6,a2);}
+function drawCompare(lt,t){ctx.fillStyle='#0a1226';ctx.fillRect(0,0,W,H);
+ ctx.strokeStyle=rgba(MUT,.3);ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(960,120);ctx.lineTo(960,900);ctx.stroke();
+ label(1440,160,'海绵缓排',44,GREEN,'center',eo(seg(lt,.4,1)));
+ rain(t,140,820,220,520,36,rgba(WATER,.7));rain(t,1100,1780,220,520,36,rgba(WATER,.7));
+ const f=eo(seg(lt,.8,3));arrow(200,540,200+560*f,540,WATER,8,.9);arrow(760,540,880,640,AMBER,8,.9);label(480,700,'一路排走 · 下游承压',30,MUT,'center',f);
+ const inf=eo(seg(lt,1.2,3.6));spongeBlock(1240,560,400,220,t,inf);for(let i=0;i<6;i++){const dy=(t*70+srand(i)*160)%180;drop(1280+srand(i+1)*320,540+dy*inf,5,WATER,.5*inf);}
+ arrow(1440,800,1440,860,GREEN,6,inf);label(1440,900,'渗滞蓄用 · 就地消纳',30,MUT,'center',inf);
+ ctx.fillStyle=rgba(INK,.9);ctx.font='700 40px "PingFang SC"';ctx.textAlign='center';ctx.fillText('VS',960,540);}
+function drawTakeaway(lt,t){ctx.fillStyle='#0a1226';ctx.fillRect(0,0,W,H);
+ spongeBlock(1180,380,560,360,t,.5+.3*Math.sin(t*.8));
+ const chars=['渗','滞','蓄','净','用','排'];chars.forEach((c,i)=>{const a=eo(seg(lt,.3+i*.4,.9+i*.4));
+  const x=1240+(i%3)*180,y=440+Math.floor(i/3)*180;ctx.globalAlpha=a;ctx.fillStyle=rgba(i<3?WATER:GREEN,.85);ctx.font='700 96px "PingFang SC"';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(c,x,y);ctx.globalAlpha=1;});
+ label(1460,800,'灰绿结合 · 管网与绿地协同',32,MUT,'center',eo(seg(lt,3,4)));}
+function drawCta(lt,t){ctx.fillStyle='#0a1226';ctx.fillRect(0,0,W,H);spongeBlock(1240,400,480,320,t,.6);
+ rain(t,1200,1760,120,380,26,rgba(WATER,.5));label(1480,800,'让城市像海绵一样呼吸',36,MUT,'center',eo(seg(lt,.4,1.2)));}
+const DRAW={hook:drawHook,cause:drawCause,sponge:drawSponge,compare:drawCompare,takeaway:drawTakeaway,cta:drawCta};
+function setUI(id,lt){const s=SCENES[id];const a=eo(seg(lt,.1,.7));
+ document.getElementById('title').textContent=s.title;document.getElementById('title').style.opacity=a;
+ document.getElementById('tag').textContent=s.tag;document.getElementById('tag').style.opacity=a;
+ const chips=document.getElementById('chips');
+ if(chips.dataset.scene!==id){chips.dataset.scene=id;chips.innerHTML=s.chips.map(c=>'<div class="chip">'+c[0]+'<small>'+c[1]+'</small></div>').join('');}
+ [...chips.children].forEach((el,i)=>{const ca=eo(seg(lt,.5+i*.35,1.1+i*.35));el.style.opacity=ca;el.style.transform='translateY('+((1-ca)*24)+'px)';});}
+function upSub(t){let cur=null;for(const sc of TL.scenes)for(const cu of sc.subs)if(t>=cu.from&&t<cu.to)cur=cur||cu;
+ const el=document.getElementById('sub');if(!cur){el.style.opacity=0;return;}el.textContent=cur.text;
+ el.style.opacity=Math.min(seg(t-cur.from,0,.25),seg(cur.to-t,0,.25));}
+window.__ready=false;window.__err=null;
+window.__frame=function(i){try{const t=i/TL.fps;let active=-1;
+ for(let k=0;k<TL.scenes.length;k++){const sc=TL.scenes[k];if(i>=sc.start&&i<sc.end)active=k;}
+ if(active<0){ctx.fillStyle='#0a1226';ctx.fillRect(0,0,W,H);document.getElementById('sub').style.opacity=0;return;}
+ const sc=TL.scenes[active],lt=(i-sc.start)/TL.fps;
+ if(active!==cur){cur=active;document.getElementById('chips').dataset.scene='';}
+ ctx.clearRect(0,0,W,H);DRAW[sc.id](lt,t);setUI(sc.id,lt);upSub(t);}catch(e){window.__err=String(e&&e.stack||e);}};
+fetch('timeline.json').then(r=>r.json()).then(tl=>{TL=tl;window.__N=tl.totalFrames;window.__frame(0);window.__ready=true;}).catch(e=>{window.__err=String(e);});
+</script></body></html>

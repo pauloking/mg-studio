@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 'use strict';
-require('../lib/cli-help').help('用法: node gen_visual.js [项目目录] [--yes] [--force]\n为缺少场景的 beat 按视觉简报生成场景：panorama→内置3D、anatomy/device/diagram/comparison→参数化2D、ambient→百炼text2img(需--yes确认计费)。已有场景默认不覆盖(--force 覆盖)。');
-/* gen_visual.js — Topic-Visual P3 生成入口：把"按文章定制形象/全景"落地为场景文件。
- * 免费路径（3D/2D）离线确定性；ambient text2img 需 --yes/MG_TTS_YES 确认（Credits 闭环）。 */
+require('../lib/cli-help').help('用法: node gen_visual.js [项目目录] [--yes] [--force]\n生成 animatic 草稿场景（仅预览叙事结构，不可直接交付）：panorama→插画组合/2D示意、anatomy/device→2D示意、diagram/comparison→points(motion-graphic)、ambient→百炼text2img(需--yes)。交付请 bespoke 作者画面替换（见 docs/authoring-and-production.md）。');
+/* gen_visual.js — animatic 草稿生成入口（非交付）。auto 关键词映射创意天花板低，
+ * 主交付路径=模型 bespoke authoring + 工具生产/质检（docs/authoring-and-production.md）。
+ * 产物场景标 animatic:true，export 交付门阻断（--allow-animatic 仅预览）。 */
 const fs = require('fs'), path = require('path');
 const { resolveVisual, fallbackScene } = require('../lib/topic-visual');
 const { generatePanoramaScene } = require('../lib/panorama-gen');
@@ -45,8 +46,9 @@ function main() {
   let wrote = 0;
   for (const p of pending) {
     if (!p.result || !p.result.ok || !p.result.scene) { console.log('  skip', p.beat.id, p.result && p.result.err ? '(' + p.result.err + ')' : '(有素材/不生成)'); continue; }
+    p.result.scene.animatic = true;
     fs.writeFileSync(path.join(dir, 'scenes', p.beat.id + '.json'), JSON.stringify(p.result.scene, null, 2));
-    console.log('  gen', p.beat.id, '→', p.result.scene.layout);
+    console.log('  gen', p.beat.id, '→', p.result.scene.layout, '(animatic 草稿)');
     wrote++;
   }
   if (needMotion && story.meta.motion !== 'focus') {

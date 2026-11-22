@@ -23,7 +23,17 @@ test('gen_visual：免费路径 panorama→2D示意、diagram→points(供motion
   assert.equal(r.code, 0, r.out);
   assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'scenes', 'field.json'), 'utf8')).layout, 'schematic');
   assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'scenes', 'flow.json'), 'utf8')).layout, 'points');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'scenes', 'flow.json'), 'utf8')).animatic, true);
   assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'story.json'), 'utf8')).meta.motion, 'flow');
+});
+test('gen_visual 产物为 animatic：export 交付门阻断（--allow-animatic 仅预览）', () => {
+  const dir = proj([pan, dia]);
+  run(dir);
+  let err = null;
+  try { execFileSync('node', [path.join(ROOT, 'scripts', 'export.js'), 'local', 't'], { cwd: dir, encoding: 'utf8', stdio: 'pipe' }); }
+  catch (e) { err = e; }
+  assert.ok(err, 'animatic 应阻断交付');
+  assert.ok(/animatic/.test(String(err.stderr || '') + String(err.stdout || '')));
 });
 test('gen_visual：ambient 未授权 exit2 且不写场景不调百炼', () => {
   const dir = proj([amb]);

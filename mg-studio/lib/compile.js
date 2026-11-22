@@ -64,6 +64,7 @@ function buildScriptJson(project) {
       id: sc.id, minSec: sc.minSec || 0, narration: sc.narration,
       subs: sc.subsOverride || splitSubs(sc.narration),
       beat: sc.beat, layout: sc.layout, elements: sc.elements, cues: sc.cues || [],
+      ...(sc.animatic ? { animatic: true } : {}),
       ...(sc.segment ? { segment: sc.segment } : {}),
       ...(sc.stage ? { stage: sc.stage } : {}),
       ...(sc.transition ? { transition: sc.transition } : {})
@@ -111,6 +112,8 @@ function compileProject(dir, settings = {}) {
     lint = lint.concat(lintMedical({ story: project.story, scenes: project.scenes }));
     // 视觉交付基线门：防几何占位/平涂色块被当交付（自动门此前不查画面质量）
     lint = lint.concat(lintVisualQuality({ scenes: project.scenes, dir }));
+    for (const sc of project.scenes) if (sc.animatic)
+      lint.push({ level: 'W', code: 'ANIMATIC_DRAFT', scene: sc.id, el: '', msg: 'animatic 草稿场景（gen_visual 产物），仅预览；交付前须 bespoke 作者画面替换' });
     for (const l of lint) if (l.level === 'B') errors.push(`${l.code} ${l.scene}/${l.el || ''}: ${l.msg}`);
   }
   if (errors.length) return { mode: 'v2', lint, errors };

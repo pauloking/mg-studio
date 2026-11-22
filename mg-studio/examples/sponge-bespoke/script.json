@@ -1,0 +1,12 @@
+{
+  "fps": 30, "width": 1920, "height": 1080,
+  "options": { "pad": 0.6, "leadIn": 0.3, "introLeadIn": 0.4, "introMinSec": 4, "outroMinSec": 5 },
+  "scenes": [
+    { "id": "hook", "minSec": 4, "narration": "下雨时城市为什么看海？", "subs": ["下雨时城市为什么看海？"] },
+    { "id": "cause", "minSec": 8, "narration": "城市内涝依次经过硬化地表、管网不足、调蓄缺失三个环节。", "subs": ["城市内涝依次经过硬化地表、", "管网不足、调蓄缺失三个环节。"] },
+    { "id": "sponge", "minSec": 10, "narration": "海绵城市全景：建筑、道路、绿地三类源头，经源头减排、过程控制、系统治理协同。", "subs": ["海绵城市全景：建筑、道路、", "绿地三类源头，经源头减排、", "过程控制、系统治理协同。"] },
+    { "id": "compare", "minSec": 7, "narration": "对比传统快排与海绵缓排。", "subs": ["对比传统快排与海绵缓排。"] },
+    { "id": "takeaway", "minSec": 8, "narration": "记住渗滞蓄、净用排、灰绿结合。", "subs": ["记住渗滞蓄、净用排、灰绿结合。"] },
+    { "id": "cta", "minSec": 5, "narration": "本片为科普示意，不构成工程设计建议。", "subs": ["本片为科普示意，", "不构成工程设计建议。"] }
+  ]
+}

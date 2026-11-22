@@ -18,12 +18,16 @@ function exportVideo(backend = 'local', outputName = 'output') {
   const ffmpeg = (...args) => execute('ffmpeg', ['-y', '-loglevel', 'error', ...args]);
   const output = path.join('out', outputName + '.mp4');
   const isV2 = fs.existsSync('story.json');
+  const allowAnimatic = process.argv.includes('--allow-animatic');
   if (isV2) {
     const story = JSON.parse(fs.readFileSync('story.json', 'utf8'));
     if (pendingShots(story).length) throw new Error('请先核对医学内容与出处，再正式导出。');
     console.log('==> 0/5 编译分镜与 G0 脚本门');
     node('compile.js');
     node('lint_story.js', '.');
+    const sj = JSON.parse(fs.readFileSync('script.json', 'utf8'));
+    if (!allowAnimatic && (sj.scenes || []).some(s => s.animatic))
+      throw new Error('检测到 animatic 草稿场景（gen_visual 产物），不可直接交付；请 bespoke 作者画面替换（docs/authoring-and-production.md），或加 --allow-animatic 仅预览。');
   }
   console.log(`==> 1/5 配音 (${backend})`);
   const ttsArgs = ['--backend', backend, '--reuse'];
