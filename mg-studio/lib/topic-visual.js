@@ -2,6 +2,7 @@
 /* topic-visual.js — 解析视觉简报+素材+人工门标记（Topic-Visual P1）。 */
 const { extractBrief } = require('./visual-intent');
 const { findAssets } = require('./asset-retrieval');
+const { generateSchematicScene } = require('./schematic-gen');
 const REVIEW_TYPES = ['anatomy', 'device', 'panorama'];
 
 function resolveVisual({ beat, dir }) {
@@ -9,4 +10,10 @@ function resolveVisual({ beat, dir }) {
   const candidates = findAssets({ brief, dir });
   return { brief, asset: candidates[0] || null, candidates, needsReview: REVIEW_TYPES.includes(brief.type) };
 }
-module.exports = { resolveVisual, REVIEW_TYPES };
+
+/** P2：无授权素材时回落到参数化 2D 示意；有素材或 P3 类型（panorama/ambient）返回 null。 */
+function fallbackScene({ beat, dir, labels }) {
+  if (resolveVisual({ beat, dir }).asset) return null;
+  return generateSchematicScene({ beat, labels });
+}
+module.exports = { resolveVisual, fallbackScene, REVIEW_TYPES };

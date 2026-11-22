@@ -1,0 +1,55 @@
+{
+  "id": "lead",
+  "beat": "lead",
+  "layout": "schematic",
+  "minSec": 6,
+  "visualBrief": {
+    "subject": "导线进心肌",
+    "type": "anatomy",
+    "structures": [
+      "室间隔",
+      "右室",
+      "间隔",
+      "心肌",
+      "导线",
+      "电极"
+    ],
+    "view": "mirror"
+  },
+  "elements": [
+    {
+      "id": "graphic",
+      "type": "schematic",
+      "props": {
+        "x": 160,
+        "y": 140,
+        "w": 1600,
+        "h": 720,
+        "structures": [
+          "室间隔",
+          "右室",
+          "间隔",
+          "心肌",
+          "导线",
+          "电极"
+        ],
+        "view": "mirror",
+        "type": "anatomy",
+        "labels": [
+          "室间隔",
+          "右室",
+          "间隔",
+          "心肌",
+          "导线",
+          "电极"
+        ]
+      }
+    }
+  ],
+  "visualReview": {
+    "reference": "ref.png",
+    "reviewer": "e2e-fixture",
+    "approved": true,
+    "at": "2026-11-22T00:00:00.000Z"
+  }
+}
