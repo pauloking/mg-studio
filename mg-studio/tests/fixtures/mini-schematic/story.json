@@ -14,6 +14,14 @@
       "intent": "导线进心肌",
       "narration": "电极从右室侧旋入室间隔，镜像视角，右室在左。",
       "facts": []
+    },
+    {
+      "id": "flow",
+      "role": "mechanism",
+      "emotion": 3,
+      "intent": "流程",
+      "narration": "流程分为评估、准备、复核三个阶段。",
+      "facts": []
     }
   ]
 }
