@@ -11,6 +11,9 @@ const ANATOMICAL = ['three3d'];
 function needsReview(sc) {
   if (!sc) return false;
   if (ANATOMICAL.includes(sc.layout)) return true;
+  if (sc.layout === 'topic-visual') return true;
+  const bt = sc.visualBrief && sc.visualBrief.type;
+  if (bt && ['anatomy', 'device', 'panorama'].includes(bt)) return true;
   return (sc.elements || []).some(e => e && e.props && e.props.visualReview === true);
 }
 
