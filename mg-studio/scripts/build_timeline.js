@@ -10,6 +10,7 @@
  *   scenes: [ { id, minSec, narration, subs:[...], leadIn? } ] }
  */
 const fs = require('fs');
+require('../lib/cli-help').help('用法: node build_timeline.js [项目目录]\n按真实配音时长排定毫秒级时间轴 timeline.json。');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { SAMPLE_RATE, validFrameTiming, preservedVoice, placeSubtitles } = require('../lib/shot-segment');

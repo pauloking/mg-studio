@@ -6,6 +6,7 @@
  * 混音建议: ffmpeg ... [2:a]volume=0.25[bg];[1:a][bg]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.98[a]
  */
 const fs = require('fs');
+require('../lib/cli-help').help('用法: node assemble_audio.js [项目目录]\n旁白落位 + 原创 BGM 混音 → vo/narration.wav + vo/bgm.wav（BGM=0 关闭）。');
 const path = require('path');
 const { narrationRevisionFile } = require('../lib/voice-settings');
 const tl = require(path.join(process.cwd(), 'timeline.json'));

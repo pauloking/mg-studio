@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 'use strict';
+require('../lib/cli-help').help('用法: node doctor.js [--json | --quiet]\n环境自检：Node/依赖/Chrome/ffmpeg/TTS/Python；--quiet 仅退出码。');
 /* doctor.js — 运行环境诊断与依赖自检
  *
  * 检查项:
@@ -199,9 +200,21 @@ function checkPython() {
   };
 }
 
+function checkDeps() {
+  let deps = {};
+  try { deps = require('../package.json').dependencies || {}; } catch (e) {}
+  const missing = [];
+  for (const name of Object.keys(deps)) { try { require.resolve(name); } catch (e) { missing.push(name); } }
+  const ok = missing.length === 0;
+  return { name: 'npm 运行时依赖', required: true, ok, version: Object.keys(deps).length + ' 项',
+    message: ok ? '全部可解析' : '缺失: ' + missing.join(', '),
+    remedy: ok ? null : '在 mg-studio 目录运行: npm install' };
+}
+
 function runDiagnostics() {
   const checks = [
     checkNode(),
+    checkDeps(),
     checkFFmpeg(),
     checkFFprobe(),
     checkBrowser(),

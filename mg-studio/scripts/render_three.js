@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 'use strict';
+require('../lib/cli-help').help('用法: node render_three.js [项目目录]\n为 timeline 中 three3d 段调用外部工程确定性喂帧渲染。');
 /* render_three.js — 为 timeline 中的 three3d 段调用外部喂帧工程渲染到 frames/<id>/（§10）
  * 用法: node render_three.js [项目目录]
  * 在 render.js --all 之前运行；render --all 会跳过 three3d 段避免覆盖。

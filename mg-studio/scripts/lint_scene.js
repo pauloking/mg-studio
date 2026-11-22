@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 'use strict';
+require('../lib/cli-help').help('用法: node lint_scene.js [项目目录] [--no-measure]\n编译后门：真实 DOM 实测盒 + 实测音频时长重跑 lint。');
 /* lint_scene.js — 编译后门：用真实 DOM 盒 + 实测时长跑同一套动效 lint
  *
  * 为什么不在 compile.js 里做：编译期既没有真实音频时长，也没有浏览器可量盒。

@@ -19,6 +19,8 @@ const { execFileSync } = require('child_process');
 const { createHash } = require('node:crypto');
 const { preservedVoice } = require('../lib/shot-segment');
 
+require('../lib/cli-help').help('用法: node tts.js [--backend local|bailian] [--only id1,id2] [--reuse] [项目目录]\nlocal=系统语音(免费)；bailian=百炼(计费,有提示)；--only 仅重配指定场景；--reuse 复用已配音。');
+
 function parseArgs(argv) {
   const out = { backend: null, dir: null, only: null };
   for (let i = 0; i < argv.length; i++) {
@@ -28,6 +30,7 @@ function parseArgs(argv) {
     else if (a.startsWith('--only=')) out.only = a.split('=')[1];
     else if (a === '--only') out.only = argv[++i];
     else if (a === '--reuse') out.reuse = true;
+    else if (a === '--yes') out.yes = true;
     else if (!a.startsWith('--')) out.dir = a;
   }
   return out;
@@ -121,7 +124,7 @@ function probeDuration(file) {
   return parseFloat(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file]).toString().trim());
 }
 
-function run({ dir: argvDir, backend, only, reuse }) {
+function run({ dir: argvDir, backend, only, reuse, yes }) {
   const dir = argvDir ? path.resolve(argvDir) : process.cwd();
   const s = loadScript(dir);
   const cfg = configFor(s, backend);
@@ -133,6 +136,26 @@ function run({ dir: argvDir, backend, only, reuse }) {
   const { scenes, missing } = selectScenes(s.scenes, only);
   if (missing.length) console.warn('[!] --only 未命中场景 id（已忽略）:', missing.join(', '));
   if (!scenes.length) { console.error('[!] --only 未选中任何场景，未生成配音'); process.exit(1); }
+
+  if (cfg.backend === 'bailian') {
+    let newCount = 0, newChars = 0;
+    for (const sc of scenes) {
+      const wav = path.join(dir, 'vo', sc.id + '.wav');
+      if (preservedVoice(dir, sc, cfg.revision)) continue;
+      const rawSrc = path.join(dir, 'vo', sc.id + '_raw.wav');
+      const { cmd, args, input } = buildTtsCommand({ cfg, sc, raw: rawSrc });
+      const filter = cfg.speed && cfg.speed !== 1 ? ['-af', 'atempo=' + cfg.speed] : [];
+      const signatureInput = input && { ...JSON.parse(input), output: '<output>' };
+      const signature = createHash('sha256').update(JSON.stringify([cmd, args.map(a => a === rawSrc ? '<output>' : a), signatureInput, ...filter])).digest('hex');
+      if (reuse && voices[sc.id] === signature && fs.existsSync(wav)) continue;
+      newCount++; newChars += (sc.narration || '').length;
+    }
+    console.log(`[计费提示] 百炼 TTS 付费：需新合成 ${newCount} 场景 / ${newChars} 字（其余复用不计费）。`);
+    if (newCount > 0 && !yes && process.env.MG_TTS_YES !== '1') {
+      console.error('[!] 需确认计费：加 --yes 或设 MG_TTS_YES=1 后重试（--reuse 已配音场景不受影响）。');
+      process.exit(2);
+    }
+  }
 
   for (const sc of scenes) {
     const wav = path.join(dir, 'vo', sc.id + '.wav');

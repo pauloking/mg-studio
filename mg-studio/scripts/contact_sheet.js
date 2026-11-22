@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 'use strict';
+require('../lib/cli-help').help('用法: node contact_sheet.js [项目目录] [--cols N]\n关键帧拼图 → reports/contact-sheet.png（需 python3+PIL）。');
 /* contact_sheet.js — G1 关键帧拼图（§9.1）：每 scene 取代表帧拼网格 → reports/contact-sheet.png
  * 用法: node contact_sheet.js [项目目录] [--cols N]
  * 依赖 python3 + PIL；缺则返回 null（W 跳过，不阻断）。
