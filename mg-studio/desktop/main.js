@@ -22,7 +22,8 @@ process.on('uncaughtException', (err) => {
   logError('Uncaught Exception', err);
   try {
     if (dialog && typeof dialog.showErrorBox === 'function') {
-      dialog.showErrorBox('MG Studio 运行异常', `程序遇到未处理的错误：\n${err && (err.stack || err.message || err)}`);
+      const brief = err && (err.message || String(err));
+      dialog.showErrorBox('MG Studio 遇到问题', `操作未完成：${brief}\n\n技术细节已写入 mg-studio-error.log（userData 目录）。可先重试；若反复出现，请将该日志反馈给开发者。`);
     }
   } catch (e) {}
 });

@@ -18,6 +18,8 @@ function loadTerms() {
   catch (e) { return []; }
 }
 
+require('../lib/cli-help').help('用法: node lint_story.js [项目目录]\nG0 故事/脚本门：结构/长句/术语/字幕；生成 reports/story-lint.md；B 阻断退出1。');
+
 function main() {
   const args = process.argv.slice(2);
   const positional = args.filter(a => !a.startsWith('--'));

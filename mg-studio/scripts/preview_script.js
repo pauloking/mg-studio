@@ -20,6 +20,8 @@ const ir = require('../lib/ir');
 const { LAYOUT_NAMES } = require('../lib/components');
 const { buildStoryboard, countUnverified, formatStoryboardMd, formatStoryboardText } = require('../lib/preview');
 
+require('../lib/cli-help').help('用法: node preview_script.js [项目目录] [--md] [--yes]\n配音前人审：打印分镜/旁白/facts；未核实 facts 退出2（--yes 跳过）；--md 输出 Markdown。');
+
 function main() {
   const args = process.argv.slice(2);
   const positional = args.filter(a => !a.startsWith('--'));

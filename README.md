@@ -8,7 +8,7 @@
 
 * **当前形态**：**原生独立桌面客户端（MG Studio Desktop，支持 macOS DMG 与 Windows EXE）** + 本地 Web 工作台（Studio UI）+ CLI 工具包。
 * **交付状态**：**M1（编译核）+ M2（叙事与脚本门）+ M3（增量渲染与自动化 QA）+ M4（医学安全门与 3D 解剖渲染）+ M5（MG 视觉与动效风格系统）+ M6（Web 工作台 Studio UI）+ M7（AI 创作工坊与文献检索引擎）+ M8（用户参考资料上传与智能文档解析引擎）+ M9（独立桌面客户端 Standalone Desktop App）全量交付**。
-* **质量保证**：自动化测试套件共 **213 项（212 通过 / 1 跳过=旧片素材回归，0 失败）**，100% 持续集成（GitHub Actions CI）绿灯通过。
+* **质量保证**：自动化测试套件由 `npm run test:ci` 动态搜集（数量以实际运行为准），持续集成（GitHub Actions CI）绿灯通过。
 
 新建视频会创建独立工程，失败时保留原稿。文献检索仅提供书目信息，请阅读原文或上传资料后逐条核实事实；生成器不再填入示例疗效数字。保存位置与本地 API 会话约定见 [工程与证据保存行为](mg-studio/README.md#工程与证据保存行为)。
 
@@ -42,7 +42,7 @@
 │   │   ├── calibrate.js       #   TTS 语速动态校准器（按实际配音时长反馈学习）
 │   │   ├── three3d.js         #   3D 外部工程接入适配器与喂帧契约核验
 │   │   ├── studio.html        #   Studio UI 本地工作台原生单页应用
-│   │   └── components/        #   5 布局组件（title-card / points / waveform / stat / three3d）
+│   │   └── components/        #   布局组件（清单见 index.js：title-card/points/waveform/stat/three3d/directed/motion-graphic 等）
 │   ├── scripts/               # 全链路执行脚本 + CLI 工具
 │   │   ├── studio.js          #   Studio UI 本地服务器（原生 HTTP，零外部依赖，严格 127.0.0.1）
 │   │   ├── make.sh            #   一键出片管线：编译→脚本门→配音→时间轴→实测后门→音频→3D→增量渲染→拼接→编码混音→QA
@@ -65,7 +65,7 @@
 │   │   ├── styles/            #   MG 风格套件（deep-tech / clean-medical / warm-editorial / swiss-modern）
 │   │   ├── narratives/        #   叙事骨架模板（science.json / product.json / teaching.json / free.json）
 │   │   └── prompts/           #   AI Agent 生成 story.json 的提示词模板（story-draft.md）
-│   ├── tests/                 # 188 项 node:test 套件 + fixtures + 旧片像素回归
+│   ├── tests/                 # node:test 套件（test_ci 动态搜集）+ fixtures + 旧片像素回归
 │   └── README.md              # ★ 详细开发者手册（项目规范 / 5 组件 Props / 进阶参数）
 ├── docs/                      # 架构设计与实现文档
 │   ├── superpowers/
@@ -362,7 +362,7 @@ npm run test:ci     # 动态自动扫描所有测试文件（CI 专用，防漏�
 1. **绝对确定性**：动画逻辑只允许读取当前 `frame`（禁止调用 `Date.now()`、`performance.now()` 等墙钟 API）。同一分镜输入逐帧完全可复现。
 2. **作者文本不入解释器**：所有用户文本均经过安全转义，坐标严格校验为有限数字，避免通过 `$(...)` 或 `<script>` 注入执行恶意代码。子进程全部使用 `execFileSync(cmd, argsArray)` 调用。
 3. **严肃医学伦理**：患者向科普必须通过事实核查（`facts[].verified: true`），自动附加 `#disclaimer` 免责图层，并标明“示意图，非真实解剖”。
-4. **纯粹 Node.js 体系**：全库坚持使用 Node 原生 CommonJS 与 `node:test` 测试框架，**零额外 npm 运行时依赖**。
+4. **Node.js 体系**：核心编译/渲染 CLI 坚持 Node 原生 CommonJS 与 `node:test`；**Studio/AI 创作/文档解析/桌面客户端需 npm 依赖**（首跑请在 `mg-studio/` 执行 `npm install`，`npm run doctor` 会自检依赖）。
 
 ---
 

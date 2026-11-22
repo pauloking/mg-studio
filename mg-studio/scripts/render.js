@@ -11,6 +11,7 @@
  */
 const http = require('http'), fs = require('fs'), path = require('path');
 const { pickSmokeFrames } = require('../lib/scene-map');
+require('../lib/cli-help').help('用法: node render.js [--all | --scene <id> | --no-cache | smoke | range A B]\n--all 逐场景增量渲染(缓存跳过)；--scene 单场景；--no-cache 强制全量；smoke 抽帧；range 局部。');
 // 可移植地加载 playwright：PW_PATH > 本地 require > 全局 npm root > 常见路径
 function loadPW() {
   if (process.env.PW_PATH) return require(process.env.PW_PATH);
@@ -92,9 +93,10 @@ const server = http.createServer((req, res) => {
     const prev = fc.loadIndex(ROOT); const next = Object.assign({}, prev);
     const targets = SCENE ? tl.scenes.filter(s => s.id === SCENE) : tl.scenes;
     if (SCENE && !targets.length) { console.error('未知 scene:', SCENE); process.exit(1); }
-    let rendered = 0, skipped = 0; const t0a = Date.now();
+    let rendered = 0, skipped = 0, doneFrames = 0; const t0a = Date.now();
+    const totalFrames = targets.reduce((n, s) => n + (s.end - s.start), 0);
     for (const sc of targets) {
-      if ((scenesById[sc.id] || {}).layout === 'three3d') { skipped++; console.log('  skip', sc.id, '(3D 段，由 render_three 提供帧)'); continue; }
+      if ((scenesById[sc.id] || {}).layout === 'three3d') { skipped++; doneFrames += (sc.end - sc.start); console.log('  skip', sc.id, '(3D 段，由 render_three 提供帧)'); continue; }
       const nFrames = sc.end - sc.start;
       const dir = path.join(ROOT, 'frames', sc.id);
       const definition = scenesById[sc.id] || { id: sc.id };
@@ -103,11 +105,13 @@ const server = http.createServer((req, res) => {
       const aud = fc.hashFile(path.join(ROOT, 'vo', sc.id + '.wav'));
       const dec = fc.decide({ visualHash: vis, audioHash: aud, frameCount: nFrames, cached: prev[sc.id] });
       const have = fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => f.endsWith('.png')).length : 0;
-      if (dec.render === false && !NO_CACHE && have === nFrames) { skipped++; console.log('  skip', sc.id, '(缓存命中)'); continue; }
+      if (dec.render === false && !NO_CACHE && have === nFrames) { skipped++; doneFrames += nFrames; console.log('  skip', sc.id, '(缓存命中)'); continue; }
       fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
       for (let k = 0; k < nFrames; k++) await captureFrame(sc.start + k, path.join(dir, `f_${String(k).padStart(4, '0')}.png`));
       next[sc.id] = { visualHash: vis, audioHash: aud, frameCount: nFrames, duration: +((sc.end - sc.start) / tl.fps).toFixed(3) };
-      rendered++; console.log('  render', sc.id, nFrames, '帧');
+      rendered++; doneFrames += nFrames;
+      const el = (Date.now() - t0a) / 1000; const rate = doneFrames / Math.max(el, 0.001); const eta = (totalFrames - doneFrames) / Math.max(rate, 0.001);
+      console.log('  render', sc.id, nFrames, '帧', `| 进度 ${(100 * doneFrames / Math.max(totalFrames, 1)).toFixed(0)}% (${doneFrames}/${totalFrames}) ETA ${eta.toFixed(0)}s`);
     }
     fc.saveIndex(ROOT, next);
     const err2 = await page.evaluate(() => window.__err);

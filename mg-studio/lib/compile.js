@@ -12,6 +12,8 @@ const { composeScenes } = require('./motion-plan');
 const { checkedAssetPath } = require('./project-assets');
 const { visualContext } = require('./shared-stage');
 
+require('./cli-help').help('用法: node compile.js [项目目录]\n编译 story.json + scenes/ → script.json + scene.html；B 级 lint 阻断写出。');
+
 function normalizeScene(sc, components = COMPONENTS) {
   const errors = [];
   const elements = (sc.elements || []).map(el => {
@@ -95,6 +97,7 @@ function compileProject(dir, settings = {}) {
     for (const el of sc.elements || []) if (el.type === 'waveform') {
       const ck = (el.props && el.props.color) || 'accent';
       if (!(ck in project.tokens.colors)) errors.push(`scene ${sc.id} waveform ${el.id} color 键不存在于 tokens.colors: ${ck}`);
+      if (el.props && el.props.annoColor != null && !(el.props.annoColor in project.tokens.colors)) errors.push(`scene ${sc.id} waveform ${el.id} annoColor 键不存在于 tokens.colors: ${el.props.annoColor}`);
     }
   }
   let scenes, lint = [];
@@ -109,7 +112,10 @@ function compileProject(dir, settings = {}) {
   }
   if (errors.length) return { mode: 'v2', lint, errors };
   for (const sc of scenes) for (const el of sc.elements)
-    if (el.type === 'waveform') el.props.colorHex = project.tokens.colors[el.props.color || 'accent'];
+    if (el.type === 'waveform') {
+      el.props.colorHex = project.tokens.colors[el.props.color || 'accent'];
+      el.props.annoHex = (el.props.annoColor && project.tokens.colors[el.props.annoColor]) || '#ff5d5d';
+    }
   const script = buildScriptJson(Object.assign({}, project, { scenes }));
   const html = emitSceneHtml({ tokens: project.tokens, scenes, components: COMPONENTS, preRuntime: PRE_RUNTIME,
     sharedStages: project.story.meta.director?.sharedStages,

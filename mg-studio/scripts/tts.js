@@ -19,6 +19,8 @@ const { execFileSync } = require('child_process');
 const { createHash } = require('node:crypto');
 const { preservedVoice } = require('../lib/shot-segment');
 
+require('../lib/cli-help').help('用法: node tts.js [--backend local|bailian] [--only id1,id2] [--reuse] [项目目录]\nlocal=系统语音(免费)；bailian=百炼(计费,有提示)；--only 仅重配指定场景；--reuse 复用已配音。');
+
 function parseArgs(argv) {
   const out = { backend: null, dir: null, only: null };
   for (let i = 0; i < argv.length; i++) {
@@ -133,6 +135,11 @@ function run({ dir: argvDir, backend, only, reuse }) {
   const { scenes, missing } = selectScenes(s.scenes, only);
   if (missing.length) console.warn('[!] --only 未命中场景 id（已忽略）:', missing.join(', '));
   if (!scenes.length) { console.error('[!] --only 未选中任何场景，未生成配音'); process.exit(1); }
+
+  if (cfg.backend === 'bailian') {
+    const chars = scenes.reduce((n, sc) => n + (sc.narration || '').length, 0);
+    console.log(`[计费提示] 百炼 TTS 为付费服务：本次最多合成 ${chars} 字（--reuse/已配音场景不重复计费）。`);
+  }
 
   for (const sc of scenes) {
     const wav = path.join(dir, 'vo', sc.id + '.wav');

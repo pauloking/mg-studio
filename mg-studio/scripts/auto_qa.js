@@ -50,6 +50,8 @@ function runQA({ dir, timeline, story, videoPath, skipMedia, subsByBeat = {} }) 
   return { diagnostics: diag, blocking: B, warnings: W };
 }
 
+require('../lib/cli-help').help('用法: node auto_qa.js [项目目录] [--skip-media]\nG4 QA：帧数/运行时/免责可见/音量；生成 reports/qa.md；B 阻断退出1。');
+
 function main() {
   const args = process.argv.slice(2); const pos = args.filter(a => !a.startsWith('--'));
   const dir = pos.length ? path.resolve(pos[0]) : process.cwd();
