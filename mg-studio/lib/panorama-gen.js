@@ -1,17 +1,13 @@
 'use strict';
-/* panorama-gen.js — Topic-Visual P3：panorama（术野/全景/视野）→ 内置参数化 3D 喂帧工程。
- * 3D 优先：确定性、免计费、可人工门对照参考图；stylized 示意非真实解剖。 */
+/* panorama-gen.js — Topic-Visual P3：panorama（术野/全景/视野）自动路线=干净 2D 分区示意。
+ * 教训：自动 primitive 3D 落在"恐怖谷"——既不准确也不示意，比干净分区图解更差。
+ * 故自动 panorama 委托 schematic-gen 产明确是图解的 2D 场景；
+ * "准确"路线保留 three3d 适配器供专家 authored/真实工程（外部喂帧），不自动产 primitive 3D。 */
+const { generateSchematicScene } = require('./schematic-gen');
 const { extractBrief } = require('./visual-intent');
 
 function generatePanoramaScene({ beat, minSec = 8 }) {
-  const brief = extractBrief(beat);
-  if (brief.type !== 'panorama') return null;
-  return {
-    id: beat.id, beat: beat.id, layout: 'three3d', minSec, visualBrief: brief,
-    elements: [{
-      id: 'panorama', type: 'three3d',
-      props: { threeProject: 'builtin:three-panorama', params: { structures: brief.structures, view: brief.view } }
-    }]
-  };
+  if (extractBrief(beat).type !== 'panorama') return null;
+  return generateSchematicScene({ beat, minSec });
 }
 module.exports = { generatePanoramaScene };

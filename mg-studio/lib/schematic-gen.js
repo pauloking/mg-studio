@@ -4,12 +4,13 @@
  * diagram/comparison → 节点流程/双栏。panorama/ambient 属 P3，返回 null。 */
 const { extractBrief } = require('./visual-intent');
 const { extractNodes, extractComparison } = require('./motion-plan');
-const GENERATED_TYPES = ['anatomy', 'device', 'diagram', 'comparison'];
+const GENERATED_TYPES = ['anatomy', 'device', 'diagram', 'comparison', 'panorama'];
 
 function generateSchematicScene({ beat, labels, minSec = 6 }) {
   const brief = extractBrief(beat);
   if (!GENERATED_TYPES.includes(brief.type)) return null;
-  const kind = brief.type === 'anatomy' ? 'anatomy' : brief.type === 'device' ? 'diagram' : brief.type;
+  // panorama/术野 自动路线=干净2D分区示意（明确是图解）；准确路线走专家参考影像/外部3D工程，不自动产primitive3D
+  const kind = (brief.type === 'anatomy' || brief.type === 'panorama') ? 'anatomy' : brief.type === 'device' ? 'diagram' : brief.type;
   const text = ((beat && beat.narration) || '') + ' ' + ((beat && beat.intent) || '');
   const auto = kind === 'diagram' ? extractNodes(text) : kind === 'comparison' ? extractComparison(text) : [];
   return {

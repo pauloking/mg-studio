@@ -17,11 +17,11 @@ const pan = { id: 'field', role: 'context', emotion: 3, intent: '术野全景', 
 const dia = { id: 'flow', role: 'mechanism', emotion: 3, intent: '流程', narration: '流程分为评估、准备、复核三个阶段。', facts: [] };
 const amb = { id: 'open', role: 'hook', emotion: 4, intent: '开场', narration: '欢迎观看本视频。', facts: [] };
 
-test('gen_visual：免费路径生成 panorama→3D、diagram→2D', () => {
+test('gen_visual：免费路径生成 panorama→2D示意、diagram→2D', () => {
   const dir = proj([pan, dia]);
   const r = run(dir);
   assert.equal(r.code, 0, r.out);
-  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'scenes', 'field.json'), 'utf8')).layout, 'three3d');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'scenes', 'field.json'), 'utf8')).layout, 'schematic');
   assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'scenes', 'flow.json'), 'utf8')).layout, 'schematic');
 });
 test('gen_visual：ambient 未授权 exit2 且不写场景不调百炼', () => {

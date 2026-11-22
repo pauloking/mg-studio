@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 'use strict';
-/* three-panorama/render_frames.js — bundled 参数化 3D 全景「喂帧」工程（Topic-Visual P3）。
+/* three-panorama/render_frames.js — 示例/草稿级「Three.js 喂帧」工程（仅供专家替换/契约示例）。
+ * 注意：自动 panorama 已改走干净 2D 分区示意（schematic-gen）；本 primitive/stylized 3D 落在
+ * "既不准确也不示意"的恐怖谷，不可直接当交付。准确路线=专家参考影像或专业建模外部工程。
  * 遵守 mg-studio three3d 喂帧契约：--out --frames --fps --width --height [--tokens] [--params]
  * → 写出 f_0000.png..f_{N-1}.png。确定性：画面只由帧号驱动（t=i/fps），不读墙钟。
  * 内容为通用 stylized 术野/全景示意（双腔+间隔+导线+螺旋），非真实解剖；须 visual-review 人工门。

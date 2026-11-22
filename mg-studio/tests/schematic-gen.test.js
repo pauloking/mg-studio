@@ -42,8 +42,10 @@ test('generateSchematicScene：diagram 用 labels', () => {
   assert.deepEqual(sc.elements[0].props.labels, ['评估', '准备', '复核']);
 });
 
-test('generateSchematicScene：panorama/ambient 返回 null（P3 范畴）', () => {
-  assert.equal(generateSchematicScene({ beat: { id: 'p', narration: '术野全景。' } }), null);
+test('generateSchematicScene：panorama→2D分区示意；ambient 返回 null', () => {
+  const pan = generateSchematicScene({ beat: { id: 'p', narration: '术野全景。' } });
+  assert.equal(pan.layout, 'schematic');
+  assert.equal(pan.elements[0].props.type, 'anatomy');
   assert.equal(generateSchematicScene({ beat: { id: 'a', narration: '欢迎观看。' } }), null);
 });
 

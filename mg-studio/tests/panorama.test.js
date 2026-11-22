@@ -9,14 +9,14 @@ const vr = require('../lib/visual-review');
 
 const panBeat = { id: 'field', role: 'context', emotion: 3, intent: '术野全景', narration: '术野全景可见心脏与导线，镜像视角。', facts: [] };
 
-test('generatePanoramaScene：panorama → three3d builtin 工程+params', () => {
+test('generatePanoramaScene：panorama → 干净2D分区示意（非primitive3D）', () => {
   const sc = generatePanoramaScene({ beat: panBeat });
-  assert.equal(sc.layout, 'three3d');
+  assert.equal(sc.layout, 'schematic');
   assert.equal(sc.id, 'field');
   const p = sc.elements[0].props;
-  assert.equal(p.threeProject, 'builtin:three-panorama');
-  assert.equal(p.params.view, 'mirror');
-  assert.ok(p.params.structures.includes('心脏'));
+  assert.equal(p.type, 'anatomy');
+  assert.equal(p.view, 'mirror');
+  assert.ok(p.structures.includes('心脏'));
   assert.deepEqual(sc.visualBrief, require('../lib/visual-intent').extractBrief(panBeat));
 });
 test('generatePanoramaScene：非 panorama 返回 null', () => {
@@ -33,11 +33,11 @@ test('resolveProject：builtin 指向内置模板且满足喂帧契约', () => {
 test('resolveProject：相对路径按 baseDir 解析', () => {
   assert.equal(resolveProject('sub/proj', '/tmp/base'), path.resolve('/tmp/base', 'sub/proj'));
 });
-test('fallbackScene：panorama 仅图标时优先 3D 生成', () => {
+test('fallbackScene：panorama 仅图标时优先2D示意生成', () => {
   const sc = fallbackScene({ beat: panBeat, dir: os.tmpdir() });
-  assert.ok(sc, 'panorama 应生成 3D 而非摆图标');
-  assert.equal(sc.layout, 'three3d');
+  assert.ok(sc, 'panorama 应生成2D示意而非摆图标');
+  assert.equal(sc.layout, 'schematic');
 });
-test('visual-review：panorama three3d 需人工门', () => {
+test('visual-review：panorama 示意仍需人工门', () => {
   assert.equal(vr.needsReview(generatePanoramaScene({ beat: panBeat })), true);
 });
