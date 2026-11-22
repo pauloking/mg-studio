@@ -1,0 +1,32 @@
+{
+  "id": "flow",
+  "beat": "flow",
+  "layout": "schematic",
+  "minSec": 6,
+  "visualBrief": {
+    "subject": "流程",
+    "type": "diagram",
+    "structures": [],
+    "view": null
+  },
+  "elements": [
+    {
+      "id": "graphic",
+      "type": "schematic",
+      "props": {
+        "x": 160,
+        "y": 140,
+        "w": 1600,
+        "h": 720,
+        "structures": [],
+        "view": null,
+        "type": "diagram",
+        "labels": [
+          "评估",
+          "准备",
+          "复核"
+        ]
+      }
+    }
+  ]
+}

@@ -16,6 +16,7 @@ test('resolveVisual：ambient 不需人工门', () => {
 });
 test('visual-review：topic-visual / visualBrief 触发门', () => {
   assert.equal(vr.needsReview({ layout: 'topic-visual' }), true);
-  assert.equal(vr.needsReview({ layout: 'points', visualBrief: { type: 'panorama' } }), true);
+  assert.equal(vr.needsReview({ layout: 'points', visualBrief: { type: 'panorama', structures: ['心脏'] } }), true);
+  assert.equal(vr.needsReview({ layout: 'points', visualBrief: { type: 'panorama', structures: [] } }), false);
   assert.equal(vr.needsReview({ layout: 'points', visualBrief: { type: 'ambient' } }), false);
 });

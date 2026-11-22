@@ -6,7 +6,8 @@ const COMPONENTS = {
   'stat': require('./stat'),
   'motion-graphic': require('./motion-graphic'),
   'directed': require('./directed'),
-  'three3d': require('./three3d')
+  'three3d': require('./three3d'),
+  'schematic': require('./schematic')
 };
 const LAYOUT_NAMES = Object.keys(COMPONENTS).filter(name => name !== 'motion-graphic');
 module.exports = { COMPONENTS, LAYOUT_NAMES };

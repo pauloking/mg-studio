@@ -14,6 +14,13 @@ const { execFileSync } = require('child_process');
 
 const CONTRACT = 'render_frames.js';
 
+/** 解析 threeProject：builtin:<name> → 工具内置 templates/<name>；否则绝对/相对(baseDir)路径。 */
+function resolveProject(tp, baseDir) {
+  if (typeof tp === 'string' && tp.startsWith('builtin:')) return path.join(__dirname, '..', 'templates', tp.slice('builtin:'.length));
+  if (path.isAbsolute(tp)) return tp;
+  return path.resolve(baseDir || process.cwd(), tp);
+}
+
 /** 校验 threeProject 是否满足喂帧契约；返回缺失项数组 */
 function checkContract(threeProjectDir) {
   const miss = [];
@@ -26,7 +33,7 @@ function checkContract(threeProjectDir) {
  * renderThreeScene({ threeProjectDir, outDir, frameCount, fps, width, height, tokensPath })
  * → { ok, count, expected, err? }
  */
-function renderThreeScene({ threeProjectDir, outDir, frameCount, fps = 30, width = 1920, height = 1080, tokensPath }) {
+function renderThreeScene({ threeProjectDir, outDir, frameCount, fps = 30, width = 1920, height = 1080, tokensPath, params }) {
   const miss = checkContract(threeProjectDir);
   if (miss.length) return { ok: false, count: 0, expected: frameCount, err: miss.join('; ') };
   if (!Number.isInteger(frameCount) || frameCount <= 0) return { ok: false, count: 0, expected: frameCount, err: 'frameCount 须为正整数' };
@@ -34,10 +41,17 @@ function renderThreeScene({ threeProjectDir, outDir, frameCount, fps = 30, width
   const args = [path.join(threeProjectDir, CONTRACT), '--out', outDir, '--frames', String(frameCount),
     '--fps', String(fps), '--width', String(width), '--height', String(height)];
   if (tokensPath) args.push('--tokens', tokensPath);
+  let paramsFile = null;
+  if (params && typeof params === 'object') {
+    paramsFile = path.join(require('os').tmpdir(), 'mg-three-params-' + process.pid + '-' + Date.now() + '.json');
+    fs.writeFileSync(paramsFile, JSON.stringify(params));
+    args.push('--params', paramsFile);
+  }
   try { execFileSync(process.execPath, args, { cwd: threeProjectDir, stdio: ['ignore', 'pipe', 'pipe'] }); }
   catch (e) { return { ok: false, count: 0, expected: frameCount, err: 'render_frames 执行失败: ' + ((e.message || e) + '').slice(0, 200) }; }
+  finally { if (paramsFile) fs.rmSync(paramsFile, { force: true }); }
   const count = fs.existsSync(outDir) ? fs.readdirSync(outDir).filter(f => f.endsWith('.png')).length : 0;
   return { ok: count === frameCount, count, expected: frameCount, err: count === frameCount ? null : `帧数 ${count} != ${frameCount}` };
 }
 
-module.exports = { checkContract, renderThreeScene, CONTRACT };
+module.exports = { checkContract, renderThreeScene, resolveProject, CONTRACT };

@@ -23,7 +23,7 @@ function displayText(text, maxWidth) {
 
 function extractNodes(text) {
   if (!/时间节点|依次|阶段|步骤|动作|环节/.test(text)) return [];
-  const phrase = /(?:区分了?|依次(?:经过|包括|为)|分别为|三个阶段是)([^。！？；]+?)(?:[两三四]个(?:时间)?(?:节点|阶段|步骤)|[。！？；]|$)/.exec(text)?.[1]
+  const phrase = /(?:区分了?|依次(?:经过|包括|为)|分别为|三个阶段是)([^。！？；]+?)(?:[两三四]个(?:时间)?(?:节点|阶段|步骤|环节)|[。！？；]|$)/.exec(text)?.[1]
     || /从([^。！？；]{3,50}?)[两三四]个(?:动作|步骤|环节)/.exec(text)?.[1];
   if (!phrase) return [];
   const labels = phrase.trim().split(/\s*(?:、|和|与|→)\s*/);
@@ -78,4 +78,4 @@ function composeScenes(project) {
   });
 }
 
-module.exports = { MOTION_MODES, canCompose, composeScenes };
+module.exports = { MOTION_MODES, canCompose, composeScenes, extractNodes, extractComparison };
