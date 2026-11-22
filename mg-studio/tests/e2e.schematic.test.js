@@ -36,5 +36,5 @@ test('mini-schematic：撤销批准后人工门阻断出片', { timeout: 240000 
   let err = null;
   try { make(work); } catch (e) { err = e; }
   assert.ok(err, '未批准应阻断');
-  assert.ok(String(err.stdout || '') + String(err.stderr || '') .includes('VISUAL_REVIEW_REQUIRED'), '应报 VISUAL_REVIEW_REQUIRED');
+  assert.ok((String(err.stdout || '') + String(err.stderr || '')).includes('VISUAL_REVIEW_REQUIRED'), '应报 VISUAL_REVIEW_REQUIRED');
 });

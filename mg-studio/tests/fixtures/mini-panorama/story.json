@@ -1,0 +1,19 @@
+{
+  "schema": 2,
+  "meta": {
+    "title": "panorama e2e",
+    "audience": "general",
+    "template": "free",
+    "durationTarget": 20
+  },
+  "beats": [
+    {
+      "id": "field",
+      "role": "context",
+      "emotion": 3,
+      "intent": "术野全景",
+      "narration": "术野全景可见心脏与导线。",
+      "facts": []
+    }
+  ]
+}

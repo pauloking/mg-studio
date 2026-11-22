@@ -6,7 +6,7 @@ require('../lib/cli-help').help('用法: node render_three.js [项目目录]\n�
  * 在 render.js --all 之前运行；render --all 会跳过 three3d 段避免覆盖。
  */
 const fs = require('fs'), path = require('path');
-const { renderThreeScene } = require('../lib/three3d');
+const { renderThreeScene, resolveProject } = require('../lib/three3d');
 
 function main() {
   const pos = process.argv.slice(2).filter(a => !a.startsWith('--'));
@@ -21,8 +21,8 @@ function main() {
     const el = (s.elements || []).find(e => e.type === 'three3d') || {};
     const tp = el.props && el.props.threeProject;
     if (!tp) { console.error('three3d 段缺 threeProject:', sc.id); ok = false; continue; }
-    const tpDir = path.isAbsolute(tp) ? tp : path.resolve(dir, tp);
-    const r = renderThreeScene({ threeProjectDir: tpDir, outDir: path.join(dir, 'frames', sc.id), frameCount: sc.end - sc.start, fps: tl.fps, width: tl.width, height: tl.height, tokensPath });
+    const tpDir = resolveProject(tp, dir);
+    const r = renderThreeScene({ threeProjectDir: tpDir, outDir: path.join(dir, 'frames', sc.id), frameCount: sc.end - sc.start, fps: tl.fps, width: tl.width, height: tl.height, tokensPath, params: el.props && el.props.params });
     console.log(r.ok ? `  three3d ${sc.id} ${r.count} 帧` : `  three3d FAIL ${sc.id}: ${r.err}`);
     if (!r.ok) ok = false; did++;
   }
